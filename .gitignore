@@ -1,0 +1,8 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Dependencies and operating-system files
+**/node_modules/
+.DS_Store

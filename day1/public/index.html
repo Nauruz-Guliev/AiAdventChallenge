@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advent Chat</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root { --bg:#0b1020; --panel:#121a2d; --muted:#8994ad; --text:#f4f7ff; --line:#26314b; --accent:#8b7cff; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 80% 0%,#283160 0,#0b1020 42%); color:var(--text); font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif; }
+    .app { min-height:100vh; display:grid; grid-template-rows:auto 1fr auto; max-width:1100px; margin:auto; }
+    header { padding:22px 28px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:linear-gradient(135deg,#8b7cff,#e274c8); font-size:21px; box-shadow:0 8px 30px #8b7cff33; }
+    h1 { margin:0; font-size:19px; letter-spacing:-.02em; }
+    .subtitle { color:var(--muted); font-size:12px; }
+    #clear-btn { color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:9px; padding:8px 12px; cursor:pointer; }
+    #clear-btn:hover { color:var(--text); border-color:#526083; }
+    #chat-box { width:min(780px,100%); margin:auto; padding:34px 24px 22px; overflow-y:auto; }
+    #welcome { text-align:center; margin:12vh 0; color:var(--muted); }
+    #welcome strong { color:var(--text); font-size:20px; display:block; margin-bottom:6px; }
+    .message { max-width:82%; margin:0 0 18px; padding:14px 17px; border:1px solid var(--line); border-radius:18px; animation:appear .2s ease; overflow-wrap:anywhere; }
+    .message.user { margin-left:auto; background:linear-gradient(135deg,#6558d8,#874db0); border-color:transparent; border-bottom-right-radius:5px; }
+    .message.bot { background:#121a2ddd; border-bottom-left-radius:5px; }
+    .message p:first-child { margin-top:0; } .message p:last-child { margin-bottom:0; }
+    .message pre { padding:13px; overflow:auto; border-radius:10px; background:#080c17; }
+    .message code { font-family:ui-monospace,SFMono-Regular,monospace; font-size:.9em; }
+    .reasoning { margin-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .reasoning summary { cursor:pointer; padding-top:10px; }
+    .reasoning p { white-space:pre-wrap; }
+    .typing { display:flex; gap:5px; width:fit-content; padding:16px 18px; }
+    .typing i { width:6px; height:6px; border-radius:50%; background:#98a2bb; animation:bounce 1s infinite; }
+    .typing i:nth-child(2){animation-delay:.14s}.typing i:nth-child(3){animation-delay:.28s}
+    @keyframes appear { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} } @keyframes bounce{50%{transform:translateY(-5px);opacity:1}}
+    .composer { width:min(780px,100%); margin:auto; padding:12px 24px 26px; }
+    .composer-box { display:flex; align-items:flex-end; gap:10px; padding:10px; border:1px solid #35415f; background:#121a2df2; border-radius:17px; box-shadow:0 12px 45px #0003; }
+    textarea { flex:1; min-height:42px; max-height:150px; resize:none; border:0; outline:0; background:transparent; color:var(--text); font:inherit; padding:9px 8px; }
+    textarea::placeholder { color:#68738e; }
+    .model-wrap { position:relative; }
+    #model-select { appearance:none; min-width:150px; color:var(--text); background:#1b2540; border:1px solid #35415f; border-radius:10px; padding:9px 28px 9px 11px; cursor:pointer; outline:0; }
+    .model-wrap:after { content:'⌄'; position:absolute; right:10px; top:7px; color:var(--muted); pointer-events:none; }
+    #send-btn { border:0; border-radius:11px; padding:10px 16px; color:#fff; background:linear-gradient(135deg,#7568ef,#b55ccc); font-weight:700; cursor:pointer; }
+    #send-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .hint { color:var(--muted); font-size:11px; text-align:center; margin-top:9px; }
+    @media(max-width:620px) { header{padding:16px}.subtitle{display:none} #chat-box{padding:22px 14px}.composer{padding:8px 14px 16px}.composer-box{flex-wrap:wrap}.model-wrap{order:3;width:100%}#model-select{width:100%}#send-btn{flex:0 0 auto}.message{max-width:92%} }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand"><div class="logo">✦</div><div><h1>Advent Chat</h1><div class="subtitle">A private conversation with your AI assistant</div></div></div>
+      <button id="clear-btn">Clear chat</button>
+    </header>
+    <section id="chat-box"><div id="welcome"><strong>Hi, Nauruz</strong>Ask a question or describe what you want to build.</div></section>
+    <section class="composer">
+      <div class="composer-box">
+        <textarea id="msg" placeholder="Message your assistant..." rows="1"></textarea>
+        <div class="model-wrap"><select id="model-select" aria-label="Choose a model"><option>Loading models...</option></select></div>
+        <button id="send-btn">Send</button>
+      </div>
+      <div class="hint">Enter to send · Shift + Enter for a new line</div>
+    </section>
+  </main>
+  <script>
+    const chatBox = document.getElementById('chat-box');
+    const input = document.getElementById('msg');
+    const sendBtn = document.getElementById('send-btn');
+    const modelSelect = document.getElementById('model-select');
+    let typing;
+
+    async function loadModels() {
+      const response = await fetch('/api/models');
+      const { models } = await response.json();
+      modelSelect.innerHTML = models.map(model => `<option value="${model.id}" title="${model.description}">${model.name}</option>`).join('');
+    }
+    function addMessage(content, user, reasoning) {
+      document.getElementById('welcome')?.remove();
+      const item = document.createElement('article'); item.className = `message ${user ? 'user' : 'bot'}`;
+      item.innerHTML = user ? '' : marked.parse(content);
+      if (user) item.textContent = content;
+      if (!user && reasoning) item.innerHTML += `<details class="reasoning"><summary>Show reasoning summary</summary><p></p></details>`;
+      if (!user && reasoning) item.querySelector('.reasoning p').textContent = reasoning;
+      chatBox.appendChild(item); chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    function showTyping() { typing=document.createElement('div'); typing.className='message bot typing'; typing.innerHTML='<i></i><i></i><i></i>'; chatBox.appendChild(typing); chatBox.scrollTop=chatBox.scrollHeight; }
+    function hideTyping() { typing?.remove(); typing=null; }
+    async function sendMessage() {
+      const message=input.value.trim(); if(!message || sendBtn.disabled) return;
+      addMessage(message,true); input.value=''; sendBtn.disabled=true; showTyping();
+      try {
+        const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,model:modelSelect.value})});
+        const data=await response.json(); hideTyping();
+        addMessage(response.ok ? data.response : `Error: ${data.error || 'Request failed'}`,false,response.ok ? data.reasoning : null);
+      } catch(error) { hideTyping(); addMessage('Could not connect to the server.',false); }
+      sendBtn.disabled=false; input.focus();
+    }
+    async function clearChat() { await fetch('/api/clear',{method:'POST'}); chatBox.innerHTML='<div id="welcome"><strong>Fresh start</strong>What would you like to explore?</div>'; input.focus(); }
+    sendBtn.addEventListener('click',sendMessage); document.getElementById('clear-btn').addEventListener('click',clearChat);
+    input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}});
+    loadModels().catch(()=>{modelSelect.innerHTML='<option value="kimi-k3">Kimi K3</option>';}); input.focus();
+  </script>
+</body>
+</html>
