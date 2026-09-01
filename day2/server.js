@@ -7,29 +7,63 @@ const app = express();
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const MODEL = 'qwen3.6-plus';
+const MODEL = 'laguna-s-2.1-free';
 const MAX_PROMPT_LENGTH = 4000;
-const STOP_SEQUENCE = '<END>';
+const STOP_SEQUENCE = '[[DONE]]';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1',
+  baseURL: process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/v1',
 });
 
 const CONTROL_INSTRUCTIONS = [
-  'Return exactly 3 numbered items using this format: 1. ..., 2. ..., 3. ...',
-  'Each item must be exactly one sentence and no longer than 18 words.',
-  `Do not add a title, introduction, conclusion, or extra text. End with ${STOP_SEQUENCE}.`,
+  'Return exactly 3 numbered items, with each item on its own line, using this format: 1. ... newline 2. ... newline 3. ...',
+  'Each item must be exactly one sentence, ideally 12 to 15 words, and never longer than 18 words.',
+  `Do not add a title, introduction, conclusion, or extra text. Check every rule before answering. End with ${STOP_SEQUENCE}.`,
 ].join(' ');
 
+function getItems(text) {
+  return text.replace(/\r/g, '').split(/\n+/).flatMap(line => line.split(/(?=\d+\.\s+)/)).map(item => item.trim()).filter(Boolean);
+}
+
+function isControlledResponse(text) {
+  const items = getItems(text);
+  return items.length === 3 && items.every((item, index) => {
+    const body = item.replace(new RegExp(`^${index + 1}\\.\\s+`), '').trim();
+    return body.length > 0 && /[.!?]$/.test(body) && body.split(/\s+/).length <= 18;
+  });
+}
+
+async function requestControlled(prompt) {
+  const request = {
+    model: MODEL,
+    messages: [
+      { role: 'system', content: CONTROL_INSTRUCTIONS },
+      { role: 'user', content: prompt },
+    ],
+    max_tokens: 600,
+    stop: [STOP_SEQUENCE],
+    temperature: 0.2,
+  };
+
+  let completion;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    completion = await openai.chat.completions.create(request);
+    if (isControlledResponse(getText(completion))) return completion;
+  }
+  return completion;
+}
+
 function getText(completion) {
-  return completion.choices?.[0]?.message?.content?.trim() || '';
+  return completion.choices?.[0]?.message?.content?.replaceAll(STOP_SEQUENCE, '').trim() || '';
 }
 
 function getResult(completion) {
+  const finishReason = completion.choices?.[0]?.finish_reason || 'unknown';
   return {
     text: getText(completion),
-    finishReason: completion.choices?.[0]?.finish_reason || 'unknown',
+    finishReason,
+    stopTriggered: finishReason === 'stop',
     promptTokens: completion.usage?.prompt_tokens ?? null,
     completionTokens: completion.usage?.completion_tokens ?? null,
   };
@@ -44,6 +78,7 @@ app.get('/api/config', (req, res) => {
       length: '18 words maximum per item',
       stop: STOP_SEQUENCE,
       maxTokens: 600,
+      temperature: 0.2,
     },
   });
 });
@@ -61,18 +96,9 @@ app.post('/api/compare', async (req, res) => {
       openai.chat.completions.create({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
       }),
-      openai.chat.completions.create({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: CONTROL_INSTRUCTIONS },
-          { role: 'user', content: prompt },
-        ],
-        // OpenCode reasoning can consume part of the technical token budget.
-        // The visible answer is still limited by the explicit 18-word/item rule.
-        max_tokens: 600,
-        stop: [STOP_SEQUENCE],
-      }),
+      requestControlled(prompt),
     ]);
 
     res.json({

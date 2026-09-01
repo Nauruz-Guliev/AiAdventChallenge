@@ -5,7 +5,7 @@ This project sends the same user prompt to the same LLM model twice and compares
 1. **Without constraints**: the model receives only the user prompt.
 2. **With constraints**: the model receives explicit format and length instructions, plus the API parameters `max_tokens` and `stop`.
 
-Both requests use the single verified model `qwen3.6-plus`.
+Both requests use the free OpenCode Zen model `laguna-s-2.1-free`.
 
 ## Controlled request
 
@@ -14,9 +14,11 @@ The controlled request asks the model to:
 - Return exactly three numbered items.
 - Use one sentence per item.
 - Keep every item within 18 words.
-- Stop at the `<END>` sequence.
+- Stop at the `[[DONE]]` sequence.
 
-The API request also sets `max_tokens: 600` and `stop: ["<END>"]`. OpenCode reasoning models can use part of the technical token budget before producing visible text, so `600` avoids an empty visible response while the explicit 18-word-per-item rule controls the user-facing answer.
+The API request also sets `max_tokens: 600` and `stop: ["[[DONE]]"]`. OpenCode reasoning models can use part of the technical token budget before producing visible text, so `600` avoids an empty visible response while the explicit 18-word-per-item rule controls the user-facing answer.
+
+Both calls use the same model and `temperature: 0.2`; the controlled call is the only one that adds response-format instructions, `max_tokens`, and `stop`.
 
 ## Run locally
 
