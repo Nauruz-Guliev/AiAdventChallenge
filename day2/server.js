@@ -17,9 +17,9 @@ const openai = new OpenAI({
 });
 
 const CONTROL_INSTRUCTIONS = [
-  'Return exactly 3 numbered items, with each item on its own line, using this format: 1. ... newline 2. ... newline 3. ...',
-  'Each item must be exactly one sentence, ideally 12 to 15 words, and never longer than 18 words.',
-  `Do not add a title, introduction, conclusion, or extra text. Check every rule before answering. End with ${STOP_SEQUENCE}.`,
+  'Верни ровно 3 нумерованных пункта, каждый пункт с новой строки, в формате: 1. ... новая строка 2. ... новая строка 3. ...',
+  'Каждый пункт должен быть одним предложением, желательно от 12 до 15 слов, но никогда не больше 18 слов.',
+  `Не добавляй заголовок, вступление, заключение или другой текст. Проверь все правила перед ответом. Заверши ответ маркером ${STOP_SEQUENCE}.`,
 ].join(' ');
 
 function getItems(text) {
@@ -60,12 +60,15 @@ function getText(completion) {
 
 function getResult(completion) {
   const finishReason = completion.choices?.[0]?.finish_reason || 'unknown';
+  const usage = completion.usage || {};
   return {
     text: getText(completion),
     finishReason,
     stopTriggered: finishReason === 'stop',
-    promptTokens: completion.usage?.prompt_tokens ?? null,
-    completionTokens: completion.usage?.completion_tokens ?? null,
+    promptTokens: usage.prompt_tokens ?? null,
+    completionTokens: usage.completion_tokens ?? null,
+    totalTokens: usage.total_tokens ?? null,
+    reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? null,
   };
 }
 
@@ -75,8 +78,8 @@ app.get('/api/config', (req, res) => {
     model: MODEL,
     controlled: {
       instructions: CONTROL_INSTRUCTIONS,
-      format: 'Exactly 3 numbered items, one sentence per item',
-      length: '18 words maximum per item',
+      format: 'Ровно 3 нумерованных пункта, по одному предложению',
+      length: 'Максимум 18 слов в каждом пункте',
       stop: STOP_SEQUENCE,
       maxTokens: 2000,
       temperature: 0.2,
@@ -112,10 +115,10 @@ app.post('/api/compare', async (req, res) => {
     console.error('Comparison error:', error.message);
     const status = error.status === 401 ? 401 : error.status === 429 ? 429 : 502;
     const message = status === 401
-      ? 'The API key was rejected. Check your local .env file.'
+      ? 'API-ключ отклонён. Проверьте локальный файл .env.'
       : status === 429
-        ? 'The model is temporarily busy. Try again in a moment.'
-        : 'The comparison failed. Check the API endpoint and try again.';
+        ? 'Модель временно перегружена. Попробуйте ещё раз через некоторое время.'
+        : 'Сравнение не выполнено. Проверьте API endpoint и повторите попытку.';
     res.status(status).json({ error: message });
   }
 });

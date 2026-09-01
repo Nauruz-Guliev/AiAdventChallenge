@@ -1,10 +1,10 @@
 # AI Advent Challenge
 
-Small, focused projects exploring LLM APIs.
+Небольшие проекты для изучения LLM API.
 
-## Challenges
+## Дни
 
-- [`day1`](./day1) - A web chat using an OpenCode-compatible LLM API.
-- [`day2`](./day2) - A visual comparison of an unrestricted response and a response controlled by format, length, and stop conditions.
+- [`day1`](./day1) — веб-чат с OpenCode-совместимым LLM API.
+- [`day2`](./day2) — наглядное сравнение обычного ответа и ответа с ограничениями формата, длины и завершения.
 
-Each challenge is self-contained and includes its own setup instructions.
+Каждый день является отдельным проектом и содержит собственную инструкцию по запуску.

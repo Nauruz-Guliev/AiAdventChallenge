@@ -1,38 +1,61 @@
-# Day 2: Response Format Control
+# День 2: Контроль формата ответа
 
-This project sends the same user prompt to the same LLM model twice and compares the result:
+Приложение отправляет один и тот же пользовательский prompt в одну и ту же модель два раза и сравнивает результаты:
 
-1. **Without constraints**: the model receives only the user prompt.
-2. **With constraints**: the model receives explicit format and length instructions, plus the API parameters `max_tokens` and `stop`.
+1. **Без ограничений**: модель получает только пользовательский prompt.
+2. **С ограничениями**: модель получает явные правила формата и длины, а API-запрос дополнительно использует `max_tokens` и `stop`.
 
-Both requests use the powerful DeepSeek API model `deepseek-v4-pro`.
+Оба вызова используют модель DeepSeek `deepseek-v4-pro` через прямой API:
 
-## Controlled request
+```text
+https://api.deepseek.com/v1
+```
 
-The controlled request asks the model to:
+## Ограниченный запрос
 
-- Return exactly three numbered items.
-- Use one sentence per item.
-- Keep every item within 18 words.
-- Stop at the `[[DONE]]` sequence.
+Модель получает следующие инструкции:
 
-The API request also sets `max_tokens: 2000` and `stop: ["[[DONE]]"]`. DeepSeek reasoning can use part of the technical token budget before producing visible text, so `2000` avoids an empty visible response while the explicit 18-word-per-item rule controls the user-facing answer.
+- вернуть ровно три нумерованных пункта;
+- разместить каждый пункт на новой строке;
+- использовать одно предложение в каждом пункте;
+- не превышать 18 слов в одном пункте;
+- завершить ответ маркером `[[DONE]]`.
 
-Both calls use the same model and `temperature: 0.2`; the controlled call is the only one that adds response-format instructions, `max_tokens`, and `stop`. DeepSeek API usage may be billed according to the account plan.
+Параметры API:
 
-## Run locally
+```json
+{
+  "temperature": 0.2,
+  "max_tokens": 2000,
+  "stop": ["[[DONE]]"]
+}
+```
+
+`max_tokens` ограничивает технический бюджет ответа. У reasoning-моделей часть бюджета может использоваться до появления видимого текста, поэтому значение `2000` оставляет модели достаточно места для ответа.
+
+## Что показывает интерфейс
+
+- два ответа рядом: обычный и управляемый;
+- количество символов и слов;
+- входные, выходные, reasoning и общие токены;
+- `finish_reason` и факт срабатывания stop sequence;
+- автоматическую проверку формата controlled-ответа;
+- точные payload обоих API-вызовов до запуска генерации;
+- итоговое сокращение controlled-ответа.
+
+## Запуск
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-Add your DeepSeek API key to `.env`, then start the app:
+Добавьте DeepSeek API key в `.env`, затем запустите приложение:
 
 ```bash
 npm start
 ```
 
-Open `http://localhost:3002`.
+Откройте http://localhost:3002.
 
-The API key is used only by the backend. `.env` is ignored by Git; `.env.example` is the safe template to commit.
+API-ключ используется только backend и не попадает в Git. Файл `.env` игнорируется, а `.env.example` предназначен для публикации.
