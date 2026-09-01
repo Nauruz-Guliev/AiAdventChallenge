@@ -7,13 +7,13 @@ const app = express();
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const MODEL = 'laguna-s-2.1-free';
+const MODEL = 'deepseek-v4-pro';
 const MAX_PROMPT_LENGTH = 4000;
 const STOP_SEQUENCE = '[[DONE]]';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/v1',
+  baseURL: process.env.OPENAI_BASE_URL || 'https://api.deepseek.com/v1',
 });
 
 const CONTROL_INSTRUCTIONS = [
@@ -41,7 +41,7 @@ async function requestControlled(prompt) {
       { role: 'system', content: CONTROL_INSTRUCTIONS },
       { role: 'user', content: prompt },
     ],
-    max_tokens: 600,
+    max_tokens: 2000,
     stop: [STOP_SEQUENCE],
     temperature: 0.2,
   };
@@ -55,7 +55,7 @@ async function requestControlled(prompt) {
 }
 
 function getText(completion) {
-  return completion.choices?.[0]?.message?.content?.replaceAll(STOP_SEQUENCE, '').trim() || '';
+  return (completion.choices?.[0]?.message?.content || '').replaceAll(STOP_SEQUENCE, '').trim();
 }
 
 function getResult(completion) {
@@ -71,13 +71,14 @@ function getResult(completion) {
 
 app.get('/api/config', (req, res) => {
   res.json({
+    provider: 'DeepSeek API',
     model: MODEL,
     controlled: {
       instructions: CONTROL_INSTRUCTIONS,
       format: 'Exactly 3 numbered items, one sentence per item',
       length: '18 words maximum per item',
       stop: STOP_SEQUENCE,
-      maxTokens: 600,
+      maxTokens: 2000,
       temperature: 0.2,
     },
   });

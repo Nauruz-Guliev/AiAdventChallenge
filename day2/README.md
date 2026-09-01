@@ -5,7 +5,7 @@ This project sends the same user prompt to the same LLM model twice and compares
 1. **Without constraints**: the model receives only the user prompt.
 2. **With constraints**: the model receives explicit format and length instructions, plus the API parameters `max_tokens` and `stop`.
 
-Both requests use the free OpenCode Zen model `laguna-s-2.1-free`.
+Both requests use the powerful DeepSeek API model `deepseek-v4-pro`.
 
 ## Controlled request
 
@@ -16,9 +16,9 @@ The controlled request asks the model to:
 - Keep every item within 18 words.
 - Stop at the `[[DONE]]` sequence.
 
-The API request also sets `max_tokens: 600` and `stop: ["[[DONE]]"]`. OpenCode reasoning models can use part of the technical token budget before producing visible text, so `600` avoids an empty visible response while the explicit 18-word-per-item rule controls the user-facing answer.
+The API request also sets `max_tokens: 2000` and `stop: ["[[DONE]]"]`. DeepSeek reasoning can use part of the technical token budget before producing visible text, so `2000` avoids an empty visible response while the explicit 18-word-per-item rule controls the user-facing answer.
 
-Both calls use the same model and `temperature: 0.2`; the controlled call is the only one that adds response-format instructions, `max_tokens`, and `stop`.
+Both calls use the same model and `temperature: 0.2`; the controlled call is the only one that adds response-format instructions, `max_tokens`, and `stop`. DeepSeek API usage may be billed according to the account plan.
 
 ## Run locally
 
@@ -27,7 +27,7 @@ npm install
 cp .env.example .env
 ```
 
-Add your OpenCode API key to `.env`, then start the app:
+Add your DeepSeek API key to `.env`, then start the app:
 
 ```bash
 npm start
