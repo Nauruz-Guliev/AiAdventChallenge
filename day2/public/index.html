@@ -33,6 +33,16 @@
     .payload code { display:block; overflow:auto; color:#5e6475; font:10px/1.6 ui-monospace,SFMono-Regular,monospace; white-space:pre-wrap; }
     .proof-note { margin:12px 0 0 !important; font-size:10px !important; }
     @media(max-width:620px) { .payloads { grid-template-columns:1fr; } }
+    .page { padding:24px 28px 30px; }
+    .top { margin-bottom:24px; }
+    #welcome { min-height:250px; }
+    .controls { padding:17px; }
+    .control { padding:9px 0; }
+    .prompt-panel { padding:18px; }
+    .prompt-box textarea { min-height:92px; }
+    .result-body { min-height:170px; }
+    .results { margin-top:14px; }
+    .proof { margin-top:14px; padding:16px 18px; }
   </style>
 </head>
 <body>
@@ -46,7 +56,7 @@
         <div class="control"><div class="control-label"><span class="number">3</span>Stop condition</div><p>Stop when the model reaches the marker.</p><span class="code-pill">stop: [&quot;[[DONE]]&quot;]</span></div>
       </aside>
       <div>
-        <section class="panel prompt-panel"><div class="prompt-head"><label for="prompt">Your shared prompt</label><span class="model" id="model">DeepSeek · loading...</span></div><div class="prompt-box"><textarea id="prompt" maxlength="4000" placeholder="Ask the model to explain, compare, or summarize something...">Explain how an API works for a beginner and give practical examples.</textarea></div><div class="prompt-footer"><div class="examples"><button class="example" data-prompt="Explain how an API works for a beginner and give practical examples.">API basics</button><button class="example" data-prompt="Give me practical tips for learning a new programming language.">Learning tips</button></div><button class="run" id="run">Run comparison</button></div></section>
+        <section class="panel prompt-panel"><div class="prompt-head"><label for="prompt">Your shared prompt</label><span class="model" id="model">DeepSeek · loading...</span></div><div class="prompt-box"><textarea id="prompt" maxlength="4000" placeholder="Ask the model to explain, compare, or summarize something...">Explain how an API works for a beginner and give practical examples.</textarea></div><div class="prompt-footer"><div class="examples"><button class="example" data-prompt="Explain how an API works for a beginner and give practical examples.">API basics</button><button class="example" data-prompt="Give me practical tips for learning a new programming language.">Learning tips</button></div><button class="run" id="run" disabled>Run comparison</button></div></section>
         <section class="results" aria-live="polite"><article class="result-card"><div class="result-head"><div class="result-name">Without constraints <span class="badge">Baseline</span></div></div><div class="result-body" id="baseline"><div class="empty">Your unrestricted response will appear here.</div></div><div class="stats" id="baseline-stats"></div></article><article class="result-card controlled"><div class="result-head"><div class="result-name">With constraints <span class="badge">Controlled</span></div></div><div class="result-body" id="controlled"><div class="empty">Your controlled response will appear here.</div></div><div class="stats" id="controlled-stats"></div></article></section>
         <div class="footnote">Same model · Same prompt · Only the response controls change</div>
       </div>
@@ -61,7 +71,7 @@
     const controlled = document.getElementById('controlled');
     const baselineStats = document.getElementById('baseline-stats');
     const controlledStats = document.getElementById('controlled-stats');
-    let appConfig;
+    let appConfig = null;
     const textLength = text => text.length;
     const wordCount = text => text.trim() ? text.trim().split(/\s+/).length : 0;
     function render(text) { return window.marked && window.DOMPurify ? DOMPurify.sanitize(marked.parse(text)) : ''; }
@@ -71,13 +81,13 @@
     function showStats(element, result, extras={}) { element.replaceChildren(); [['Characters', textLength(result.text)], ['Words', wordCount(result.text)], ['Finish', result.finishReason], ...Object.entries(extras)].forEach(([name,value]) => { const item=document.createElement('span'); item.className='stat'; item.textContent=`${name}: ${value}`; element.appendChild(item); }); }
     async function loadConfig() { const response=await fetch('/api/config'); const config=await response.json(); modelLabel.textContent=`${config.provider} · ${config.model}`; showPayloads(promptInput.value.trim(),config); }
     async function compare() {
-      const prompt=promptInput.value.trim(); if (!prompt) { promptInput.focus(); return; }
+      const prompt=promptInput.value.trim(); if (!prompt || !appConfig) { promptInput.focus(); return; }
       runButton.disabled=true; runButton.textContent='Comparing...'; baseline.innerHTML='<div class="empty">Generating baseline response...</div>'; controlled.innerHTML='<div class="empty">Generating controlled response...</div>'; baselineStats.replaceChildren(); controlledStats.replaceChildren();
       try { const response=await fetch('/api/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'Comparison failed'); showResult(baseline,data.baseline.text); showResult(controlled,data.controlled.text); showStats(baselineStats,data.baseline); const checks=controlledChecks(data.controlled.text,data.controlled.finishReason); checks['Stop sequence']=data.controlled.stopTriggered?'reached':'not reached'; showStats(controlledStats,data.controlled,checks); showPayloads(prompt,appConfig); }
       catch(error) { baseline.innerHTML=''; controlled.innerHTML=''; const message=document.createElement('div'); message.className='empty error'; message.textContent=error.message; controlled.appendChild(message); }
       runButton.disabled=false; runButton.textContent='Run comparison';
     }
-    document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{promptInput.value=button.dataset.prompt;promptInput.focus();})); runButton.addEventListener('click',compare); promptInput.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter')compare();}); loadConfig().then(config=>{appConfig=config; showPayloads(promptInput.value.trim(),config);}).catch(()=>{modelLabel.textContent='Model unavailable';});
+    document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{promptInput.value=button.dataset.prompt;promptInput.focus();})); runButton.addEventListener('click',compare); promptInput.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter')compare();}); loadConfig().then(config=>{appConfig=config; runButton.disabled=false; showPayloads(promptInput.value.trim(),config);}).catch(()=>{modelLabel.textContent='DeepSeek · unavailable';});
   </script>
 </body>
 </html>
