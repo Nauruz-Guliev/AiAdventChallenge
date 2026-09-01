@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f8">
+  <title>Day 2 | Response Control Lab</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <style>
+    :root { --ink:#202331; --muted:#737a8c; --faint:#aeb4c2; --line:#e5e7ed; --canvas:#f4f5f8; --card:#fff; --purple:#6659e8; --purple-soft:#eeecff; --green:#23865c; --green-soft:#e6f6ee; --shadow:0 16px 50px #22283a0d; }
+    * { box-sizing:border-box; } body { margin:0; min-height:100vh; color:var(--ink); background:var(--canvas); font:14px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif; }
+    button,textarea { font:inherit; } button { cursor:pointer; }
+    .page { max-width:1280px; min-height:100vh; margin:auto; padding:30px 34px 44px; }
+    .top { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:36px; }.eyebrow { color:var(--purple); font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }.top h1 { margin:8px 0 7px; font-size:clamp(27px,4vw,42px); letter-spacing:-.06em; line-height:1.05; }.top p { margin:0; max-width:560px; color:var(--muted); }.day-mark { display:grid; place-items:center; width:53px; height:53px; border:1px solid #dcd9ff; border-radius:16px; color:var(--purple); background:var(--purple-soft); font-size:14px; font-weight:800; }
+    .workspace { display:grid; grid-template-columns:290px 1fr; gap:20px; align-items:start; }.panel,.result-card { border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:var(--shadow); }.controls { padding:21px; }.panel-title { margin:0 0 17px; font-size:13px; font-weight:800; }.control { padding:12px 0; border-top:1px solid var(--line); }.control:first-of-type { border-top:0; padding-top:0; }.control-label { display:flex; align-items:center; gap:8px; margin-bottom:3px; font-size:12px; font-weight:750; }.number { display:grid; place-items:center; width:18px; height:18px; border-radius:6px; color:var(--purple); background:var(--purple-soft); font-size:10px; }.control p { margin:0 0 0 26px; color:var(--muted); font-size:11px; }.code-pill { display:inline-block; margin:7px 0 0 26px; padding:4px 7px; border-radius:6px; color:#565d71; background:#f2f3f7; font:11px ui-monospace,SFMono-Regular,monospace; }
+    .prompt-panel { padding:22px; }.prompt-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }.prompt-head label { font-size:13px; font-weight:800; }.model { color:var(--muted); font-size:11px; }.prompt-box { position:relative; }.prompt-box textarea { width:100%; min-height:118px; padding:15px; resize:vertical; border:1px solid var(--line); border-radius:12px; outline:0; color:var(--ink); background:#fafafd; }.prompt-box textarea:focus { border-color:#a9a2f5; box-shadow:0 0 0 3px #6659e81a; }.prompt-box textarea::placeholder { color:var(--faint); }.prompt-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }.examples { display:flex; gap:7px; flex-wrap:wrap; }.example { padding:6px 9px; border:1px solid var(--line); border-radius:7px; color:var(--muted); background:#fff; font-size:11px; }.example:hover { border-color:#bcb7f7; color:var(--purple); }.run { padding:10px 17px; border:0; border-radius:10px; color:#fff; background:var(--ink); font-weight:750; transition:transform .2s,background .2s; }.run:hover { background:var(--purple); transform:translateY(-1px); }.run:disabled { cursor:not-allowed; opacity:.45; transform:none; }
+    .results { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:20px; }.result-card { min-width:0; overflow:hidden; box-shadow:none; }.result-card.controlled { border-color:#c9c4ff; }..result-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 17px; border-bottom:1px solid var(--line); }.result-name { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800; }.badge { padding:4px 7px; border-radius:6px; color:var(--muted); background:#f0f1f5; font-size:10px; font-weight:700; }.controlled .badge { color:var(--green); background:var(--green-soft); }.result-body { min-height:220px; padding:18px; }.empty { display:grid; place-items:center; min-height:180px; color:var(--faint); font-size:12px; text-align:center; }.response { overflow-wrap:anywhere; }.response p:first-child { margin-top:0; }.response p:last-child { margin-bottom:0; }.response pre { overflow:auto; padding:12px; border-radius:9px; color:#f6f7fb; background:#25283a; }.response code { font:12px ui-monospace,SFMono-Regular,monospace; }.stats { display:flex; gap:7px; flex-wrap:wrap; padding:12px 17px; border-top:1px solid var(--line); color:var(--muted); font-size:10px; }.stat { padding:4px 7px; border-radius:6px; background:#f6f7f9; }.controlled .stat:first-child { color:var(--green); background:var(--green-soft); }.error { color:#a53f4f; background:#fff1f3; }.footnote { margin-top:18px; color:var(--faint); font-size:11px; text-align:center; }
+    @media(max-width:900px) { .workspace{grid-template-columns:1fr}.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.controls .panel-title{grid-column:1/-1;margin-bottom:0}.control{padding:0;border-top:0}.control p,.code-pill{margin-left:26px}.results{grid-template-columns:1fr 1fr} }
+    @media(max-width:620px) { .page{padding:22px 14px 32px}.top{margin-bottom:24px}.day-mark{width:43px;height:43px;border-radius:13px}.top h1{font-size:30px}.controls{display:block}.control{padding:12px 0;border-top:1px solid var(--line)}.control:first-of-type{padding-top:0;border-top:0}.prompt-panel,.controls{padding:17px}.prompt-footer{align-items:stretch;flex-direction:column}.run{width:100%}.results{grid-template-columns:1fr}.result-body{min-height:150px} }
+    /* Keep the result cards readable even if a browser skips the compact rule above. */
+    .result-card { border:1px solid var(--line); border-radius:18px; background:var(--card); }
+    .result-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 17px; border-bottom:1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top"><div><div class="eyebrow">AI Advent Challenge · Day 02</div><h1>Response Control Lab</h1><p>Send one prompt twice. See exactly how explicit instructions and API controls change the result.</p></div><div class="day-mark">02</div></header>
+    <section class="workspace">
+      <aside class="panel controls">
+        <h2 class="panel-title">Control layer</h2>
+        <div class="control"><div class="control-label"><span class="number">1</span>Output format</div><p>Exactly three numbered items, one sentence each.</p><span class="code-pill">1. ... 2. ... 3. ...</span></div>
+        <div class="control"><div class="control-label"><span class="number">2</span>Length limit</div><p>Each item is limited to 18 words.</p><span class="code-pill">max_tokens: 140</span></div>
+        <div class="control"><div class="control-label"><span class="number">3</span>Stop condition</div><p>Stop when the model reaches the marker.</p><span class="code-pill">stop: [&quot;&lt;END&gt;&quot;]</span></div>
+      </aside>
+      <div>
+        <section class="panel prompt-panel"><div class="prompt-head"><label for="prompt">Your shared prompt</label><span class="model" id="model">Model: loading...</span></div><div class="prompt-box"><textarea id="prompt" maxlength="4000" placeholder="Ask the model to explain, compare, or summarize something...">Explain how an API works for a beginner and give practical examples.</textarea></div><div class="prompt-footer"><div class="examples"><button class="example" data-prompt="Explain how an API works for a beginner and give practical examples.">API basics</button><button class="example" data-prompt="Give me practical tips for learning a new programming language.">Learning tips</button></div><button class="run" id="run">Run comparison</button></div></section>
+        <section class="results" aria-live="polite"><article class="result-card"><div class="result-head"><div class="result-name">Without constraints <span class="badge">Baseline</span></div></div><div class="result-body" id="baseline"><div class="empty">Your unrestricted response will appear here.</div></div><div class="stats" id="baseline-stats"></div></article><article class="result-card controlled"><div class="result-head"><div class="result-name">With constraints <span class="badge">Controlled</span></div></div><div class="result-body" id="controlled"><div class="empty">Your controlled response will appear here.</div></div><div class="stats" id="controlled-stats"></div></article></section>
+        <div class="footnote">Same model · Same prompt · Only the response controls change</div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const promptInput = document.getElementById('prompt');
+    const runButton = document.getElementById('run');
+    const modelLabel = document.getElementById('model');
+    const baseline = document.getElementById('baseline');
+    const controlled = document.getElementById('controlled');
+    const baselineStats = document.getElementById('baseline-stats');
+    const controlledStats = document.getElementById('controlled-stats');
+    const textLength = text => text.length;
+    const wordCount = text => text.trim() ? text.trim().split(/\s+/).length : 0;
+    function render(text) { return window.marked && window.DOMPurify ? DOMPurify.sanitize(marked.parse(text)) : ''; }
+    function showResult(element, text) { element.className = 'result-body response'; element.innerHTML = render(text); if (!element.innerHTML) element.textContent = text; }
+    function showStats(element, result) { element.replaceChildren(); [['Characters', textLength(result.text)], ['Words', wordCount(result.text)], ['Finish', result.finishReason]].forEach(([name,value]) => { const item=document.createElement('span'); item.className='stat'; item.textContent=`${name}: ${value}`; element.appendChild(item); }); }
+    async function loadConfig() { const response=await fetch('/api/config'); const config=await response.json(); modelLabel.textContent=`Model: ${config.model}`; }
+    async function compare() {
+      const prompt=promptInput.value.trim(); if (!prompt) { promptInput.focus(); return; }
+      runButton.disabled=true; runButton.textContent='Comparing...'; baseline.innerHTML='<div class="empty">Generating baseline response...</div>'; controlled.innerHTML='<div class="empty">Generating controlled response...</div>'; baselineStats.replaceChildren(); controlledStats.replaceChildren();
+      try { const response=await fetch('/api/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'Comparison failed'); showResult(baseline,data.baseline.text); showResult(controlled,data.controlled.text); showStats(baselineStats,data.baseline); showStats(controlledStats,data.controlled); }
+      catch(error) { baseline.innerHTML=''; controlled.innerHTML=''; const message=document.createElement('div'); message.className='empty error'; message.textContent=error.message; controlled.appendChild(message); }
+      runButton.disabled=false; runButton.textContent='Run comparison';
+    }
+    document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{promptInput.value=button.dataset.prompt;promptInput.focus();})); runButton.addEventListener('click',compare); promptInput.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter')compare();}); loadConfig().catch(()=>{modelLabel.textContent='Model unavailable';});
+  </script>
+</body>
+</html>
