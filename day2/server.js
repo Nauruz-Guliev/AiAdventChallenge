@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const MODEL = 'kimi-k3';
+const MODEL = 'qwen3.6-plus';
 const MAX_PROMPT_LENGTH = 4000;
 const STOP_SEQUENCE = '<END>';
 
@@ -39,6 +39,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     model: MODEL,
     controlled: {
+      instructions: CONTROL_INSTRUCTIONS,
       format: 'Exactly 3 numbered items, one sentence per item',
       length: '18 words maximum per item',
       stop: STOP_SEQUENCE,

@@ -22,6 +22,18 @@
     .result-card { border:1px solid var(--line); border-radius:18px; background:var(--card); }
     .result-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 17px; border-bottom:1px solid var(--line); }
   </style>
+  <style>
+    .proof { width:min(820px,100%); margin:20px auto 0; padding:18px 22px; border:1px solid var(--line); border-radius:18px; background:#fff; box-shadow:var(--shadow); }
+    .proof h2 { margin:0 0 4px; font-size:13px; }
+    .proof p { margin:0 0 13px; color:var(--muted); font-size:11px; }
+    .payloads { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .payload { min-width:0; padding:11px; border-radius:9px; background:#f7f7fa; }
+    .payload.controlled-payload { background:var(--green-soft); }
+    .payload strong { display:block; margin-bottom:7px; font-size:11px; }
+    .payload code { display:block; overflow:auto; color:#5e6475; font:10px/1.6 ui-monospace,SFMono-Regular,monospace; white-space:pre-wrap; }
+    .proof-note { margin:12px 0 0 !important; font-size:10px !important; }
+    @media(max-width:620px) { .payloads { grid-template-columns:1fr; } }
+  </style>
 </head>
 <body>
   <main class="page">
@@ -30,7 +42,7 @@
       <aside class="panel controls">
         <h2 class="panel-title">Control layer</h2>
         <div class="control"><div class="control-label"><span class="number">1</span>Output format</div><p>Exactly three numbered items, one sentence each.</p><span class="code-pill">1. ... 2. ... 3. ...</span></div>
-        <div class="control"><div class="control-label"><span class="number">2</span>Length limit</div><p>Each item is limited to 18 words.</p><span class="code-pill">max_tokens: 140</span></div>
+        <div class="control"><div class="control-label"><span class="number">2</span>Length limit</div><p>Each item is limited to 18 words.</p><span class="code-pill">max_tokens: 600</span></div>
         <div class="control"><div class="control-label"><span class="number">3</span>Stop condition</div><p>Stop when the model reaches the marker.</p><span class="code-pill">stop: [&quot;&lt;END&gt;&quot;]</span></div>
       </aside>
       <div>
@@ -39,6 +51,7 @@
         <div class="footnote">Same model · Same prompt · Only the response controls change</div>
       </div>
     </section>
+    <section class="proof"><h2>What the API receives</h2><p>The user prompt is identical in both calls. The controlled call adds only the instructions and parameters shown below.</p><div class="payloads"><div class="payload"><strong>Baseline request</strong><code id="baseline-request"></code></div><div class="payload controlled-payload"><strong>Controlled request</strong><code id="controlled-request"></code></div></div><p class="proof-note">When the stop sequence is triggered, the API removes <code>&lt;END&gt;</code> from the visible response and reports <code>finish_reason: stop</code>.</p></section>
   </main>
   <script>
     const promptInput = document.getElementById('prompt');
@@ -48,20 +61,23 @@
     const controlled = document.getElementById('controlled');
     const baselineStats = document.getElementById('baseline-stats');
     const controlledStats = document.getElementById('controlled-stats');
+    let appConfig;
     const textLength = text => text.length;
     const wordCount = text => text.trim() ? text.trim().split(/\s+/).length : 0;
     function render(text) { return window.marked && window.DOMPurify ? DOMPurify.sanitize(marked.parse(text)) : ''; }
     function showResult(element, text) { element.className = 'result-body response'; element.innerHTML = render(text); if (!element.innerHTML) element.textContent = text; }
-    function showStats(element, result) { element.replaceChildren(); [['Characters', textLength(result.text)], ['Words', wordCount(result.text)], ['Finish', result.finishReason]].forEach(([name,value]) => { const item=document.createElement('span'); item.className='stat'; item.textContent=`${name}: ${value}`; element.appendChild(item); }); }
-    async function loadConfig() { const response=await fetch('/api/config'); const config=await response.json(); modelLabel.textContent=`Model: ${config.model}`; }
+    function controlledChecks(text, finishReason) { const items=text.split(/\n+/).map(line=>line.trim()).filter(line=>/^\d+\.\s+/.test(line)); const lengths=items.map(item=>item.replace(/^\d+\.\s+/,'').trim().split(/\s+/).filter(Boolean).length); return {format:`Format: ${items.length}/3 items`, length:`Length: ${lengths.length === 3 && lengths.every(value=>value <= 18) ? 'pass' : 'check'}`, stop:`Stop: ${finishReason === 'stop' ? 'reached' : finishReason}`}; }
+    function showPayloads(prompt, config) { document.getElementById('baseline-request').textContent=JSON.stringify({model:config.model,messages:[{role:'user',content:prompt}]},null,2); document.getElementById('controlled-request').textContent=JSON.stringify({model:config.model,messages:[{role:'system',content:config.controlled.instructions},{role:'user',content:prompt}],max_tokens:config.controlled.maxTokens,stop:[config.controlled.stop]},null,2); }
+    function showStats(element, result, extras={}) { element.replaceChildren(); [['Characters', textLength(result.text)], ['Words', wordCount(result.text)], ['Finish', result.finishReason], ...Object.entries(extras)].forEach(([name,value]) => { const item=document.createElement('span'); item.className='stat'; item.textContent=`${name}: ${value}`; element.appendChild(item); }); }
+    async function loadConfig() { const response=await fetch('/api/config'); const config=await response.json(); modelLabel.textContent=`Model: ${config.model}`; showPayloads(promptInput.value.trim(),config); }
     async function compare() {
       const prompt=promptInput.value.trim(); if (!prompt) { promptInput.focus(); return; }
       runButton.disabled=true; runButton.textContent='Comparing...'; baseline.innerHTML='<div class="empty">Generating baseline response...</div>'; controlled.innerHTML='<div class="empty">Generating controlled response...</div>'; baselineStats.replaceChildren(); controlledStats.replaceChildren();
-      try { const response=await fetch('/api/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'Comparison failed'); showResult(baseline,data.baseline.text); showResult(controlled,data.controlled.text); showStats(baselineStats,data.baseline); showStats(controlledStats,data.controlled); }
+      try { const response=await fetch('/api/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'Comparison failed'); showResult(baseline,data.baseline.text); showResult(controlled,data.controlled.text); showStats(baselineStats,data.baseline); const checks=controlledChecks(data.controlled.text,data.controlled.finishReason); showStats(controlledStats,data.controlled,checks); showPayloads(prompt,appConfig); }
       catch(error) { baseline.innerHTML=''; controlled.innerHTML=''; const message=document.createElement('div'); message.className='empty error'; message.textContent=error.message; controlled.appendChild(message); }
       runButton.disabled=false; runButton.textContent='Run comparison';
     }
-    document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{promptInput.value=button.dataset.prompt;promptInput.focus();})); runButton.addEventListener('click',compare); promptInput.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter')compare();}); loadConfig().catch(()=>{modelLabel.textContent='Model unavailable';});
+    document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{promptInput.value=button.dataset.prompt;promptInput.focus();})); runButton.addEventListener('click',compare); promptInput.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter')compare();}); loadConfig().then(config=>{appConfig=config; showPayloads(promptInput.value.trim(),config);}).catch(()=>{modelLabel.textContent='Model unavailable';});
   </script>
 </body>
 </html>

@@ -5,6 +5,8 @@ This project sends the same user prompt to the same LLM model twice and compares
 1. **Without constraints**: the model receives only the user prompt.
 2. **With constraints**: the model receives explicit format and length instructions, plus the API parameters `max_tokens` and `stop`.
 
+Both requests use the single verified model `qwen3.6-plus`.
+
 ## Controlled request
 
 The controlled request asks the model to:
