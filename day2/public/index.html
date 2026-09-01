@@ -21,6 +21,21 @@
     @media(max-width:620px) { .app{display:block}.topbar{height:62px}.top-meta{display:none}.content{display:block;padding:14px}.sidebar{margin-bottom:15px}.rules{display:none}.prompt-panel textarea{min-height:105px}.hero{align-items:flex-start;flex-direction:column;gap:9px}.model-pill{width:100%}.results{gap:10px}.result-body{padding:13px}.payloads{grid-template-columns:1fr}.protocol{padding:12px}.result-head{padding:12px 13px} }
     .impact { display:none; grid-template-columns:repeat(3,1fr); gap:9px; padding:12px 14px; border:1px solid #38445b; border-radius:11px; background:#121721; }.impact.visible { display:grid; }.impact-item { min-width:0; }.impact-label { color:var(--muted); font-size:10px; }.impact-value { margin-top:2px; color:var(--text); font-size:16px; font-weight:800; letter-spacing:-.03em; }.impact-value.accent { color:var(--cyan); }.impact-note { grid-column:1/-1; margin-top:1px; color:var(--muted); font-size:10px; }
     @media(max-width:620px) { .impact { grid-template-columns:1fr 1fr; }.impact-note { grid-column:1/-1; } }
+    .prompt-panel textarea { font-size:15px; line-height:1.65; min-height:170px; }
+    .response { font-size:15px; line-height:1.7; }
+    .response h1,.response h2,.response h3 { font-size:18px; }
+    .result-title { font-size:14px; }
+    .result-body { padding:19px; }
+    .message,.payload code { font-size:12px; }
+    .view-switch { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px; }
+    .view-switch-label { color:var(--muted); font-size:11px; }
+    .view-switch-buttons { display:flex; gap:3px; padding:3px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+    .view-switch button { padding:5px 9px; border:0; border-radius:5px; color:var(--muted); background:transparent; font-size:10px; }
+    .view-switch button.active { color:#fff; background:var(--violet); }
+    .results.focus-baseline .result.controlled { display:none; }
+    .results.focus-controlled .result:not(.controlled) { display:none; }
+    .results.focus-baseline,.results.focus-controlled { grid-template-columns:1fr; }
+    @media(max-width:620px) { .prompt-panel textarea { min-height:130px; } .response { font-size:14px; } .view-switch { align-items:flex-start; flex-direction:column; } .view-switch-buttons { width:100%; } .view-switch button { flex:1; } }
   </style>
 </head>
 <body>
@@ -42,6 +57,9 @@
   <script>
     const promptInput=document.getElementById('prompt'), runButton=document.getElementById('run'), charCount=document.getElementById('char-count'), modelLabel=document.getElementById('model'), baseline=document.getElementById('baseline'), controlled=document.getElementById('controlled'), baselineStats=document.getElementById('baseline-stats'), controlledStats=document.getElementById('controlled-stats'), impact=document.getElementById('impact');
     let appConfig=null;
+    const results=document.querySelector('.results');
+    const viewSwitch=document.createElement('div'); viewSwitch.className='view-switch'; viewSwitch.innerHTML='<span class="view-switch-label">Result view</span><div class="view-switch-buttons"><button class="active" data-view="both">Both</button><button data-view="baseline">Baseline</button><button data-view="controlled">Controlled</button></div>'; results.parentNode.insertBefore(viewSwitch,results);
+    viewSwitch.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{results.className=`results ${button.dataset.view==='baseline'?'focus-baseline':button.dataset.view==='controlled'?'focus-controlled':''}`;viewSwitch.querySelectorAll('button').forEach(item=>item.classList.toggle('active',item===button));}));
     const countWords=text=>text.trim()?text.trim().split(/\s+/).length:0;
     const getItems=text=>text.replace(/\r/g,'').split(/\n+/).flatMap(line=>line.split(/(?=\d+\.\s+)/)).map(item=>item.trim()).filter(Boolean);
     function render(text){return window.marked&&window.DOMPurify?DOMPurify.sanitize(marked.parse(text)):'';}
