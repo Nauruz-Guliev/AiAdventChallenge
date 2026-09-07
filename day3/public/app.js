@@ -100,7 +100,7 @@ function renderCards() {
     } else {
       button.textContent = `Запустить ${labels[key].toLocaleLowerCase('ru-RU')}`;
     }
-    button.addEventListener('click', () => key === 'generated' ? runGenerated() : runMethod(key));
+    button.addEventListener('click', () => key === 'generated' ? makePrompt() : runMethod(key));
     article.appendChild(button);
 
     const answer = document.createElement('pre');
