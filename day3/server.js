@@ -19,6 +19,8 @@ const TASK = `Задача «Четыре двери».
 Как вы будете искать единственную дверь, через которую можно выйти из комнаты? Обоснуй ответ и опиши безопасный порядок действий.`;
 
 const REFERENCE_ANSWER = 'Нужно подставлять свечу по очереди к дверям, к щелям или к замочной скважине, и внимательно смотреть на пламя свечи. Колебание пламени укажет на поток воздуха и выход на улицу. Проверять нужно до выбора двери, не открывая двери ключом.';
+const STEP_SYSTEM_PROMPT = 'Решай задачу пошагово: перечисли условия, проверь варианты и объясни вывод. В конце обязательно дай краткий ответ, даже если внутреннее рассуждение было длинным.';
+const EXPERT_SYSTEM_PROMPT = 'Работай как группа из трёх экспертов. Аналитик выделит физические признаки выхода. Инженер составит безопасный порядок проверки. Критик попробует найти ошибку или опасный шаг. Пусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их и сформулирует итоговый ответ. В конце обязательно дай краткий итог.';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -66,10 +68,10 @@ function buildCallPreview(prompt, generatedPrompt = '', methodOutputs = '') {
   const request = (messages, maxTokens) => ({ model: MODEL, messages, temperature: 0.2, max_tokens: maxTokens });
   return [
     { id: 'direct', title: CALL_TITLES.direct, request: request([{ role: 'user', content: prompt }], 5000) },
-    { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'user', content: `${prompt}\n\nРешай задачу пошагово: перечисли ограничения, проверь варианты и объясни вывод. В конце обязательно дай краткий ответ, даже если внутреннее рассуждение было длинным.` }], 7000) },
+    { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000) },
     { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'user', content: `Ты prompt-инженер. Составь подробный, но компактный промпт для другой модели, который поможет надёжно решить эту задачу. Промпт должен включать саму задачу, требование проверить физический признак выхода, не выдумывать условия и описать безопасный порядок действий. Верни только готовый промпт для решающей модели, не длиннее 250 слов.\n\n${prompt}` }], 5000) },
-    { id: 'generated', title: CALL_TITLES.generated, request: request([{ role: 'user', content: generatedPrompt || '[Будет заменено результатом вызова «Конструктор промпта»]' }], 6000) },
-    { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'user', content: `${prompt}\n\nРаботай как группа из трёх экспертов:\n- аналитик выделит физические признаки выхода;\n- инженер составит безопасный порядок проверки;\n- критик попробует найти ошибку или опасный шаг.\nПусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их и сформулирует итоговый ответ. В конце обязательно дай краткий итог.` }], 7000) },
+    { id: 'generated', title: CALL_TITLES.generated, request: request([{ role: 'system', content: generatedPrompt || '[БУДЕТ ПОДСТАВЛЕН СФОРМИРОВАННЫЙ SYSTEM PROMPT]' }, { role: 'user', content: prompt }], 6000) },
+    { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000) },
     { id: 'judge', title: CALL_TITLES.judge, request: request([{ role: 'user', content: methodOutputs || '[Сюда будут подставлены четыре ответа и эталон проверки]' }], 3500) },
   ];
 }
@@ -195,12 +197,12 @@ async function runExperiment(prompt, onUpdate = () => {}, providedGeneratedPromp
   });
 
   const stepByStep = safeRun('step', 'Пошаговое решение', 'К исходной задаче добавлена инструкция «решай пошагово».', async () => {
-    const result = await complete([{ role: 'user', content: `${prompt}\n\nРешай задачу пошагово: перечисли ограничения, проверь варианты и объясни вывод. В конце обязательно дай краткий ответ, даже если внутреннее рассуждение было длинным.` }], 7000, 'step', onUpdate);
+    const result = await complete([{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000, 'step', onUpdate);
     return methodResult('step', 'Пошаговое решение', 'К исходной задаче добавлена инструкция «решай пошагово».', result);
   });
 
   const experts = safeRun('experts', 'Группа экспертов', 'Аналитик, инженер и критик решают задачу независимо, затем координатор сверяет выводы.', async () => {
-    const result = await complete([{ role: 'user', content: `${prompt}\n\nРаботай как группа из трёх экспертов:\n- аналитик выделит физические признаки выхода;\n- инженер составит безопасный порядок проверки;\n- критик попробует найти ошибку или опасный шаг.\nПусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их и сформулирует итоговый ответ. В конце обязательно дай краткий итог.` }], 7000, 'experts', onUpdate);
+    const result = await complete([{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000, 'experts', onUpdate);
     return methodResult('experts', 'Группа экспертов', 'Аналитик, инженер и критик решают задачу независимо, затем координатор сверяет выводы.', result);
   });
 
@@ -221,7 +223,7 @@ async function runExperiment(prompt, onUpdate = () => {}, providedGeneratedPromp
       throw new Error(`Конструктор промпта не ответил: ${builderResult.error}`);
     })
     : await safeRun('generated', 'Сгенерированный промпт', 'Сначала модель составила промпт, затем этот промпт был использован для решения.', async () => {
-    const result = await complete([{ role: 'user', content: `${generatedPrompt}\n\nДополнительное требование эксперимента: реши исходную задачу кратко, проверь физическую логику и опиши безопасный порядок действий.` }], 6000, 'generated', onUpdate);
+    const result = await complete([{ role: 'system', content: generatedPrompt }, { role: 'user', content: prompt }], 6000, 'generated', onUpdate);
     return methodResult('generated', 'Сгенерированный промпт', 'Сначала модель составила промпт, затем этот промпт был использован для решения.', result, {
       generatedPrompt,
       generatedPromptLength: generatedPrompt.length,
