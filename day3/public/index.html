@@ -26,22 +26,21 @@
 </head>
 <body>
   <div class="shell">
-    <header class="topbar"><div class="brand"><div class="logo">03</div><div><strong>Четыре способа рассуждения</strong><span>AI Advent Challenge / эксперимент и верификация</span></div></div><div class="top-meta"><span>DeepSeek API</span><span class="live">Готов к запуску</span></div></header>
-    <section class="hero"><div><div class="eyebrow">Одна задача · четыре варианта · отдельная проверка</div><h1>Как найти дверь, ведущую на улицу?</h1><p>Все четыре варианта стоят рядом. В запросах показана только разница инструкций, а исходная задача скрыта за маркером <code>[ЗАДАЧА]</code>.</p></div><div class="model" id="model">deepseek-v4-pro</div></section>
+    <header class="topbar"><div class="brand"><div class="logo">03</div><div><strong>Четыре способа рассуждения</strong><span>AI Advent Challenge / самостоятельное сравнение</span></div></div><div class="top-meta"><span>DeepSeek API</span><span class="live">Готов к запуску</span></div></header>
+    <section class="hero"><div><div class="eyebrow">Одна задача · четыре варианта</div><h1>Как найти дверь, ведущую на улицу?</h1><p>Все четыре варианта стоят рядом. В запросах показана только разница инструкций, а исходная задача скрыта за маркером <code>[ЗАДАЧА]</code>.</p></div><div class="model" id="model">deepseek-v4-pro</div></section>
     <div class="layout">
       <aside class="sidebar">
-        <section class="panel"><h2 class="panel-title"><span>Исходная задача</span><span>ЛОГИКА</span></h2><div class="task"><pre id="task"></pre></div><button class="run" id="run" disabled>Сначала сформировать промпт</button><p class="note"><strong>Порядок:</strong> сначала нажмите кнопку в карточке «Сгенерированный промпт», затем запустите сравнение.</p></section>
-        <section class="panel criteria"><h2 class="panel-title"><span>Критерии</span></h2><div class="criterion"><b>01</b><div><strong>Четыре варианта</strong><span>Одна задача, разные инструкции.</span></div></div><div class="criterion"><b>02</b><div><strong>Отдельный верификатор</strong><span>Пятый запрос сравнит все ответы с эталоном.</span></div></div><div class="criterion"><b>03</b><div><strong>Прозрачный эксперимент</strong><span>Видны отличия prompt, статусы, токены и latency.</span></div></div></section>
+        <section class="panel"><h2 class="panel-title"><span>Исходная задача</span><span>ЛОГИКА</span></h2><div class="task"><pre id="task"></pre></div><p class="note"><strong>Порядок:</strong> запускайте каждый вариант своей кнопкой. Третий вариант сначала сформирует system prompt, затем автоматически использует его для решения.</p></section>
+        <section class="panel criteria"><h2 class="panel-title"><span>Критерии</span></h2><div class="criterion"><b>01</b><div><strong>Четыре варианта</strong><span>Одна задача, разные инструкции.</span></div></div><div class="criterion"><b>02</b><div><strong>Своя кнопка</strong><span>Каждый способ запускается независимо.</span></div></div><div class="criterion"><b>03</b><div><strong>Прозрачный эксперимент</strong><span>Видны system prompt, статусы, токены и latency.</span></div></div></section>
       </aside>
       <main class="main">
         <div class="status" id="status"></div>
-        <div class="stages" id="stages"><div class="stage active"><b>01</b>Задача</div><div class="stage"><b>02</b>Четыре варианта</div><div class="stage"><b>03</b>Верификатор</div><div class="stage"><b>04</b>Сравнение</div></div>
+        <div class="stages" id="stages"><div class="stage active"><b>01</b>Задача</div><div class="stage"><b>02</b>Выбор варианта</div><div class="stage"><b>03</b>API-ответ</div><div class="stage"><b>04</b>Результат</div></div>
         <section><div class="method-head"><div><div class="eyebrow">Варианты запроса</div><h2>Сравнение бок о бок</h2></div><span id="run-state">Ожидание</span></div><div class="methods" id="methods"></div></section>
-        <section class="section comparison" id="comparison" hidden><h2>Сводное сравнение</h2><div class="table-wrap"><table><thead><tr><th>Вариант</th><th>Проверка</th><th>Токены</th><th>Время</th><th>Завершение</th></tr></thead><tbody id="comparison-body"></tbody></table></div><div class="verdict" id="verdict"></div><details class="verification"><summary>Показать ответ отдельного верификатора</summary><pre id="verification-text"></pre></details></section>
       </main>
     </div>
   </div>
-  <script>
+  <script type="text/plain" id="legacy-script">
     const taskElement=document.getElementById('task'),runButton=document.getElementById('run'),statusElement=document.getElementById('status'),methodsElement=document.getElementById('methods'),comparison=document.getElementById('comparison'),comparisonBody=document.getElementById('comparison-body'),verdict=document.getElementById('verdict'),modelElement=document.getElementById('model'),runState=document.getElementById('run-state'),requestList=document.getElementById('request-list'),stages=document.getElementById('stages'),verificationText=document.getElementById('verification-text');
     let task='',generatedPrompt='',calls=[];
     const labels={direct:'Прямой ответ',step:'Пошаговое решение',generated:'Сгенерированный промпт',experts:'Группа экспертов'};
@@ -61,5 +60,6 @@
     async function run(){runButton.disabled=true;runButton.textContent='Запуск...';comparison.hidden=true;statusElement.classList.remove('visible');setStage(1);try{const response=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:task,generatedPrompt})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Эксперимент не выполнен.');renderCalls(data.calls,data.state);await poll(data.runId);}catch(error){statusElement.textContent=error.message;statusElement.classList.add('visible');runState.textContent='Ошибка запуска';}finally{if(!statusElement.classList.contains('visible')){runButton.disabled=false;runButton.textContent='Запустить сравнение';}}}
     runButton.addEventListener('click',run);loadConfig().catch(error=>{statusElement.textContent=error.message;statusElement.classList.add('visible');});
   </script>
+  <script src="/app.js"></script>
 </body>
 </html>

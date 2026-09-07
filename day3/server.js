@@ -191,6 +191,40 @@ function applyJudge(methods, judgeText) {
   return true;
 }
 
+async function executeMethod(method, prompt, generatedPrompt, onUpdate) {
+  const definitions = {
+    direct: {
+      title: 'Прямой ответ',
+      description: 'Только исходная задача. Никаких дополнительных инструкций.',
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: 5000,
+    },
+    step: {
+      title: 'Пошаговое решение',
+      description: 'К задаче добавлен отдельный system prompt с просьбой рассуждать пошагово.',
+      messages: [{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }],
+      maxTokens: 7000,
+    },
+    generated: {
+      title: 'Сгенерированный промпт',
+      description: 'Сначала сформирован system prompt, затем с ним выполнен отдельный запрос.',
+      messages: [{ role: 'system', content: generatedPrompt }, { role: 'user', content: prompt }],
+      maxTokens: 6000,
+    },
+    experts: {
+      title: 'Группа экспертов',
+      description: 'Один system prompt создаёт аналитика, инженера, критика и координатора.',
+      messages: [{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }],
+      maxTokens: 7000,
+    },
+  };
+  const definition = definitions[method];
+  if (!definition) throw new Error('Неизвестный вариант решения.');
+  if (method === 'generated' && !generatedPrompt) throw new Error('Сначала сформируйте промпт.');
+  const result = await complete(definition.messages, definition.maxTokens, method, onUpdate);
+  return methodResult(method, definition.title, definition.description, result, method === 'generated' ? { generatedPrompt, generatedPromptLength: generatedPrompt.length } : {});
+}
+
 async function runExperiment(prompt, onUpdate = () => {}, providedGeneratedPrompt = '') {
   const direct = safeRun('direct', 'Прямой ответ', 'Только исходная задача, без инструкции о способе рассуждения.', async () => {
     const result = await complete([{ role: 'user', content: prompt }], 5000, 'direct', onUpdate);
@@ -275,6 +309,31 @@ app.post('/api/generate-prompt', async (req, res) => {
   }).then(result => {
     job.state = 'complete';
     job.result = { prompt: result.text, usage: result.usage, latencyMs: result.latencyMs, finishReason: result.finishReason };
+    job.updatedAt = Date.now();
+  }).catch(error => {
+    job.state = 'error';
+    job.error = error.message;
+    job.updatedAt = Date.now();
+  });
+});
+
+app.post('/api/run-method', async (req, res) => {
+  const method = typeof req.body?.method === 'string' ? req.body.method : '';
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : TASK;
+  const generatedPrompt = typeof req.body?.generatedPrompt === 'string' ? req.body.generatedPrompt.trim() : '';
+  if (!['direct', 'step', 'generated', 'experts'].includes(method)) return res.status(400).json({ error: 'Неизвестный вариант решения.' });
+  const id = crypto.randomUUID();
+  const preview = buildCallPreview(prompt, generatedPrompt).find(call => call.id === method);
+  const job = { id, prompt, method, state: 'running', calls: [{ ...preview, status: 'waiting' }], startedAt: Date.now() };
+  jobs.set(id, job);
+  res.status(202).json({ runId: id, state: job.state, calls: job.calls });
+  executeMethod(method, prompt, generatedPrompt, (key, event) => {
+    const call = job.calls.find(item => item.id === key);
+    if (call) Object.assign(call, event);
+    job.updatedAt = Date.now();
+  }).then(result => {
+    job.state = 'complete';
+    job.result = { method: result };
     job.updatedAt = Date.now();
   }).catch(error => {
     job.state = 'error';
