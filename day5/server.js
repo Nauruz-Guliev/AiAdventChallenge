@@ -85,6 +85,29 @@ function estimateCost(usage, model) {
     + (usage.completionTokens / 1000000) * model.outputPrice).toFixed(6));
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryable(error) {
+  const message = String(error?.message || '');
+  return !error?.status || error.status === 408 || error.status === 429 || error.status >= 500
+    || /connection|timeout|timed out|fetch|ECONN|ENOTFOUND|EAI_AGAIN/iu.test(message);
+}
+
+function userFacingError(error) {
+  const status = error?.status;
+  const message = String(error?.message || '');
+  if (status === 401) return 'Провайдер отклонил API-ключ. Проверьте OPENAI_API_KEY в .env.';
+  if (status === 429) return 'Провайдер временно ограничил запросы. Подождите и повторите запуск.';
+  if (status === 408 || /timeout|timed out/iu.test(message)) return 'Провайдер не ответил вовремя. Повторите запуск модели.';
+  if (!status || /connection|fetch|ECONN|ENOTFOUND|EAI_AGAIN/iu.test(message)) {
+    return 'Не удалось подключиться к провайдеру. Проверьте интернет и повторите запуск.';
+  }
+  if (status >= 500) return 'Провайдер временно недоступен. Повторите запуск модели.';
+  return 'Провайдер отклонил запрос. Проверьте выбранную модель и повторите запуск.';
+}
+
 function evaluate(text) {
   const normalized = text.toLocaleLowerCase('ru-RU');
   const lines = normalized.split('\n').filter(line => line.trim());
@@ -107,12 +130,21 @@ function evaluate(text) {
 
 async function complete(model, prompt, sessionId) {
   const startedAt = Date.now();
-  const completion = await createClient(sessionId).chat.completions.create({
-    model: model.id,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.2,
-    max_tokens: 3200,
-  });
+  let completion;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      completion = await createClient(sessionId).chat.completions.create({
+        model: model.id,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+        max_tokens: 3200,
+      });
+      break;
+    } catch (error) {
+      if (attempt === 2 || !isRetryable(error)) throw new Error(userFacingError(error));
+      await sleep(1000 * (attempt + 1));
+    }
+  }
   const usage = getUsage(completion);
   return {
     text: (completion.choices?.[0]?.message?.content || '').trim(),
@@ -133,7 +165,7 @@ function startJob(model, prompt) {
     job.result = { ...result, model: model.id, evaluation: evaluate(result.text) };
   }).catch(error => {
     job.state = 'error';
-    job.error = error.message;
+    job.error = error.message || 'Не удалось выполнить запрос. Повторите запуск модели.';
   });
   return id;
 }
@@ -163,6 +195,12 @@ app.get('/api/run/:id', (req, res) => {
     result: job.result,
     error: job.error,
   });
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  console.error('Request error:', error.message);
+  return res.status(400).json({ error: 'Не удалось обработать запрос. Проверьте данные и повторите попытку.' });
 });
 
 const port = Number(process.env.PORT || 3005);

@@ -16,9 +16,55 @@ function addText(parent, text, className = '') {
   return node;
 }
 
-function setStatus(message = '') {
-  statusElement.textContent = message;
+function setStatus(message = '', retryAction = null) {
+  statusElement.replaceChildren();
+  if (message) {
+    addText(statusElement, message);
+    if (retryAction) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Повторить';
+      button.addEventListener('click', retryAction);
+      statusElement.appendChild(button);
+    }
+  }
   statusElement.classList.toggle('visible', Boolean(message));
+}
+
+function friendlyError(error) {
+  const message = String(error?.message || '');
+  if (/failed to fetch|connection|network|econn|enotfound|eai_again/iu.test(message)) {
+    return 'Не удалось подключиться к локальному серверу. Проверьте, что npm start запущен, и повторите попытку.';
+  }
+  return message || 'Неизвестная ошибка. Повторите попытку.';
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchJson(url, options = {}, retries = 0) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return data;
+      lastError = new Error(data.error || `Сервер вернул статус ${response.status}.`);
+      if (attempt < retries && [502, 503, 504].includes(response.status)) {
+        await wait(700 * (attempt + 1));
+        continue;
+      }
+      throw lastError;
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await wait(700 * (attempt + 1));
+        continue;
+      }
+    }
+  }
+  throw new Error(friendlyError(lastError));
 }
 
 function inlineMarkdown(text) {
@@ -95,13 +141,12 @@ function renderCards() {
 
     const answer = document.createElement('div');
     answer.className = `answer${result.text ? '' : ' empty'}`;
-    answer.innerHTML = result.text
-      ? markdownToHtml(result.text)
-      : result.error
-        ? `Ошибка запроса: ${result.error}`
-        : result.finishReason === 'length'
-          ? 'Ответ не вернулся: модель исчерпала лимит генерации до появления видимого текста.'
-          : 'Ответ появится после запуска модели.';
+    if (result.text) answer.innerHTML = markdownToHtml(result.text);
+    else answer.textContent = result.error
+      ? result.error
+      : result.finishReason === 'length'
+        ? 'Ответ не вернулся: модель исчерпала лимит генерации до появления видимого текста.'
+        : 'Ответ появится после запуска модели.';
     card.appendChild(answer);
 
     const metrics = document.createElement('div');
@@ -134,9 +179,7 @@ function renderCards() {
 }
 
 async function poll(runId, model) {
-  const response = await fetch(`/api/run/${runId}`);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Запуск не найден.');
+  const data = await fetchJson(`/api/run/${runId}`, {}, 2);
   if (data.state === 'running') {
     setStatus(`${model.label}: модель отвечает...`);
     await new Promise(resolve => setTimeout(resolve, 700));
@@ -151,19 +194,18 @@ async function runModel(model) {
   setStatus('');
   renderCards();
   try {
-    const response = await fetch('/api/run-model', {
+    const data = await fetchJson('/api/run-model', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: model.id, prompt: task }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Не удалось запустить модель.');
     results[model.id] = await poll(data.runId, model);
   } catch (error) {
-    setStatus(error.message);
+    const message = friendlyError(error);
+    setStatus(message, () => runModel(model));
     results[model.id] = {
       text: '',
-      error: error.message,
+      error: message,
       usage: {},
       evaluation: { rubricScore: 0, signals: {} },
     };
@@ -176,13 +218,11 @@ async function runModel(model) {
 runAllButton.addEventListener('click', () => Promise.all(models.map(runModel)));
 
 async function loadConfig() {
-  const response = await fetch('/api/config');
-  if (!response.ok) throw new Error('Не удалось загрузить конфигурацию.');
-  const config = await response.json();
+  const config = await fetchJson('/api/config', {}, 3);
   task = config.task;
   models = config.models;
   taskElement.textContent = task;
   renderCards();
 }
 
-loadConfig().catch(error => setStatus(error.message));
+loadConfig().catch(error => setStatus(friendlyError(error), loadConfig));
