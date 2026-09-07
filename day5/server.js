@@ -9,17 +9,11 @@ app.use(express.json({ limit: '32kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_PROMPT_LENGTH = 8000;
-const TASK = `Реши задачу портфельного выбора для совета директоров. Доступно 12 инженерных недель, можно выбрать не более 3 проектов, и среди выбранных должен быть минимум один проект с меткой SAFETY.
+const TASK = `Реши портфельную задачу. Лимиты: 15 инженерных недель, максимум 4 проекта, минимум 1 SAFETY. Максимизируй ценность; зависимости должны быть закрыты, конфликты запрещены.
 
-Проекты:
-- Альфа: 6 недель, ценность 16, требует Бету.
-- Бета: 4 недели, ценность 10, SAFETY.
-- Гамма: 5 недель, ценность 14, несовместима с Дельтой.
-- Дельта: 3 недели, ценность 8, SAFETY.
-- Эпсилон: 2 недели, ценность 5, требует Альфу.
-- Зета: 4 недели, ценность 11, без зависимостей.
+A Альфа: 5/14, требует B; B Бета: 3/8, SAFETY; C Гамма: 6/17, конфликт D; D Дельта: 4/11, SAFETY; E Эпсилон: 2/6, требует A; F Зета: 4/12, конфликт B; G Эта: 3/8, требует D, SAFETY; H Тета: 2/5; I Йота: 1/3; J Каппа: 5/13.
 
-Выбери допустимый набор с максимальной суммой ценности. Ответь ровно в 4 нумерованных секциях Markdown: 1) выбор и общие суммы; 2) проверка бюджета, лимита и зависимостей; 3) почему следующий вариант хуже; 4) один практический риск. Не добавляй вступление, не меняй исходные числа и не показывай скрытые рассуждения.`;
+Ответь ровно 3 строками: «Портфель: ...»; «Проверка: ...»; «Конкурент: ...». Укажи проекты, общие недели и ценность. Не показывай скрытые рассуждения и не меняй числа.`;
 
 const MODELS = [
   {
@@ -93,17 +87,16 @@ function estimateCost(usage, model) {
 
 function evaluate(text) {
   const normalized = text.toLocaleLowerCase('ru-RU');
-  const sections = normalized.match(/(?:^|\n)\s*(?:#{1,3}\s*)?\d+[.)]\s+.+/g) || [];
-  const chosenPortfolio = /альф[аы][\s,и+/-]+бет[ау][\s,и+/-]+эпсилон/iu.test(normalized)
-    || /альф[аы].*бет[ау].*эпсилон/isu.test(normalized);
-  const hasBudget = /12\s*(?:недель|недел|week)/iu.test(normalized);
-  const hasValue = /31/iu.test(normalized);
-  const checksDependencies = /зависим|требу|несовмест|лимит|safety/iu.test(normalized);
-  const requiredSignals = [sections.length >= 4, chosenPortfolio, hasBudget, hasValue, checksDependencies];
+  const lines = normalized.split('\n').filter(line => line.trim());
+  const chosenPortfolio = ['альфа', 'бета', 'гамма', 'йота'].every(name => normalized.includes(name));
+  const hasBudget = /15\s*(?:недель|недел|week)/iu.test(normalized);
+  const hasValue = /42/iu.test(normalized);
+  const checksDependencies = /зависим|требу|конфликт|лимит|safety/iu.test(normalized);
+  const requiredSignals = [lines.length >= 3, chosenPortfolio, hasBudget, hasValue, checksDependencies];
   return {
     rubricScore: Math.round((requiredSignals.filter(Boolean).length / requiredSignals.length) * 100),
     signals: {
-      fourSections: sections.length >= 4,
+      threeLines: lines.length >= 3,
       optimalPortfolio: chosenPortfolio,
       budgetMentioned: hasBudget,
       optimalValueMentioned: hasValue,
@@ -118,7 +111,7 @@ async function complete(model, prompt, sessionId) {
     model: model.id,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
-    max_tokens: 1800,
+    max_tokens: 3200,
   });
   const usage = getUsage(completion);
   return {

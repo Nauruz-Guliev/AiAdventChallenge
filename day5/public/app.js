@@ -95,7 +95,13 @@ function renderCards() {
 
     const answer = document.createElement('div');
     answer.className = `answer${result.text ? '' : ' empty'}`;
-    answer.innerHTML = result.text ? markdownToHtml(result.text) : 'Ответ появится после запуска модели.';
+    answer.innerHTML = result.text
+      ? markdownToHtml(result.text)
+      : result.error
+        ? `Ошибка запроса: ${result.error}`
+        : result.finishReason === 'length'
+          ? 'Ответ не вернулся: модель исчерпала лимит генерации до появления видимого текста.'
+          : 'Ответ появится после запуска модели.';
     card.appendChild(answer);
 
     const metrics = document.createElement('div');
@@ -109,7 +115,9 @@ function renderCards() {
     card.appendChild(metrics);
 
     const signals = result.evaluation.signals;
-    const stats = result.text
+    const stats = result.error
+      ? `Ошибка · ${result.error}`
+      : result.text || result.finishReason
       ? `Вход ${result.usage.promptTokens ?? '—'} · выход ${result.usage.completionTokens ?? '—'} · ${result.finishReason} · ${signals ? Object.values(signals).filter(Boolean).length : 0}/5 сигналов`
       : 'Вызов ещё не запускался';
     addText(card, stats, 'stats');
@@ -153,6 +161,12 @@ async function runModel(model) {
     results[model.id] = await poll(data.runId, model);
   } catch (error) {
     setStatus(error.message);
+    results[model.id] = {
+      text: '',
+      error: error.message,
+      usage: {},
+      evaluation: { rubricScore: 0, signals: {} },
+    };
   } finally {
     running.delete(model.id);
     renderCards();
