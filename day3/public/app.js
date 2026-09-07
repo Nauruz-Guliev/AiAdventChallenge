@@ -156,7 +156,7 @@ async function runMethod(key) {
     const response = await fetch('/api/run-method', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ method: key, prompt: task }),
+      body: JSON.stringify({ method: key, prompt: task, generatedPrompt: key === 'generated' ? generatedPrompt : '' }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Не удалось запустить вариант.');
