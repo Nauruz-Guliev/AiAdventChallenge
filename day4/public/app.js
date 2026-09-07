@@ -31,6 +31,67 @@ function metric(label, value, hint = '') {
   return item;
 }
 
+function inlineMarkdown(text) {
+  return text
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_]+)_/g, '<em>$1</em>');
+}
+
+function markdownToHtml(source) {
+  const escaped = source.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const output = [];
+  let listType = '';
+  let inCode = false;
+  let codeLines = [];
+  const closeList = () => {
+    if (listType) output.push(`</${listType}>`);
+    listType = '';
+  };
+
+  escaped.split('\n').forEach(line => {
+    if (/^```/.test(line)) {
+      if (inCode) {
+        output.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+        codeLines = [];
+        inCode = false;
+      } else {
+        closeList();
+        inCode = true;
+      }
+      return;
+    }
+    if (inCode) {
+      codeLines.push(line);
+      return;
+    }
+    if (!line.trim()) {
+      closeList();
+      return;
+    }
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
+    if (ordered || unordered) {
+      const nextType = ordered ? 'ol' : 'ul';
+      if (listType !== nextType) {
+        closeList();
+        listType = nextType;
+        output.push(`<${listType}>`);
+      }
+      output.push(`<li>${inlineMarkdown(ordered ? ordered[1] : unordered[1])}</li>`);
+      return;
+    }
+    closeList();
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    output.push(heading ? `<h4>${inlineMarkdown(heading[1])}</h4>` : `<p>${inlineMarkdown(line)}</p>`);
+  });
+  if (inCode) output.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+  closeList();
+  return output.join('');
+}
+
 function placeholder(item) {
   return {
     temperature: item.value,
@@ -63,9 +124,10 @@ function renderCards() {
     button.addEventListener('click', () => runTemperature(item));
     card.appendChild(button);
 
-    const answer = document.createElement('pre');
+    const answer = document.createElement('div');
     answer.className = `answer${result.text ? '' : ' empty'}`;
-    answer.textContent = result.text || 'Ответ появится после запуска этого режима.';
+    if (result.text) answer.innerHTML = markdownToHtml(result.text);
+    else answer.textContent = 'Ответ появится после запуска этого режима.';
     card.appendChild(answer);
 
     const metrics = document.createElement('div');

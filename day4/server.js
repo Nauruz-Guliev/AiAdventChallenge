@@ -10,14 +10,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const MAX_PROMPT_LENGTH = 8000;
-const TASK = `Придумай 5 названий для мобильного приложения, которое помогает людям не забывать поливать комнатные растения.
+const TASK = `Придумай 5 неожиданных применений обычной бумажной скрепки в быту.
 
-Для каждого варианта дай:
-1. Название из 1–3 слов.
-2. Слоган не длиннее 8 слов.
-3. Объяснение идеи не длиннее 20 слов.
-
-Оформи ответ ровно пятью пронумерованными пунктами. Названия должны быть разными и запоминающимися. Не используй слово «зелёный» и его формы. Не повторяй одно и то же название или слоган.`;
+Для каждого дай короткое название и объяснение в одном предложении. Идеи должны быть безопасными, разными и реалистичными. Ответь ровно 5 пронумерованными пунктами.`;
 
 const TEMPERATURES = [
   { id: 'cold', value: 0, label: 'Стабильный', note: 'Точность и повторяемость' },
@@ -49,7 +44,7 @@ function getUsage(completion) {
 function evaluate(text) {
   const normalized = text.toLocaleLowerCase('ru-RU');
   const numbered = text.match(/(?:^|\n)\s*\d+[.)]\s+.+/g) || [];
-  const forbiddenWord = /зелен/iu.test(normalized);
+  const unsafeIdea = /оруж|взрыв|яд|огнестрел|электрич/iu.test(normalized);
   const items = numbered.map(line => line.replace(/^\s*\d+[.)]\s*/u, '').trim().toLocaleLowerCase('ru-RU'));
   const uniqueLines = new Set(items);
   const words = normalized.match(/[а-яёa-z]{4,}/giu) || [];
@@ -63,8 +58,8 @@ function evaluate(text) {
     overlap += union ? intersection / union : 0;
     pairs += 1;
   }));
-  const formatScore = (numbered.length === 5 ? 55 : Math.min(55, numbered.length * 11))
-    + (!forbiddenWord ? 25 : 0)
+  const formatScore = (numbered.length === 5 ? 60 : Math.min(60, numbered.length * 12))
+    + (!unsafeIdea ? 20 : 0)
     + (uniqueLines.size === numbered.length ? 20 : Math.max(0, uniqueLines.size * 4));
   const lexicalVariety = words.length ? Math.round((uniqueWords.size / words.length) * 100) : 0;
   const diversityScore = pairs ? Math.round((1 - overlap / pairs) * 100) : 0;
@@ -74,7 +69,7 @@ function evaluate(text) {
     diversity: diversityScore,
     signals: {
       numberedItems: numbered.length,
-      forbiddenWord,
+      unsafeIdea,
       uniqueItems: uniqueLines.size,
     },
   };
