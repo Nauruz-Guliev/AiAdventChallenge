@@ -21,6 +21,7 @@ const TASK = `Задача «Четыре двери».
 const REFERENCE_ANSWER = 'Нужно подставлять свечу по очереди к дверям, к щелям или к замочной скважине, и внимательно смотреть на пламя свечи. Колебание пламени укажет на поток воздуха и выход на улицу. Проверять нужно до выбора двери, не открывая двери ключом.';
 const STEP_SYSTEM_PROMPT = 'Решай задачу пошагово: перечисли условия, проверь варианты и объясни вывод. В конце обязательно дай краткий ответ, даже если внутреннее рассуждение было длинным.';
 const EXPERT_SYSTEM_PROMPT = 'Работай как группа из трёх экспертов. Аналитик выделит физические признаки выхода. Инженер составит безопасный порядок проверки. Критик попробует найти ошибку или опасный шаг. Пусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их и сформулирует итоговый ответ. В конце обязательно дай краткий итог.';
+const PROMPT_BUILDER_SYSTEM_PROMPT = 'Ты prompt-инженер. Составь только reusable system prompt для другой модели. Не решай исходную задачу, не называй правильную дверь и не раскрывай фактический способ решения. Не упоминай свечу, пламя, поток воздуха или другие предметы из условия. Не повторяй текст задачи. Твой результат должен содержать только методические инструкции: как анализировать условия, проверять гипотезы, избегать случайного выбора и дать краткий обоснованный ответ по задаче из user message.';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -69,7 +70,7 @@ function buildCallPreview(prompt, generatedPrompt = '', methodOutputs = '') {
   return [
     { id: 'direct', title: CALL_TITLES.direct, request: request([{ role: 'user', content: prompt }], 5000) },
     { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000) },
-    { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'user', content: `Ты prompt-инженер. Составь подробный, но компактный промпт для другой модели, который поможет надёжно решить эту задачу. Промпт должен включать саму задачу, требование проверить физический признак выхода, не выдумывать условия и описать безопасный порядок действий. Верни только готовый промпт для решающей модели, не длиннее 250 слов.\n\n${prompt}` }], 5000) },
+    { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'system', content: PROMPT_BUILDER_SYSTEM_PROMPT }, { role: 'user', content: `Создай system prompt для решения задачи из этого user message. Итоговый prompt будет передан решающей модели отдельно от задачи. Верни только system prompt, не решение и не пересказ условия.\n\nКонтекст задачи для тебя (не повторяй его):\n${prompt}` }], 5000) },
     { id: 'generated', title: CALL_TITLES.generated, request: request([{ role: 'system', content: generatedPrompt || '[БУДЕТ ПОДСТАВЛЕН СФОРМИРОВАННЫЙ SYSTEM PROMPT]' }, { role: 'user', content: prompt }], 6000) },
     { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000) },
     { id: 'judge', title: CALL_TITLES.judge, request: request([{ role: 'user', content: methodOutputs || '[Сюда будут подставлены четыре ответа и эталон проверки]' }], 3500) },
