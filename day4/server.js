@@ -10,9 +10,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const MAX_PROMPT_LENGTH = 8000;
-const TASK = `Придумай 5 неожиданных применений обычной бумажной скрепки в быту.
+const TASK = `Ты — креативный директор марсианской колонии 2045 года. Спроектируй 4 радикально разные концепции сервиса, который решает одну повседневную проблему поселенцев.
 
-Для каждого дай короткое название и объяснение в одном предложении. Идеи должны быть безопасными, разными и реалистичными. Ответь ровно 5 пронумерованными пунктами.`;
+Для каждой концепции дай ровно 5 строк: название из 2 слов; проблема; решение; неожиданный побочный эффект; слоган не длиннее 6 слов.
+
+Условия: проблемы и технологии не повторяются, главные существительные между концепциями не повторяются, физика остаётся правдоподобной, но в каждой идее есть одна удивительная деталь. Без вступления: ровно 4 пронумерованные секции в Markdown.`;
 
 const TEMPERATURES = [
   { id: 'cold', value: 0, label: 'Стабильный', note: 'Точность и повторяемость' },
@@ -43,9 +45,9 @@ function getUsage(completion) {
 
 function evaluate(text) {
   const normalized = text.toLocaleLowerCase('ru-RU');
-  const numbered = text.match(/(?:^|\n)\s*\d+[.)]\s+.+/g) || [];
+  const numbered = text.match(/(?:^|\n)\s*(?:#{1,3}\s*)?\d+[.)]\s+.+/g) || [];
   const unsafeIdea = /оруж|взрыв|яд|огнестрел|электрич/iu.test(normalized);
-  const items = numbered.map(line => line.replace(/^\s*\d+[.)]\s*/u, '').trim().toLocaleLowerCase('ru-RU'));
+  const items = numbered.map(line => line.replace(/^\s*#{1,3}\s*/u, '').replace(/^\s*\d+[.)]\s*/u, '').trim().toLocaleLowerCase('ru-RU'));
   const uniqueLines = new Set(items);
   const words = normalized.match(/[а-яёa-z]{4,}/giu) || [];
   const uniqueWords = new Set(words);
