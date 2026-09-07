@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json({ limit: '32kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const MODEL = 'deepseek-v4-pro';
+const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const MAX_PROMPT_LENGTH = 8000;
 
 const TASK = `Задача «Четыре двери».
@@ -68,11 +68,11 @@ function addUsage(first, second) {
 function buildCallPreview(prompt, generatedPrompt = '', methodOutputs = '') {
   const request = (messages, maxTokens) => ({ model: MODEL, messages, temperature: 0.2, max_tokens: maxTokens });
   return [
-    { id: 'direct', title: CALL_TITLES.direct, request: request([{ role: 'user', content: prompt }], 5000) },
-    { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000) },
-    { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'system', content: PROMPT_BUILDER_SYSTEM_PROMPT }, { role: 'user', content: `Создай system prompt для решения задачи из этого user message. Итоговый prompt будет передан решающей модели отдельно от задачи. Верни только system prompt, не решение и не пересказ условия.\n\nКонтекст задачи для тебя (не повторяй его):\n${prompt}` }], 5000) },
-    { id: 'generated', title: CALL_TITLES.generated, request: request([{ role: 'system', content: generatedPrompt || '[БУДЕТ ПОДСТАВЛЕН СФОРМИРОВАННЫЙ SYSTEM PROMPT]' }, { role: 'user', content: prompt }], 6000) },
-    { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 7000) },
+    { id: 'direct', title: CALL_TITLES.direct, request: request([{ role: 'user', content: prompt }], 1600) },
+    { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 2200) },
+    { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'system', content: PROMPT_BUILDER_SYSTEM_PROMPT }, { role: 'user', content: `Создай system prompt для решения задачи из этого user message. Итоговый prompt будет передан решающей модели отдельно от задачи. Верни только system prompt, не решение и не пересказ условия.\n\nКонтекст задачи для тебя (не повторяй его):\n${prompt}` }], 1800) },
+    { id: 'generated', title: CALL_TITLES.generated, request: request([{ role: 'system', content: generatedPrompt || '[БУДЕТ ПОДСТАВЛЕН СФОРМИРОВАННЫЙ SYSTEM PROMPT]' }, { role: 'user', content: prompt }], 1800) },
+    { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }], 2600) },
     { id: 'judge', title: CALL_TITLES.judge, request: request([{ role: 'user', content: methodOutputs || '[Сюда будут подставлены четыре ответа и эталон проверки]' }], 3500) },
   ];
 }
@@ -197,25 +197,25 @@ async function executeMethod(method, prompt, generatedPrompt, onUpdate) {
       title: 'Прямой ответ',
       description: 'Только исходная задача. Никаких дополнительных инструкций.',
       messages: [{ role: 'user', content: prompt }],
-      maxTokens: 5000,
+      maxTokens: 1600,
     },
     step: {
       title: 'Пошаговое решение',
       description: 'К задаче добавлен отдельный system prompt с просьбой рассуждать пошагово.',
       messages: [{ role: 'system', content: STEP_SYSTEM_PROMPT }, { role: 'user', content: prompt }],
-      maxTokens: 7000,
+      maxTokens: 2200,
     },
     generated: {
       title: 'Сгенерированный промпт',
       description: 'Сначала сформирован system prompt, затем с ним выполнен отдельный запрос.',
       messages: [{ role: 'system', content: generatedPrompt }, { role: 'user', content: prompt }],
-      maxTokens: 6000,
+      maxTokens: 1800,
     },
     experts: {
       title: 'Группа экспертов',
       description: 'Один system prompt создаёт аналитика, инженера, критика и координатора.',
       messages: [{ role: 'system', content: EXPERT_SYSTEM_PROMPT }, { role: 'user', content: prompt }],
-      maxTokens: 7000,
+      maxTokens: 2600,
     },
   };
   const definition = definitions[method];
