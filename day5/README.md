@@ -7,7 +7,7 @@
 | Уровень эксперимента | Модель | Reference-тариф OpenCode Go, input / output за 1M токенов |
 | --- | --- | --- |
 | Слабая | [`deepseek-ai/DeepSeek-V4-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | `$0.22 / $0.66` |
-| Средняя | [`zai-org/GLM-5.3-Flash`](https://huggingface.co/zai-org/GLM-5.3-Flash) | `$0.07 / $0.25` |
+| Средняя | [`XiaomiMiMo/MiMo-V2.5`](https://huggingface.co/XiaomiMiMo/MiMo-V2.5) | `$0.14 / $0.28` |
 | Сильная | [`moonshotai/Kimi-K3`](https://huggingface.co/moonshotai/Kimi-K3) | `$3.00 / $15.00` |
 
 HF-карточки и опубликованные характеристики являются основанием выбора. Ярлыки «слабая / средняя / сильная» — экспериментальный proxy, а не официальный общий рейтинг Hugging Face: разные leaderboard-метрики могут дать другой порядок. Каталог и тарифы могут измениться. Бесплатный `ox-alpha-free` был проверен отдельно, но этот API-ключ получил ответ `401 Model ox-alpha-free is not supported`, поэтому модель не включена в рабочий эксперимент.
@@ -23,7 +23,7 @@ HF-карточки и опубликованные характеристики
 - Стоимость: `(input tokens / 1M × input price) + (output tokens / 1M × output price)`.
 - Качество: rubric-проверка оптимального портфеля `Альфа + Бета + Гамма`, суммы 14 недель / 39 ценности и ключевых ограничений. Это вспомогательный сигнал, а смысловой вывод нужно делать чтением ответов.
 
-Для совместимости с разными reasoning-моделями сервер отключает thinking у DeepSeek V4 Flash и задаёт минимальный `reasoning_effort=low` у GLM-5.3 Flash и Kimi K3. Prompt, temperature и общий лимит ответа остаются одинаковыми; эти provider-specific flags нужны, чтобы скрытое рассуждение не вытесняло видимый финальный ответ.
+Для совместимости с разными reasoning-моделями сервер отключает thinking у DeepSeek V4 Flash и задаёт минимальный `reasoning_effort=low` у Kimi K3. Prompt, temperature и общий лимит ответа остаются одинаковыми; эти provider-specific flags нужны, чтобы скрытое рассуждение не вытесняло видимый финальный ответ.
 
 OpenCode Go работает по подписке, поэтому показанная цена является расчётом по reference-тарифам каталога, а не отдельным списанием с аккаунта.
 

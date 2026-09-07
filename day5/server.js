@@ -28,15 +28,15 @@ const MODELS = [
     sourceUrl: 'https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash',
   },
   {
-    id: 'glm-5.3-flash',
+    id: 'mimo-v2.5',
     tier: 'medium',
     label: 'Средняя',
-    description: 'Flash-модель с сильным instruction-following',
-    inputPrice: 0.07,
-    outputPrice: 0.25,
-    hfModel: 'zai-org/GLM-5.3-Flash',
+    description: 'Быстрая мультимодальная универсальная модель',
+    inputPrice: 0.14,
+    outputPrice: 0.28,
+    hfModel: 'XiaomiMiMo/MiMo-V2.5',
     sourceLabel: 'Карточка Hugging Face',
-    sourceUrl: 'https://huggingface.co/zai-org/GLM-5.3-Flash',
+    sourceUrl: 'https://huggingface.co/XiaomiMiMo/MiMo-V2.5',
   },
   {
     id: 'kimi-k3',
@@ -137,10 +137,6 @@ async function complete(model, prompt, sessionId) {
     max_tokens: 4200,
   };
   if (model.id.startsWith('deepseek-')) request.thinking = { type: 'disabled' };
-  if (model.id === 'glm-5.3-flash') {
-    request.thinking = { type: 'enabled' };
-    request.reasoning_effort = 'low';
-  }
   if (model.id === 'kimi-k3') request.reasoning_effort = 'low';
   let completion;
   for (let attempt = 0; attempt < 3; attempt += 1) {
