@@ -96,11 +96,11 @@ function renderCards() {
     if (activeMethod === key) {
       button.textContent = key === 'generated' && !generatedPrompt ? 'Формируем промпт...' : 'Выполняется...';
     } else if (key === 'generated') {
-      button.textContent = 'Сформировать промпт и запустить';
+      button.textContent = generatedPrompt ? 'Запустить сгенерированный промпт' : 'Сформировать промпт';
     } else {
       button.textContent = `Запустить ${labels[key].toLocaleLowerCase('ru-RU')}`;
     }
-    button.addEventListener('click', () => key === 'generated' ? makePrompt() : runMethod(key));
+    button.addEventListener('click', () => key === 'generated' ? (generatedPrompt ? runMethod(key) : makePrompt()) : runMethod(key));
     article.appendChild(button);
 
     const answer = document.createElement('pre');
@@ -190,8 +190,8 @@ async function makePrompt() {
     const promptResult = await pollJob(data.runId, result => result);
     generatedPrompt = promptResult.prompt;
     activeMethod = '';
+    runState.textContent = 'Промпт сформирован — можно запускать решение';
     renderCards();
-    await runMethod('generated');
   } catch (error) {
     activeMethod = '';
     setStatus(error.message);
