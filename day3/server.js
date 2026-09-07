@@ -10,26 +10,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MODEL = 'deepseek-v4-pro';
 const MAX_PROMPT_LENGTH = 8000;
-const EXPECTED_ORDER = ['Дина', 'Вера', 'Егор', 'Борис', 'Алина', 'Глеб'];
-const NAMES = ['Алина', 'Борис', 'Вера', 'Глеб', 'Дина', 'Егор'];
 
-const TASK = `Логическая задача «Расписание презентаций».
-Шесть человек — Алина, Борис, Вера, Глеб, Дина и Егор — выступают по одному разу с понедельника по субботу. Нужно определить порядок выступлений.
+const TASK = `Задача «Четыре двери».
+Вы находитесь в помещении, в котором есть маленькое окно, закрытое ставнями, и четыре двери. Двери заперты на замок, три из них фальшивые: за ними сразу стена. Четвёртая ведёт на улицу. Комната тёмная, из источников света у вас есть только свеча.
 
-Условия:
-1. Глеб выступает в субботу.
-2. Борис выступает ровно за два места до Глеба.
-3. Дина выступает непосредственно перед Верой.
-4. Дина выступает раньше Егора.
-5. Егор выступает раньше Алины.
-6. Алина не выступает в понедельник и не выступает в субботу.
+У вас есть ключ, которым можно открыть любую из четырёх дверей, но выбрать можно только одну из них. Вам нужно понять, какая дверь поможет выйти на улицу. Не спешите: у вас всего одна попытка.
 
-Определи единственный порядок от понедельника до субботы. Обоснуй решение. Последняя строка ответа должна иметь строго такой формат: «Итоговый порядок: Имя 1, Имя 2, Имя 3, Имя 4, Имя 5, Имя 6».`;
+Как вы будете искать единственную дверь, через которую можно выйти из комнаты? Обоснуй ответ и опиши безопасный порядок действий.`;
+
+const REFERENCE_ANSWER = 'Нужно подставлять свечу по очереди к дверям, к щелям или к замочной скважине, и внимательно смотреть на пламя свечи. Колебание пламени укажет на поток воздуха и выход на улицу. Проверять нужно до выбора двери, не открывая двери ключом.';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_BASE_URL || 'https://api.deepseek.com/v1',
-  timeout: 120000,
+  timeout: 180000,
   maxRetries: 0,
 });
 
@@ -39,6 +33,7 @@ const CALL_TITLES = {
   'prompt-builder': '03 · Конструктор промпта',
   generated: '04 · Решение по сгенерированному промпту',
   experts: '05 · Группа экспертов',
+  judge: '06 · Верификатор ответов',
 };
 
 const jobs = new Map();
@@ -67,15 +62,20 @@ function addUsage(first, second) {
   };
 }
 
-function buildCallPreview(prompt, generatedPrompt = '') {
+function buildCallPreview(prompt, generatedPrompt = '', methodOutputs = '') {
   const request = (messages, maxTokens) => ({ model: MODEL, messages, temperature: 0.2, max_tokens: maxTokens });
   return [
     { id: 'direct', title: CALL_TITLES.direct, request: request([{ role: 'user', content: prompt }], 5000) },
-    { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'user', content: `${prompt}\n\nРешай задачу пошагово: перечисли ограничения, проверь варианты и объясни вывод.` }], 5000) },
-    { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'user', content: `Ты prompt-инженер. Составь подробный, но компактный промпт для другой модели, который поможет надёжно решить эту задачу. Промпт должен включать саму задачу, требование проверить все ограничения, не выдумывать условия и завершать ответ строкой в формате «Итоговый порядок: ...». Верни только готовый промпт для решающей модели, не длиннее 250 слов.\n\n${prompt}` }], 5000) },
+    { id: 'step', title: CALL_TITLES.step, request: request([{ role: 'user', content: `${prompt}\n\nРешай задачу пошагово: перечисли ограничения, проверь варианты и объясни вывод. В конце обязательно дай краткий ответ, даже если внутреннее рассуждение было длинным.` }], 7000) },
+    { id: 'prompt-builder', title: CALL_TITLES['prompt-builder'], request: request([{ role: 'user', content: `Ты prompt-инженер. Составь подробный, но компактный промпт для другой модели, который поможет надёжно решить эту задачу. Промпт должен включать саму задачу, требование проверить физический признак выхода, не выдумывать условия и описать безопасный порядок действий. Верни только готовый промпт для решающей модели, не длиннее 250 слов.\n\n${prompt}` }], 5000) },
     { id: 'generated', title: CALL_TITLES.generated, request: request([{ role: 'user', content: generatedPrompt || '[Будет заменено результатом вызова «Конструктор промпта»]' }], 6000) },
-    { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'user', content: `${prompt}\n\nРаботай как группа из трёх экспертов: аналитик составит таблицу ограничений; инженер проверит решение перебором; критик попробует найти ошибку. Затем координатор сравнит выводы и укажет итоговый порядок.` }], 5000) },
+    { id: 'experts', title: CALL_TITLES.experts, request: request([{ role: 'user', content: `${prompt}\n\nРаботай как группа из трёх экспертов:\n- аналитик выделит физические признаки выхода;\n- инженер составит безопасный порядок проверки;\n- критик попробует найти ошибку или опасный шаг.\nПусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их и сформулирует итоговый ответ. В конце обязательно дай краткий итог.` }], 7000) },
+    { id: 'judge', title: CALL_TITLES.judge, request: request([{ role: 'user', content: methodOutputs || '[Сюда будут подставлены четыре ответа и эталон проверки]' }], 3500) },
   ];
+}
+
+function getPromptBuilderRequest(prompt) {
+  return buildCallPreview(prompt).find(call => call.id === 'prompt-builder').request;
 }
 
 async function complete(messages, maxTokens = 5000, callKey, onUpdate = () => {}) {
@@ -98,39 +98,22 @@ async function complete(messages, maxTokens = 5000, callKey, onUpdate = () => {}
   }
 }
 
-function extractNames(text) {
-  const normalized = text.toLocaleLowerCase('ru-RU');
-  return NAMES.map(name => ({
-    name,
-    index: normalized.indexOf(name.toLocaleLowerCase('ru-RU')),
-  })).filter(item => item.index >= 0).sort((left, right) => left.index - right.index).map(item => item.name);
-}
-
-function getOrder(text) {
-  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const finalLineIndex = lines.findIndex(line => /итоговый порядок\s*:/iu.test(line));
-  if (finalLineIndex >= 0) {
-    const finalNames = extractNames(lines[finalLineIndex]);
-    if (finalNames.length === EXPECTED_ORDER.length) return finalNames;
-  }
-
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const names = extractNames(lines[index]);
-    if (names.length === EXPECTED_ORDER.length) return names;
-  }
-  return [];
-}
-
 function evaluate(text) {
-  const order = getOrder(text);
-  const positionsCorrect = order.reduce((total, name, index) => total + (name === EXPECTED_ORDER[index] ? 1 : 0), 0);
-  const exact = order.length === EXPECTED_ORDER.length && positionsCorrect === EXPECTED_ORDER.length;
+  const normalized = text.toLocaleLowerCase('ru-RU');
+  const criteria = [
+    { label: 'свеча', matched: /свеч/iu.test(normalized) },
+    { label: 'проверка у дверей', matched: /двер.{0,30}(щел|скваж)|щел.{0,30}двер|скважин/iu.test(normalized) },
+    { label: 'наблюдение за пламенем', matched: /плам|огон.{0,20}свеч/iu.test(normalized) },
+    { label: 'колебание пламени', matched: /колеб|дрож|движен|наклон|мерцан/iu.test(normalized) },
+    { label: 'поток воздуха или улица', matched: /воздух|сквозняк|поток|улиц|выход/iu.test(normalized) },
+  ];
+  const matchedCriteria = criteria.filter(item => item.matched).map(item => item.label);
+  const score = Math.round((matchedCriteria.length / criteria.length) * 100);
   return {
-    order,
-    exact,
-    positionsCorrect,
-    score: Math.round((positionsCorrect / EXPECTED_ORDER.length) * 100),
-    status: exact ? 'Точный ответ' : order.length ? 'Частично совпадает' : 'Итог не распознан',
+    exact: matchedCriteria.length === criteria.length,
+    score,
+    matchedCriteria,
+    status: matchedCriteria.length === criteria.length ? 'Все ключевые идеи найдены' : `${matchedCriteria.length}/${criteria.length} идей найдены`,
   };
 }
 
@@ -160,33 +143,77 @@ async function safeRun(key, title, description, operation) {
       error: error.message,
       text: '',
       usage: { promptTokens: null, completionTokens: null, totalTokens: null, reasoningTokens: null },
-      evaluation: { order: [], exact: false, positionsCorrect: 0, score: 0, status: 'Ошибка запроса' },
+      evaluation: { exact: false, score: 0, matchedCriteria: [], status: 'Ошибка запроса' },
     };
   }
 }
 
-async function runExperiment(prompt, onUpdate = () => {}) {
+function buildJudgePrompt(methods) {
+  const answers = methods.map(method => `\n--- ${method.title} (${method.key}) ---\n${method.text || '[Ответ не получен]'}`).join('');
+  return `Ты независимый верификатор ответов на логическую задачу. Сравни четыре ответа с эталонным принципом решения.
+
+Эталонный принцип: ${REFERENCE_ANSWER}
+
+Ответ считается корректным, если в нём есть все ключевые идеи: свечу подносят к каждой двери или её щели/замочной скважине до выбора; наблюдают за пламенем; колебание пламени означает поток воздуха и указывает на дверь, ведущую наружу; дверь не открывают до проверки.
+
+Верни только JSON без markdown в формате:
+{"direct":{"correct":true,"score":100,"reason":"краткое объяснение"},"step":{"correct":true,"score":100,"reason":"..."},"generated":{"correct":true,"score":100,"reason":"..."},"experts":{"correct":true,"score":100,"reason":"..."}}
+Оцени каждый ответ независимо. Если пропущена ключевая идея, correct должен быть false, а score от 0 до 99.${answers}`;
+}
+
+function parseJudge(text) {
+  try {
+    const jsonText = text.replace(/^```json\s*/iu, '').replace(/\s*```$/u, '').match(/\{[\s\S]*\}/)?.[0];
+    return jsonText ? JSON.parse(jsonText) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function applyJudge(methods, judgeText) {
+  const judged = parseJudge(judgeText);
+  if (!judged) return false;
+  methods.forEach(method => {
+    const result = judged[method.key];
+    if (!result || typeof result.correct !== 'boolean') return;
+    method.evaluation = {
+      ...method.evaluation,
+      exact: result.correct,
+      score: Number.isFinite(result.score) ? result.score : result.correct ? 100 : method.evaluation.score,
+      judgeCorrect: result.correct,
+      judgeReason: result.reason || 'Верификатор не добавил объяснение.',
+      status: result.correct ? 'Верификатор: корректно' : 'Верификатор: есть ошибка',
+    };
+  });
+  return true;
+}
+
+async function runExperiment(prompt, onUpdate = () => {}, providedGeneratedPrompt = '') {
   const direct = safeRun('direct', 'Прямой ответ', 'Только исходная задача, без инструкции о способе рассуждения.', async () => {
     const result = await complete([{ role: 'user', content: prompt }], 5000, 'direct', onUpdate);
     return methodResult('direct', 'Прямой ответ', 'Только исходная задача, без инструкции о способе рассуждения.', result);
   });
 
   const stepByStep = safeRun('step', 'Пошаговое решение', 'К исходной задаче добавлена инструкция «решай пошагово».', async () => {
-    const result = await complete([{ role: 'user', content: `${prompt}\n\nРешай задачу пошагово: перечисли ограничения, проверь варианты и объясни вывод.` }], 5000, 'step', onUpdate);
+    const result = await complete([{ role: 'user', content: `${prompt}\n\nРешай задачу пошагово: перечисли ограничения, проверь варианты и объясни вывод. В конце обязательно дай краткий ответ, даже если внутреннее рассуждение было длинным.` }], 7000, 'step', onUpdate);
     return methodResult('step', 'Пошаговое решение', 'К исходной задаче добавлена инструкция «решай пошагово».', result);
   });
 
   const experts = safeRun('experts', 'Группа экспертов', 'Аналитик, инженер и критик решают задачу независимо, затем координатор сверяет выводы.', async () => {
-    const result = await complete([{ role: 'user', content: `${prompt}\n\nРаботай как группа из трёх экспертов:\n- аналитик составит таблицу ограничений и найдёт порядок;\n- инженер проверит решение перебором позиций;\n- критик попробует найти ошибку или альтернативный порядок.\nПусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их. В последней строке снова укажи итоговый порядок строго в заданном формате.` }], 5000, 'experts', onUpdate);
+    const result = await complete([{ role: 'user', content: `${prompt}\n\nРаботай как группа из трёх экспертов:\n- аналитик выделит физические признаки выхода;\n- инженер составит безопасный порядок проверки;\n- критик попробует найти ошибку или опасный шаг.\nПусть каждый эксперт сначала даст свой вывод, а затем координатор сравнит их и сформулирует итоговый ответ. В конце обязательно дай краткий итог.` }], 7000, 'experts', onUpdate);
     return methodResult('experts', 'Группа экспертов', 'Аналитик, инженер и критик решают задачу независимо, затем координатор сверяет выводы.', result);
   });
 
-  const promptBuilder = safeRun('prompt-builder', 'Конструктор промпта', 'Отдельный вызов сначала создаёт промпт для решения задачи.', async () => {
-    const result = await complete([{ role: 'user', content: `Ты prompt-инженер. Составь подробный, но компактный промпт для другой модели, который поможет надёжно решить эту задачу. Промпт должен включать саму задачу, требование проверить все ограничения, не выдумывать условия и завершать ответ строкой в формате «Итоговый порядок: ...». Верни только готовый промпт для решающей модели, не длиннее 250 слов.\n\n${prompt}` }], 5000, 'prompt-builder', onUpdate);
-    return result;
-  });
+  const promptBuilder = providedGeneratedPrompt
+    ? Promise.resolve({ text: providedGeneratedPrompt, usage: { promptTokens: null, completionTokens: null, totalTokens: null, reasoningTokens: null }, latencyMs: 0, finishReason: 'provided' })
+    : safeRun('prompt-builder', 'Конструктор промпта', 'Отдельный вызов сначала создаёт промпт для решения задачи.', async () => {
+      const request = getPromptBuilderRequest(prompt);
+      const result = await complete(request.messages, request.max_tokens, 'prompt-builder', onUpdate);
+      return result;
+    });
 
   const [directResult, stepResult, expertResult, builderResult] = await Promise.all([direct, stepByStep, experts, promptBuilder]);
+  if (providedGeneratedPrompt) onUpdate('prompt-builder', { status: 'provided', request: getPromptBuilderRequest(prompt) });
   const generatedPrompt = builderResult.text;
   const generatedPromptSolver = builderResult.error
     ? await safeRun('generated', 'Сгенерированный промпт', 'Сначала модель составила промпт, затем этот промпт был использован для решения.', async () => {
@@ -194,7 +221,7 @@ async function runExperiment(prompt, onUpdate = () => {}) {
       throw new Error(`Конструктор промпта не ответил: ${builderResult.error}`);
     })
     : await safeRun('generated', 'Сгенерированный промпт', 'Сначала модель составила промпт, затем этот промпт был использован для решения.', async () => {
-    const result = await complete([{ role: 'user', content: `${generatedPrompt}\n\nДополнительное требование эксперимента: реши исходную задачу кратко, проверь ограничения и последней строкой укажи итоговый порядок в формате «Итоговый порядок: Имя 1, Имя 2, Имя 3, Имя 4, Имя 5, Имя 6».` }], 6000, 'generated', onUpdate);
+    const result = await complete([{ role: 'user', content: `${generatedPrompt}\n\nДополнительное требование эксперимента: реши исходную задачу кратко, проверь физическую логику и опиши безопасный порядок действий.` }], 6000, 'generated', onUpdate);
     return methodResult('generated', 'Сгенерированный промпт', 'Сначала модель составила промпт, затем этот промпт был использован для решения.', result, {
       generatedPrompt,
       generatedPromptLength: generatedPrompt.length,
@@ -207,41 +234,67 @@ async function runExperiment(prompt, onUpdate = () => {}) {
   });
 
   const methods = [directResult, stepResult, generatedPromptSolver, expertResult];
+  const judgePrompt = buildJudgePrompt(methods);
+  const judgeResult = await safeRun('judge', 'Верификатор ответов', 'Отдельный API-запрос сравнивает четыре ответа с эталонным принципом.', async () => complete([{ role: 'user', content: judgePrompt }], 3500, 'judge', onUpdate));
+  const judgeParsed = applyJudge(methods, judgeResult.text || '');
   const exactCount = methods.filter(method => method.evaluation?.exact).length;
   const best = methods.filter(method => !method.error).sort((left, right) => (right.evaluation?.score || 0) - (left.evaluation?.score || 0) || (left.usage?.totalTokens || Infinity) - (right.usage?.totalTokens || Infinity))[0];
   return {
     model: MODEL,
     task: prompt,
-    expectedOrder: EXPECTED_ORDER,
+    referenceAnswer: REFERENCE_ANSWER,
     methods,
+    verification: { text: judgeResult.text || '', parsed: judgeParsed, usage: judgeResult.usage, latencyMs: judgeResult.latencyMs, finishReason: judgeResult.finishReason },
     summary: {
       exactCount,
       totalMethods: methods.length,
       bestMethod: best?.key || null,
       bestTitle: best?.title || null,
-      criterion: 'Точность определяется сравнением распознанного итогового порядка с эталоном из ограничений задачи.',
+      criterion: 'Точность определяет отдельный API-верификатор по эталонному принципу решения.',
     },
   };
 }
 
 app.get('/api/config', (req, res) => {
-  res.json({ model: MODEL, task: TASK, expectedOrder: EXPECTED_ORDER, methods: ['direct', 'step', 'generated', 'experts'], calls: buildCallPreview(TASK), apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY) });
+  res.json({ model: MODEL, task: TASK, referenceAnswer: REFERENCE_ANSWER, methods: ['direct', 'step', 'generated', 'experts'], calls: buildCallPreview(TASK), apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY) });
+});
+
+app.post('/api/generate-prompt', async (req, res) => {
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : TASK;
+  const id = crypto.randomUUID();
+  const job = { id, prompt, state: 'running', calls: [{ ...buildCallPreview(prompt).find(call => call.id === 'prompt-builder'), status: 'waiting' }], startedAt: Date.now() };
+  jobs.set(id, job);
+  res.status(202).json({ runId: id, state: job.state, calls: job.calls });
+  complete(getPromptBuilderRequest(prompt).messages, getPromptBuilderRequest(prompt).max_tokens, 'prompt-builder', (key, event) => {
+    const call = job.calls.find(item => item.id === key);
+    if (call) Object.assign(call, event);
+    job.updatedAt = Date.now();
+  }).then(result => {
+    job.state = 'complete';
+    job.result = { prompt: result.text, usage: result.usage, latencyMs: result.latencyMs, finishReason: result.finishReason };
+    job.updatedAt = Date.now();
+  }).catch(error => {
+    job.state = 'error';
+    job.error = error.message;
+    job.updatedAt = Date.now();
+  });
 });
 
 app.post('/api/run', async (req, res) => {
   const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : TASK;
+  const generatedPrompt = typeof req.body?.generatedPrompt === 'string' ? req.body.generatedPrompt.trim() : '';
   if (!prompt || prompt.length > MAX_PROMPT_LENGTH) {
     return res.status(400).json({ error: `Задача должна содержать от 1 до ${MAX_PROMPT_LENGTH} символов.` });
   }
   const id = crypto.randomUUID();
-  const job = { id, prompt, state: 'running', calls: buildCallPreview(prompt).map(call => ({ ...call, status: 'waiting' })), startedAt: Date.now() };
+  const job = { id, prompt, state: 'running', calls: buildCallPreview(prompt, generatedPrompt).map(call => ({ ...call, status: call.id === 'prompt-builder' && generatedPrompt ? 'provided' : 'waiting' })), startedAt: Date.now() };
   jobs.set(id, job);
   res.status(202).json({ runId: id, state: job.state, calls: job.calls });
   runExperiment(prompt, (key, event) => {
     const call = job.calls.find(item => item.id === key);
     if (call) Object.assign(call, event);
     job.updatedAt = Date.now();
-  }).then(result => {
+  }, generatedPrompt).then(result => {
     job.state = 'complete';
     job.result = result;
     job.updatedAt = Date.now();
