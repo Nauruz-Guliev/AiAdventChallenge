@@ -24,11 +24,11 @@
 <body>
   <div class="shell">
     <header class="topbar"><div class="brand"><div class="logo">05</div><div><strong>Три модели, один запрос</strong><span>AI Advent Challenge / Hugging Face → OpenCode Go</span></div></div><div class="top-meta"><span>HF model cards</span><span class="live">Готов к запуску</span></div></header>
-    <section class="hero"><div><div class="eyebrow">Слабая · средняя · сильная</div><h1>Сколько стоит качество?</h1><p>Отправь один и тот же аналитический запрос трём моделям и сравни результат по времени, токенам, reference-стоимости и содержанию.</p></div><div class="experiment">temperature = 0.2 · max 3200 tokens</div></section>
+    <section class="hero"><div><div class="eyebrow">Слабая · средняя · сильная</div><h1>Сколько стоит качество?</h1><p>Отправь один и тот же аналитический запрос трём моделям и сравни результат по времени, токенам, reference-стоимости и содержанию.</p></div><div class="experiment">temperature = 0.2 · max 4200 tokens</div></section>
     <div class="layout">
       <aside class="sidebar">
-        <section class="panel"><h2 class="panel-title">Один и тот же запрос</h2><div class="task"><pre id="task"></pre></div><p class="note"><strong>Честное сравнение:</strong> модели выбраны по HF-карточкам, а меняется только модель. Транспорт, запрос, температура и лимит ответа одинаковы.</p></section>
-        <section class="panel rubric"><h2 class="panel-title">Мини-рубрика качества</h2><div class="rubric-row"><b>01</b><span>Выбран оптимальный портфель</span></div><div class="rubric-row"><b>02</b><span>Проверены бюджет и конфликты</span></div><div class="rubric-row"><b>03</b><span>Названы суммы 15 недель / 42 ценности</span></div></section>
+        <section class="panel"><h2 class="panel-title">Один и тот же запрос</h2><div class="task"><pre id="task"></pre></div><p class="note"><strong>Честное сравнение:</strong> prompt, температура и лимит одинаковы. Provider-specific reasoning flags нужны, чтобы разные модели возвращали видимый финальный ответ.</p></section>
+        <section class="panel rubric"><h2 class="panel-title">Мини-рубрика качества</h2><div class="rubric-row"><b>01</b><span>Выбран оптимальный портфель</span></div><div class="rubric-row"><b>02</b><span>Проверены бюджет и конфликты</span></div><div class="rubric-row"><b>03</b><span>Названы суммы 14 недель / 39 ценности</span></div></section>
       </aside>
       <main class="main">
         <div class="status" id="status"></div>

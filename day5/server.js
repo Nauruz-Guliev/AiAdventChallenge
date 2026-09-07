@@ -9,9 +9,9 @@ app.use(express.json({ limit: '32kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_PROMPT_LENGTH = 8000;
-const TASK = `Реши портфельную задачу. Лимиты: 15 инженерных недель, максимум 4 проекта, минимум 1 SAFETY. Максимизируй ценность; зависимости должны быть закрыты, конфликты запрещены.
+const TASK = `Реши портфельную задачу. Лимиты: 14 инженерных недель, максимум 3 проекта, минимум 1 SAFETY. Максимизируй ценность; зависимости закрыты, конфликты запрещены.
 
-A Альфа: 5/14, требует B; B Бета: 3/8, SAFETY; C Гамма: 6/17, конфликт D; D Дельта: 4/11, SAFETY; E Эпсилон: 2/6, требует A; F Зета: 4/12, конфликт B; G Эта: 3/8, требует D, SAFETY; H Тета: 2/5; I Йота: 1/3; J Каппа: 5/13.
+A Альфа: 5/14, требует B; B Бета: 3/8, SAFETY; C Гамма: 6/17, конфликт D; D Дельта: 4/10, SAFETY; E Эпсилон: 2/6, требует A; F Зета: 4/11, конфликт B; G Эта: 1/3.
 
 Ответь ровно 3 строками: «Портфель: ...»; «Проверка: ...»; «Конкурент: ...». Укажи проекты, общие недели и ценность. Не показывай скрытые рассуждения и не меняй числа.`;
 
@@ -111,9 +111,9 @@ function userFacingError(error) {
 function evaluate(text) {
   const normalized = text.toLocaleLowerCase('ru-RU');
   const lines = normalized.split('\n').filter(line => line.trim());
-  const chosenPortfolio = ['альфа', 'бета', 'гамма', 'йота'].every(name => normalized.includes(name));
-  const hasBudget = /15\s*(?:недель|недел|week)/iu.test(normalized);
-  const hasValue = /42/iu.test(normalized);
+  const chosenPortfolio = ['альфа', 'бета', 'гамма'].every(name => normalized.includes(name));
+  const hasBudget = /14\s*(?:недель|недел|week)/iu.test(normalized);
+  const hasValue = /39/iu.test(normalized);
   const checksDependencies = /зависим|требу|конфликт|лимит|safety/iu.test(normalized);
   const requiredSignals = [lines.length >= 3, chosenPortfolio, hasBudget, hasValue, checksDependencies];
   return {
@@ -130,15 +130,22 @@ function evaluate(text) {
 
 async function complete(model, prompt, sessionId) {
   const startedAt = Date.now();
+  const request = {
+    model: model.id,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+    max_tokens: 4200,
+  };
+  if (model.id.startsWith('deepseek-')) request.thinking = { type: 'disabled' };
+  if (model.id === 'glm-5.3-flash') {
+    request.thinking = { type: 'enabled' };
+    request.reasoning_effort = 'low';
+  }
+  if (model.id === 'kimi-k3') request.reasoning_effort = 'low';
   let completion;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      completion = await createClient(sessionId).chat.completions.create({
-        model: model.id,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 3200,
-      });
+      completion = await createClient(sessionId).chat.completions.create(request);
       break;
     } catch (error) {
       if (attempt === 2 || !isRetryable(error)) throw new Error(userFacingError(error));
