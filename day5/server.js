@@ -58,13 +58,23 @@ const MODELS = [
 ];
 
 const modelById = new Map(MODELS.map(model => [model.id, model]));
-const openai = new OpenAI({
+const openaiOptions = {
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1',
   timeout: 180000,
   maxRetries: 0,
-});
+};
 const jobs = new Map();
+
+function createClient(sessionId) {
+  return new OpenAI({
+    ...openaiOptions,
+    defaultHeaders: {
+      'x-opencode-session': sessionId,
+      'User-Agent': 'ai-advent-challenge-day5/1.0',
+    },
+  });
+}
 
 function getUsage(completion) {
   const usage = completion.usage || {};
@@ -102,9 +112,9 @@ function evaluate(text) {
   };
 }
 
-async function complete(model, prompt) {
+async function complete(model, prompt, sessionId) {
   const startedAt = Date.now();
-  const completion = await openai.chat.completions.create({
+  const completion = await createClient(sessionId).chat.completions.create({
     model: model.id,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
@@ -122,9 +132,10 @@ async function complete(model, prompt) {
 
 function startJob(model, prompt) {
   const id = crypto.randomUUID();
+  const sessionId = crypto.randomUUID();
   const job = { id, state: 'running', startedAt: Date.now(), result: null, error: null };
   jobs.set(id, job);
-  complete(model, prompt).then(result => {
+  complete(model, prompt, sessionId).then(result => {
     job.state = 'complete';
     job.result = { ...result, model: model.id, evaluation: evaluate(result.text) };
   }).catch(error => {

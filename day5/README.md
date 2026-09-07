@@ -36,6 +36,8 @@ OPENAI_BASE_URL=https://opencode.ai/zen/go/v1
 PORT=3005
 ```
 
+Сервер автоматически добавляет обязательный для OpenCode Go заголовок `x-opencode-session` и собственный `User-Agent` для каждого запуска модели.
+
 Запуск:
 
 ```bash
