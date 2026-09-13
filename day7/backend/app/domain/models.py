@@ -7,7 +7,7 @@ StageStatus = Literal["pending", "active", "completed", "error"]
 
 @dataclass(frozen=True)
 class ChatMessage:
-    role: Literal["system", "user"]
+    role: Literal["system", "user", "assistant"]
     content: str
 
 
@@ -31,7 +31,32 @@ class AgentResult:
     stages: list[AgentStage]
 
 
+@dataclass(frozen=True)
+class ChatSummary:
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class Chat:
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    messages: list[ChatMessage]
+
+
 class InvalidUserMessage(ValueError):
+    pass
+
+
+class ChatNotFound(RuntimeError):
+    pass
+
+
+class ChatPersistenceError(RuntimeError):
     pass
 
 
