@@ -1,7 +1,7 @@
 import pytest
 
 from app.application.agent import Agent
-from app.domain.models import AgentResult, AgentStage, LLMResponse
+from app.domain.models import AgentResult, AgentStage, Chat, ChatMessage, LLMResponse
 from app.domain.models import InvalidUserMessage, LLMGatewayError
 
 
@@ -37,11 +37,52 @@ class FakeGateway:
         return self.response
 
 
+class FakeRepository:
+    def __init__(self):
+        self.chat = Chat(
+            id="chat-1",
+            title="Новый чат",
+            created_at="2026-09-13T12:00:00+00:00",
+            updated_at="2026-09-13T12:00:00+00:00",
+            messages=[
+                ChatMessage(role="user", content="Меня зовут Анна"),
+                ChatMessage(role="assistant", content="Приятно познакомиться"),
+            ],
+        )
+        self.saved = None
+
+    async def get_chat(self, chat_id):
+        assert chat_id == self.chat.id
+        return self.chat
+
+    async def append_exchange(self, chat_id, user_content, assistant_content):
+        self.saved = (chat_id, user_content, assistant_content)
+        return self.chat
+
+
+@pytest.mark.asyncio
+async def test_agent_sends_previous_history_and_saves_exchange():
+    gateway = FakeGateway()
+    repository = FakeRepository()
+
+    result = await Agent(gateway, repository).run("chat-1", "Как меня зовут?")
+
+    assert [message.role for message in gateway.messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert gateway.messages[-2].content == "Приятно познакомиться"
+    assert gateway.messages[-1].content == "Как меня зовут?"
+    assert repository.saved == ("chat-1", "Как меня зовут?", result.answer)
+
+
 @pytest.mark.asyncio
 async def test_agent_sends_user_message_and_returns_answer():
     gateway = FakeGateway()
 
-    result = await Agent(gateway).run("  hello  ")
+    result = await Agent(gateway, FakeRepository()).run("chat-1", "  hello  ")
 
     assert result.answer == "fake answer"
     assert gateway.messages[-1].role == "user"
@@ -52,10 +93,13 @@ async def test_agent_sends_user_message_and_returns_answer():
 @pytest.mark.asyncio
 async def test_agent_rejects_blank_message():
     with pytest.raises(InvalidUserMessage):
-        await Agent(FakeGateway()).run("   ")
+        await Agent(FakeGateway(), FakeRepository()).run("chat-1", "   ")
 
 
 @pytest.mark.asyncio
 async def test_agent_preserves_gateway_error():
     with pytest.raises(LLMGatewayError):
-        await Agent(FakeGateway(error=LLMGatewayError("provider failed"))).run("hello")
+        await Agent(
+            FakeGateway(error=LLMGatewayError("provider failed")),
+            FakeRepository(),
+        ).run("chat-1", "hello")

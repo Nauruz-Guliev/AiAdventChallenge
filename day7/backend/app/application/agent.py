@@ -1,5 +1,6 @@
 from time import perf_counter
 
+from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.llm_gateway import LLMGateway
 from app.domain.models import AgentResult, AgentStage, ChatMessage, InvalidUserMessage
 
@@ -13,14 +14,20 @@ MAX_MESSAGE_LENGTH = 4000
 
 
 class Agent:
-    def __init__(self, gateway: LLMGateway, model: str = "deepseek-chat"):
+    def __init__(
+        self,
+        gateway: LLMGateway,
+        repository: ChatRepository,
+        model: str = "deepseek-chat",
+    ):
         self._gateway = gateway
+        self._repository = repository
         self._model = model
 
-    async def run(self, user_text: str) -> AgentResult:
+    @staticmethod
+    def _validate_message(user_text: str) -> str:
         if not isinstance(user_text, str):
             raise InvalidUserMessage("Message must be a string")
-
         message = user_text.strip()
         if not message:
             raise InvalidUserMessage("Message cannot be blank")
@@ -28,15 +35,22 @@ class Agent:
             raise InvalidUserMessage(
                 f"Message must be shorter than {MAX_MESSAGE_LENGTH} characters"
             )
+        return message
+
+    async def run(self, chat_id: str, user_text: str) -> AgentResult:
+        message = self._validate_message(user_text)
+        chat = await self._repository.get_chat(chat_id)
+        messages = [ChatMessage(role="system", content=SYSTEM_PROMPT)]
+        messages.extend(chat.messages)
+        messages.append(ChatMessage(role="user", content=message))
 
         started_at = perf_counter()
-        response = await self._gateway.complete([
-            ChatMessage(role="system", content=SYSTEM_PROMPT),
-            ChatMessage(role="user", content=message),
-        ])
+        response = await self._gateway.complete(messages)
+        answer = response.text.strip()
+        await self._repository.append_exchange(chat_id, message, answer)
 
         return AgentResult(
-            answer=response.text.strip(),
+            answer=answer,
             model=response.model or self._model,
             duration_ms=round((perf_counter() - started_at) * 1000),
             stages=[
