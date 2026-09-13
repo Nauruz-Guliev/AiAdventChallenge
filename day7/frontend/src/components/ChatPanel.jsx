@@ -1,11 +1,11 @@
 export default function ChatPanel({
-  answer,
   error,
   loading,
   message,
-  result,
+  messages,
   onChange,
   onSubmit,
+  result,
 }) {
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -22,20 +22,26 @@ export default function ChatPanel({
         <span className="model-chip">deepseek-chat</span>
       </div>
 
-      <div className={`conversation ${answer || error ? 'has-response' : ''}`}>
-        {!message && !answer && !error && (
+      <div className={`conversation ${messages.length || error ? 'has-response' : ''}`}>
+        {!messages.length && !error && !loading && (
           <div className="empty-state">
             <span className="empty-icon">✦</span>
-            <p>Агент готов. Начни с вопроса,<br />который хочется разобрать.</p>
+            <p>Агент готов. История этого чата<br />сохранится после перезапуска.</p>
           </div>
         )}
-        {message && <div className="message user-message">{message}</div>}
+        {messages.map((item, index) => (
+          <div
+            className={`message ${item.role === 'user' ? 'user-message' : 'agent-message'}`}
+            key={`${item.role}-${index}`}
+          >
+            {item.content}
+          </div>
+        ))}
         {loading && (
           <div className="message agent-message loading-message">
             <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
           </div>
         )}
-        {answer && <div className="message agent-message">{answer}</div>}
         {error && <div className="error-card"><strong>Запрос не завершён</strong><span>{error}</span></div>}
       </div>
 
