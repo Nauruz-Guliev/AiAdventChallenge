@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createChat, getChat, listChats, sendMessage } from './api.js';
+import { createChat, deleteChat, getChat, listChats, sendMessage } from './api.js';
 import AgentFlow from './components/AgentFlow.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
 import ChatSidebar from './components/ChatSidebar.jsx';
@@ -83,6 +83,32 @@ export default function App() {
     }
   }
 
+  async function handleDeleteChat(chatId) {
+    if (loading || !window.confirm('Удалить этот чат и всю его историю?')) return;
+
+    setError('');
+    try {
+      await deleteChat(chatId);
+      const remainingChats = await listChats();
+      if (remainingChats.length) {
+        setChats(remainingChats);
+        if (chatId === selectedChatId) {
+          await loadChat(remainingChats[0].id);
+        }
+        return;
+      }
+
+      const newChat = await createChat();
+      setChats([newChat]);
+      setSelectedChatId(newChat.id);
+      setMessages([]);
+      setResult(null);
+      setStages(initialStages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     const trimmedMessage = message.trim();
@@ -136,6 +162,7 @@ export default function App() {
           chats={chats}
           disabled={loading || initializing}
           onCreate={handleCreateChat}
+          onDelete={handleDeleteChat}
           onSelect={handleSelectChat}
           selectedChatId={selectedChatId}
         />

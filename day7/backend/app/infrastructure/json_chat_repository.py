@@ -53,6 +53,16 @@ class JsonChatRepository:
             store = self._read_store()
             return _find_chat(store, chat_id)
 
+    async def delete_chat(self, chat_id: str) -> None:
+        async with self._lock:
+            store = self._read_store()
+            chats = store["chats"]
+            remaining = [chat for chat in chats if chat["id"] != chat_id]
+            if len(remaining) == len(chats):
+                raise ChatNotFound(chat_id)
+            store["chats"] = remaining
+            self._write_store(store)
+
     async def append_exchange(
         self,
         chat_id: str,
@@ -120,7 +130,34 @@ def _now() -> str:
 
 def _chat_title(content: str) -> str:
     compact = " ".join(content.split())
-    return compact[:50] or "Новый чат"
+    if not compact:
+        return "Новый чат"
+
+    sentence_end = next(
+        (
+            index
+            for index, character in enumerate(compact)
+            if character in ".!?"
+            and (index + 1 == len(compact) or compact[index + 1].isspace())
+        ),
+        None,
+    )
+    if sentence_end is not None and sentence_end + 1 >= 12:
+        compact = compact[: sentence_end + 1]
+
+    max_length = 40
+    if len(compact) <= max_length:
+        return compact
+
+    words = []
+    for word in compact.split():
+        candidate = " ".join([*words, word])
+        if len(candidate) >= max_length:
+            break
+        words.append(word)
+
+    title = " ".join(words).rstrip(".,;:!?")
+    return f"{title}…" or "Новый чат"
 
 
 def _find_chat(store: dict, chat_id: str) -> Chat:

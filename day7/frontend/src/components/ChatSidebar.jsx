@@ -3,6 +3,7 @@ export default function ChatSidebar({
   selectedChatId,
   onSelect,
   onCreate,
+  onDelete,
   disabled,
 }) {
   return (
@@ -19,20 +20,35 @@ export default function ChatSidebar({
 
       <div className="chat-list">
         {chats.map(chat => (
-          <button
-            aria-current={chat.id === selectedChatId ? 'true' : undefined}
+          <div
             className={`chat-list-item ${chat.id === selectedChatId ? 'selected' : ''}`}
-            disabled={disabled}
             key={chat.id}
-            onClick={() => onSelect(chat.id)}
-            type="button"
           >
-            <span className="chat-list-dot" />
-            <span className="chat-list-copy">
-              <strong>{chat.title}</strong>
-              <small>{new Date(chat.updated_at).toLocaleDateString('ru-RU')}</small>
-            </span>
-          </button>
+            <button
+              aria-current={chat.id === selectedChatId ? 'true' : undefined}
+              className="chat-list-select"
+              disabled={disabled}
+              onClick={() => onSelect(chat.id)}
+              title={chat.title}
+              type="button"
+            >
+              <span className="chat-list-dot" />
+              <span className="chat-list-copy">
+                <strong>{chat.title}</strong>
+                <small>{new Date(chat.updated_at).toLocaleDateString('ru-RU')}</small>
+              </span>
+            </button>
+            <button
+              aria-label={`Удалить чат: ${chat.title}`}
+              className="delete-chat-button"
+              disabled={disabled}
+              onClick={() => onDelete(chat.id)}
+              title="Удалить чат"
+              type="button"
+            >
+              ×
+            </button>
+          </div>
         ))}
       </div>
     </aside>

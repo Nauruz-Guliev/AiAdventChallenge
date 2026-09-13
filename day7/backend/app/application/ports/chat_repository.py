@@ -10,6 +10,8 @@ class ChatRepository(Protocol):
 
     async def get_chat(self, chat_id: str) -> Chat: ...
 
+    async def delete_chat(self, chat_id: str) -> None: ...
+
     async def append_exchange(
         self,
         chat_id: str,

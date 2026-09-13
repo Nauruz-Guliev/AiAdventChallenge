@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from app.application.ports.chat_repository import ChatRepository
 from app.application.agent import Agent
@@ -46,6 +46,15 @@ async def get_chat(
             for message in chat.messages
         ],
     )
+
+
+@router.delete("/api/chats/{chat_id}", status_code=204)
+async def delete_chat(
+    chat_id: str,
+    repository: Annotated[ChatRepository, Depends(get_repository)],
+) -> Response:
+    await repository.delete_chat(chat_id)
+    return Response(status_code=204)
 
 
 @router.post("/api/chats/{chat_id}/messages", response_model=ChatResponse)

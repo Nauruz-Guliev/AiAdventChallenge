@@ -20,6 +20,7 @@ from app.presentation.dependencies import get_agent, get_repository
 class FakeRepository:
     def __init__(self):
         self.error = None
+        self.deleted = []
         self.chat = Chat(
             id="chat-1",
             title="Новый чат",
@@ -50,6 +51,13 @@ class FakeRepository:
         if chat_id != self.chat.id:
             raise ChatNotFound(chat_id)
         return self.chat
+
+    async def delete_chat(self, chat_id):
+        if self.error:
+            raise self.error
+        if chat_id != self.chat.id:
+            raise ChatNotFound(chat_id)
+        self.deleted.append(chat_id)
 
 
 class FakeAgent:
@@ -127,6 +135,13 @@ def test_unknown_chat_returns_404(client):
     response = client[0].get("/api/chats/missing")
 
     assert response.status_code == 404
+
+
+def test_delete_chat_returns_no_content(client):
+    response = client[0].delete("/api/chats/chat-1")
+
+    assert response.status_code == 204
+    assert client[1].deleted == ["chat-1"]
 
 
 def test_send_message_rejects_blank_message(client):

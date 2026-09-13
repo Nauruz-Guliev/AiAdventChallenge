@@ -29,8 +29,10 @@ h1 em { color: #79e3d0; font-style: normal; }
 .new-chat-button { width: 30px; height: 30px; border: 1px solid #39766a; border-radius: 9px; color: #79e3d0; background: #132a27; cursor: pointer; font-size: 19px; line-height: 1; }
 .new-chat-button:hover:not(:disabled) { color: #09201d; background: #79e3d0; }.new-chat-button:disabled { opacity: .45; cursor: not-allowed; }
 .chat-list { display: flex; flex-direction: column; gap: 5px; padding-top: 12px; }
-.chat-list-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 8px; border: 1px solid transparent; border-radius: 10px; color: #829397; background: transparent; cursor: pointer; text-align: left; }
-.chat-list-item:hover:not(:disabled), .chat-list-item.selected { border-color: #285148; color: #dffaf5; background: #132522; }.chat-list-item:disabled { cursor: not-allowed; opacity: .65; }
+.chat-list-item { width: 100%; display: flex; align-items: stretch; gap: 3px; padding: 2px; border: 1px solid transparent; border-radius: 10px; color: #829397; background: transparent; }
+.chat-list-item.selected { border-color: #285148; color: #dffaf5; background: #132522; }
+.chat-list-select { min-width: 0; flex: 1; display: flex; align-items: center; gap: 9px; padding: 8px 6px; border: 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }.chat-list-select:hover:not(:disabled) { color: #dffaf5; }.chat-list-select:disabled, .delete-chat-button:disabled { cursor: not-allowed; opacity: .65; }
+.delete-chat-button { flex: 0 0 25px; align-self: center; width: 25px; height: 25px; border: 0; border-radius: 7px; color: #65777c; background: transparent; cursor: pointer; font-size: 18px; line-height: 1; }.delete-chat-button:hover:not(:disabled) { color: #ffd8c8; background: #301f1b; }
 .chat-list-dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #405356; }.chat-list-item.selected .chat-list-dot { background: #79e3d0; box-shadow: 0 0 0 4px #79e3d01a; }
 .chat-list-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }.chat-list-copy strong { overflow: hidden; color: inherit; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.chat-list-copy small { color: #536469; font-family: 'DM Mono', monospace; font-size: 8px; }
 .chat-panel, .flow-panel { min-width: 0; }

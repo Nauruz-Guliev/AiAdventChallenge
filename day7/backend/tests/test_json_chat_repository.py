@@ -63,3 +63,30 @@ async def test_malformed_json_raises_persistence_error(tmp_path):
 
     with pytest.raises(ChatPersistenceError):
         await repository.list_chats()
+
+
+@pytest.mark.asyncio
+async def test_delete_chat_removes_chat_from_storage(tmp_path):
+    repository = JsonChatRepository(tmp_path / "chats.json")
+    chat = await repository.create_chat()
+
+    await repository.delete_chat(chat.id)
+
+    assert await repository.list_chats() == []
+    with pytest.raises(ChatNotFound):
+        await repository.get_chat(chat.id)
+
+
+@pytest.mark.asyncio
+async def test_long_first_message_gets_readable_short_title(tmp_path):
+    repository = JsonChatRepository(tmp_path / "chats.json")
+    chat = await repository.create_chat()
+    message = (
+        "Как объяснить архитектуру приложения, которое должно сохранять "
+        "историю диалогов между перезапусками?"
+    )
+
+    await repository.append_exchange(chat.id, message, "Ответ")
+    restored = await repository.get_chat(chat.id)
+
+    assert restored.title == "Как объяснить архитектуру приложения…"

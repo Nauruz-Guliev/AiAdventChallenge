@@ -22,6 +22,10 @@ export function getChat(chatId) {
   return request(`/api/chats/${chatId}`);
 }
 
+export function deleteChat(chatId) {
+  return request(`/api/chats/${chatId}`, { method: 'DELETE' });
+}
+
 export function sendMessage(chatId, message) {
   return request(`/api/chats/${chatId}/messages`, {
     method: 'POST',
