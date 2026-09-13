@@ -7,5 +7,6 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     backend_host: str = "127.0.0.1"
     backend_port: int = 8000
+    context_file: str = "data/chats.json"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
