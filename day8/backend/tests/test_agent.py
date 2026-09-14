@@ -78,8 +78,8 @@ class FakeRepository:
         assert chat_id == self.chat.id
         return self.chat
 
-    async def append_exchange(self, chat_id, user_content, assistant_content):
-        self.saved = (chat_id, user_content, assistant_content)
+    async def append_exchange(self, chat_id, user_content, assistant_content, usage):
+        self.saved = (chat_id, user_content, assistant_content, usage)
         return self.chat
 
 
@@ -98,7 +98,8 @@ async def test_agent_sends_previous_history_and_saves_exchange():
     ]
     assert gateway.messages[-2].content == "Приятно познакомиться"
     assert gateway.messages[-1].content == "Как меня зовут?"
-    assert repository.saved == ("chat-1", "Как меня зовут?", result.answer)
+    assert repository.saved[:3] == ("chat-1", "Как меня зовут?", result.answer)
+    assert repository.saved[3] == sample_usage()
 
 
 @pytest.mark.asyncio

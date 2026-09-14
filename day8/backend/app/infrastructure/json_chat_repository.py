@@ -12,6 +12,7 @@ from app.domain.models import (
     ChatNotFound,
     ChatPersistenceError,
     ChatSummary,
+    TokenUsage,
 )
 
 
@@ -68,6 +69,7 @@ class JsonChatRepository:
         chat_id: str,
         user_content: str,
         assistant_content: str,
+        usage: TokenUsage,
     ) -> Chat:
         async with self._lock:
             store = self._read_store()
@@ -80,7 +82,15 @@ class JsonChatRepository:
                 stored_chat["messages"].extend(
                     [
                         {"role": "user", "content": user_content},
-                        {"role": "assistant", "content": assistant_content},
+                        {
+                            "role": "assistant",
+                            "content": assistant_content,
+                            "usage": {
+                                "prompt_tokens": usage.prompt_tokens,
+                                "completion_tokens": usage.completion_tokens,
+                                "total_tokens": usage.total_tokens,
+                            },
+                        },
                     ]
                 )
                 stored_chat["updated_at"] = _now()
@@ -173,10 +183,16 @@ def _chat_from_dict(stored_chat: dict) -> Chat:
         title=stored_chat["title"],
         created_at=stored_chat["created_at"],
         updated_at=stored_chat["updated_at"],
-        messages=[
-            ChatMessage(role=message["role"], content=message["content"])
-            for message in stored_chat["messages"]
-        ],
+        messages=[_message_from_dict(message) for message in stored_chat["messages"]],
+    )
+
+
+def _message_from_dict(message: dict) -> ChatMessage:
+    usage = message.get("usage")
+    return ChatMessage(
+        role=message["role"],
+        content=message["content"],
+        usage=TokenUsage(**usage) if usage else None,
     )
 
 
@@ -186,8 +202,16 @@ def _chat_to_dict(chat: Chat) -> dict:
         "title": chat.title,
         "created_at": chat.created_at,
         "updated_at": chat.updated_at,
-        "messages": [
-            {"role": message.role, "content": message.content}
-            for message in chat.messages
-        ],
+        "messages": [_message_to_dict(message) for message in chat.messages],
     }
+
+
+def _message_to_dict(message: ChatMessage) -> dict:
+    stored = {"role": message.role, "content": message.content}
+    if message.usage is not None:
+        stored["usage"] = {
+            "prompt_tokens": message.usage.prompt_tokens,
+            "completion_tokens": message.usage.completion_tokens,
+            "total_tokens": message.usage.total_tokens,
+        }
+    return stored

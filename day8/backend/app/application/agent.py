@@ -53,7 +53,9 @@ class Agent:
         started_at = perf_counter()
         response = await self._gateway.complete(messages)
         answer = response.text.strip()
-        await self._repository.append_exchange(chat_id, message, answer)
+        await self._repository.append_exchange(
+            chat_id, message, answer, response.usage
+        )
 
         return AgentResult(
             answer=answer,

@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.domain.models import Chat, ChatSummary
+from app.domain.models import Chat, ChatSummary, TokenUsage
 
 
 class ChatRepository(Protocol):
@@ -17,4 +17,5 @@ class ChatRepository(Protocol):
         chat_id: str,
         user_content: str,
         assistant_content: str,
+        usage: TokenUsage,
     ) -> Chat: ...
