@@ -1,6 +1,6 @@
 import pytest
 
-from app.application.usage import WARNING_FILL_RATIO, build_dialog_usage, exchange_cost_usd
+from app.application.usage import WARNING_FILL_RATIO, build_dialog_usage, exchange_cost_usd, summarization_cost_usd
 from app.domain.models import ChatMessage, TokenUsage, UsageConfig
 from app.infrastructure.token_counter import TiktokenCounter
 
@@ -61,3 +61,14 @@ def test_dialog_without_usage_has_zero_totals():
 
     assert dialog.dialog_total_tokens == 0
     assert dialog.dialog_cost_usd == 0.0
+
+
+def test_summarization_cost_usd():
+    usage = TokenUsage(
+        prompt_tokens=1_000_000, completion_tokens=500_000, total_tokens=1_500_000
+    )
+    assert summarization_cost_usd(usage, UsageConfig()) == pytest.approx(0.90)
+
+
+def test_summarization_cost_zero_usage():
+    assert summarization_cost_usd(TokenUsage(0, 0, 0), UsageConfig()) == 0.0

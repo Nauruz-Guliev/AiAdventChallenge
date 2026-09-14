@@ -27,3 +27,7 @@ def build_dialog_usage(
         context_remaining=max(remaining, 0),
         warning=history_tokens >= config.context_limit_tokens * WARNING_FILL_RATIO,
     )
+
+
+def summarization_cost_usd(usage: TokenUsage, config: UsageConfig) -> float:
+    return round(exchange_cost_usd(usage, config), 6)

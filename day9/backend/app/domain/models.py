@@ -17,6 +17,20 @@ class UsageConfig:
     context_limit_tokens: int = 8000
     input_price_per_million: float = 0.30
     output_price_per_million: float = 1.20
+    compress_at_tokens: int = 3000
+    keep_recent_messages: int = 10
+    summary_max_tokens: int = 500
+
+
+@dataclass(frozen=True)
+class CompressionInfo:
+    applied: bool
+    before_tokens: int
+    after_tokens: int
+    saved_tokens: int
+    saved_percent: int
+    summarization_tokens: int
+    summarization_cost_usd: float
 
 
 @dataclass(frozen=True)
@@ -42,6 +56,7 @@ class UsageReport:
     context_limit: int
     context_remaining: int
     warning: bool
+    compression: CompressionInfo | None = None
 
 
 @dataclass(frozen=True)
