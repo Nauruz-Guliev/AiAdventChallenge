@@ -7,11 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.domain.models import (
+    Branch,
+    BranchNotFound,
     Chat,
     ChatMessage,
     ChatNotFound,
     ChatPersistenceError,
     ChatSummary,
+    LastBranchError,
     TokenUsage,
 )
 
@@ -25,12 +28,14 @@ class JsonChatRepository:
         async with self._lock:
             store = self._read_store()
             now = _now()
+            branch = Branch(id=str(uuid.uuid4()), name="main")
             chat = Chat(
                 id=str(uuid.uuid4()),
                 title="Новый чат",
                 created_at=now,
                 updated_at=now,
-                messages=[],
+                branches=[branch],
+                active_branch_id=branch.id,
             )
             store["chats"].append(_chat_to_dict(chat))
             self._write_store(store)
@@ -70,33 +75,76 @@ class JsonChatRepository:
         user_content: str,
         assistant_content: str,
         usage: TokenUsage,
+        branch_id: str | None = None,
     ) -> Chat:
+        return await self._mutate(
+            chat_id,
+            lambda chat: _do_append(chat, user_content, assistant_content, usage, branch_id),
+        )
+
+    async def save_facts(
+        self, chat_id: str, branch_id: str | None, facts: dict[str, str]
+    ) -> Chat:
+        def mutate(chat: Chat) -> None:
+            branch = _pick_branch(chat, branch_id)
+            branch.facts = dict(facts)
+
+        return await self._mutate(chat_id, mutate)
+
+    async def fork_branch(self, chat_id: str, after_index: int, name: str) -> Chat:
+        def mutate(chat: Chat) -> None:
+            source = chat.active_branch
+            if not 0 <= after_index <= len(source.messages):
+                raise IndexError(after_index)
+            branch = Branch(
+                id=str(uuid.uuid4()),
+                name=name,
+                fork_at=after_index,
+                messages=[
+                    ChatMessage(
+                        role=message.role,
+                        content=message.content,
+                        usage=message.usage,
+                    )
+                    for message in source.messages[:after_index]
+                ],
+                facts=dict(source.facts),
+            )
+            chat.branches.append(branch)
+            chat.active_branch_id = branch.id
+
+        return await self._mutate(chat_id, mutate)
+
+    async def set_active_branch(self, chat_id: str, branch_id: str) -> Chat:
+        def mutate(chat: Chat) -> None:
+            _pick_branch(chat, branch_id)
+            chat.active_branch_id = branch_id
+
+        return await self._mutate(chat_id, mutate)
+
+    async def delete_branch(self, chat_id: str, branch_id: str) -> Chat:
+        def mutate(chat: Chat) -> None:
+            if len(chat.branches) <= 1:
+                raise LastBranchError(chat_id)
+            branch = _pick_branch(chat, branch_id)
+            chat.branches.remove(branch)
+            if chat.active_branch_id == branch_id:
+                chat.active_branch_id = chat.branches[0].id
+
+        return await self._mutate(chat_id, mutate)
+
+    async def _mutate(self, chat_id: str, mutate) -> Chat:
         async with self._lock:
             store = self._read_store()
-            for stored_chat in store["chats"]:
-                if stored_chat["id"] != chat_id:
-                    continue
-
-                if stored_chat["title"] == "Новый чат":
-                    stored_chat["title"] = _chat_title(user_content)
-                stored_chat["messages"].extend(
-                    [
-                        {"role": "user", "content": user_content},
-                        {
-                            "role": "assistant",
-                            "content": assistant_content,
-                            "usage": {
-                                "prompt_tokens": usage.prompt_tokens,
-                                "completion_tokens": usage.completion_tokens,
-                                "total_tokens": usage.total_tokens,
-                            },
-                        },
-                    ]
-                )
-                stored_chat["updated_at"] = _now()
-                self._write_store(store)
-                return _chat_from_dict(stored_chat)
-
+            for index, stored_chat in enumerate(store["chats"]):
+                if stored_chat["id"] == chat_id:
+                    chat = _chat_from_dict(stored_chat)
+                    mutate(chat)
+                    updated = _chat_to_dict(chat)
+                    updated["updated_at"] = _now()
+                    store["chats"][index] = updated
+                    self._write_store(store)
+                    return chat
             raise ChatNotFound(chat_id)
 
     def _read_store(self) -> dict:
@@ -177,13 +225,75 @@ def _find_chat(store: dict, chat_id: str) -> Chat:
     raise ChatNotFound(chat_id)
 
 
+def _do_append(
+    chat: Chat,
+    user_content: str,
+    assistant_content: str,
+    usage: TokenUsage,
+    branch_id: str | None,
+) -> None:
+    branch = _pick_branch(chat, branch_id)
+    if (
+        chat.title == "Новый чат"
+        and branch is chat.active_branch
+        and not branch.messages
+    ):
+        chat.title = _chat_title(user_content)
+    branch.messages.extend(
+        [
+            ChatMessage(role="user", content=user_content),
+            ChatMessage(role="assistant", content=assistant_content, usage=usage),
+        ]
+    )
+
+
+def _pick_branch(chat: Chat, branch_id: str | None) -> Branch:
+    if branch_id is None:
+        return chat.active_branch
+    for branch in chat.branches:
+        if branch.id == branch_id:
+            return branch
+    raise BranchNotFound(branch_id)
+
+
 def _chat_from_dict(stored_chat: dict) -> Chat:
+    if "branches" in stored_chat:
+        branches = [
+            Branch(
+                id=stored["id"],
+                name=stored["name"],
+                fork_at=stored.get("fork_at"),
+                messages=[
+                    _message_from_dict(message) for message in stored["messages"]
+                ],
+                facts=dict(stored.get("facts", {})),
+            )
+            for stored in stored_chat["branches"]
+        ]
+        return Chat(
+            id=stored_chat["id"],
+            title=stored_chat["title"],
+            created_at=stored_chat["created_at"],
+            updated_at=stored_chat["updated_at"],
+            branches=branches,
+            active_branch_id=stored_chat["active_branch_id"],
+        )
+
+    legacy_branch = Branch(
+        id=str(uuid.uuid4()),
+        name="main",
+        messages=[
+            _message_from_dict(message)
+            for message in stored_chat.get("messages", [])
+        ],
+    )
     return Chat(
         id=stored_chat["id"],
         title=stored_chat["title"],
         created_at=stored_chat["created_at"],
         updated_at=stored_chat["updated_at"],
-        messages=[_message_from_dict(message) for message in stored_chat["messages"]],
+        branches=[legacy_branch],
+        active_branch_id=legacy_branch.id,
     )
 
 
@@ -202,7 +312,19 @@ def _chat_to_dict(chat: Chat) -> dict:
         "title": chat.title,
         "created_at": chat.created_at,
         "updated_at": chat.updated_at,
-        "messages": [_message_to_dict(message) for message in chat.messages],
+        "active_branch_id": chat.active_branch_id,
+        "branches": [
+            {
+                "id": branch.id,
+                "name": branch.name,
+                "fork_at": branch.fork_at,
+                "facts": branch.facts,
+                "messages": [
+                    _message_to_dict(message) for message in branch.messages
+                ],
+            }
+            for branch in chat.branches
+        ],
     }
 
 

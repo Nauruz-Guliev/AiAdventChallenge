@@ -2,6 +2,7 @@ import pytest
 
 from app.application.agent import SYSTEM_PROMPT, Agent
 from app.domain.models import (
+    Branch,
     Chat,
     ChatMessage,
     ContextLimitExceeded,
@@ -36,7 +37,7 @@ class FakeGateway:
 
 class FakeRepository:
     def __init__(self):
-        self.chat = Chat(
+        self.chat = _chat(
             id="chat-1",
             title="Новый чат",
             created_at="2026-09-13T12:00:00+00:00",
@@ -54,7 +55,7 @@ class FakeRepository:
 
     async def append_exchange(self, chat_id, user_content, assistant_content, usage):
         self.saved = (chat_id, user_content, assistant_content, usage)
-        self.chat = Chat(
+        self.chat = _chat(
             id=self.chat.id,
             title=self.chat.title,
             created_at=self.chat.created_at,
@@ -119,7 +120,7 @@ async def test_agent_returns_usage_report_split_and_totals():
 async def test_agent_blocks_request_over_context_budget():
     gateway = FakeGateway()
     repository = FakeRepository()
-    huge_history = Chat(
+    huge_history = _chat(
         id="chat-1",
         title="Длинный",
         created_at="2026-09-13T12:00:00+00:00",
@@ -152,7 +153,7 @@ async def test_agent_blocks_request_over_context_budget():
 @pytest.mark.asyncio
 async def test_agent_warning_when_budget_nearly_full():
     repository = FakeRepository()
-    repository.chat = Chat(
+    repository.chat = _chat(
         id="chat-1",
         title="Почти полный",
         created_at="2026-09-13T12:00:00+00:00",
@@ -197,7 +198,7 @@ async def test_agent_preserves_gateway_error():
 @pytest.mark.asyncio
 async def test_over_budget_message_is_not_saved():
     repository = FakeRepository()
-    repository.chat = Chat(
+    repository.chat = _chat(
         id="chat-1",
         title="Т",
         created_at="2026-09-13T12:00:00+00:00",
@@ -232,3 +233,16 @@ class ScriptedGateway:
         if isinstance(response, Exception):
             raise response
         return response
+
+
+def _chat(id, title, created_at, updated_at, messages):
+    branch = Branch(id=f"{id}-b1", name="main", messages=list(messages))
+    return Chat(
+        id=id,
+        title=title,
+        created_at=created_at,
+        updated_at=updated_at,
+        branches=[branch],
+        active_branch_id=branch.id,
+    )
+

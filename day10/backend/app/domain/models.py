@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 
@@ -83,13 +83,38 @@ class ChatSummary:
     updated_at: str
 
 
-@dataclass(frozen=True)
+@dataclass
+class Branch:
+    id: str
+    name: str
+    fork_at: int | None = None
+    messages: list[ChatMessage] = field(default_factory=list)
+    facts: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class Chat:
     id: str
     title: str
     created_at: str
     updated_at: str
-    messages: list[ChatMessage]
+    branches: list[Branch]
+    active_branch_id: str
+
+    @property
+    def active_branch(self) -> Branch:
+        for branch in self.branches:
+            if branch.id == self.active_branch_id:
+                return branch
+        raise BranchNotFound(self.active_branch_id)
+
+    @property
+    def messages(self) -> list[ChatMessage]:
+        return self.active_branch.messages
+
+    @property
+    def facts(self) -> dict[str, str]:
+        return self.active_branch.facts
 
 
 class InvalidUserMessage(ValueError):
@@ -97,6 +122,14 @@ class InvalidUserMessage(ValueError):
 
 
 class ChatNotFound(RuntimeError):
+    pass
+
+
+class BranchNotFound(RuntimeError):
+    pass
+
+
+class LastBranchError(ValueError):
     pass
 
 

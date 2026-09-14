@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.domain.models import (
+    Branch,
     AgentResult,
     ContextLimitExceeded,
     AgentStage,
@@ -40,7 +41,7 @@ class FakeRepository:
     def __init__(self):
         self.error = None
         self.deleted = []
-        self.chat = Chat(
+        self.chat = _chat(
             id="chat-1",
             title="Новый чат",
             created_at="2026-09-13T12:00:00+00:00",
@@ -265,3 +266,16 @@ def test_send_message_over_budget_returns_413(client):
     assert response.json()["context_limit"] == 8000
     assert "превысил лимит контекста" in response.json()["detail"]
     assert "новый чат" in response.json()["detail"].lower()
+
+
+def _chat(id, title, created_at, updated_at, messages):
+    branch = Branch(id=f"{id}-b1", name="main", messages=list(messages))
+    return Chat(
+        id=id,
+        title=title,
+        created_at=created_at,
+        updated_at=updated_at,
+        branches=[branch],
+        active_branch_id=branch.id,
+    )
+
