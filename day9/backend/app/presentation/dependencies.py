@@ -33,6 +33,9 @@ def get_usage_config() -> UsageConfig:
         context_limit_tokens=settings.context_limit_tokens,
         input_price_per_million=settings.input_price_per_million,
         output_price_per_million=settings.output_price_per_million,
+        compress_at_tokens=settings.compress_at_tokens,
+        keep_recent_messages=settings.keep_recent_messages,
+        summary_max_tokens=settings.summary_max_tokens,
     )
 
 

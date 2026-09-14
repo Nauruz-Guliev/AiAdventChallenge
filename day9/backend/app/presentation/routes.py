@@ -6,7 +6,7 @@ from app.application.agent import SYSTEM_PROMPT, Agent
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.usage import build_dialog_usage
-from app.domain.models import Chat, ChatMessage, ChatSummary, UsageConfig
+from app.domain.models import Chat, ChatMessage, ChatSummary, UsageConfig, UsageReport
 from app.presentation.dependencies import (
     get_agent,
     get_repository,
@@ -19,6 +19,7 @@ from app.presentation.schemas import (
     ChatMessageResponse,
     ChatResponse,
     ChatSummaryResponse,
+    CompressionResponse,
     DialogUsageResponse,
     StageResponse,
     TokenUsageResponse,
@@ -75,6 +76,8 @@ async def get_chat(
             for message in chat.messages
         ],
         dialog_usage=DialogUsageResponse(**vars(dialog)),
+        summary=chat.summary,
+        summary_covers=chat.summary_covers,
     )
 
 
@@ -93,7 +96,7 @@ async def send_message(
     request: ChatMessageRequest,
     agent: Annotated[Agent, Depends(get_agent)],
 ) -> ChatResponse:
-    result = await agent.run(chat_id, request.message)
+    result = await agent.run(chat_id, request.message, compress=request.compress)
     return ChatResponse(
         chat_id=chat_id,
         answer=result.answer,
@@ -103,7 +106,7 @@ async def send_message(
             StageResponse(name=stage.name, status=stage.status)
             for stage in result.stages
         ],
-        usage=UsageResponse(**vars(result.usage)),
+        usage=_usage_response(result.usage),
     )
 
 
@@ -113,4 +116,15 @@ def _summary_response(chat: Chat | ChatSummary) -> ChatSummaryResponse:
         title=chat.title,
         created_at=chat.created_at,
         updated_at=chat.updated_at,
+    )
+
+
+def _usage_response(report: UsageReport) -> UsageResponse:
+    data = dict(vars(report))
+    compression = data.pop("compression")
+    return UsageResponse(
+        **data,
+        compression=(
+            CompressionResponse(**vars(compression)) if compression else None
+        ),
     )

@@ -7,6 +7,7 @@ from app.domain.models import StageStatus
 
 class ChatMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+    compress: bool = True
 
     @field_validator("message")
     @classmethod
@@ -21,6 +22,16 @@ class StageResponse(BaseModel):
     status: StageStatus
 
 
+class CompressionResponse(BaseModel):
+    applied: bool
+    before_tokens: int
+    after_tokens: int
+    saved_tokens: int
+    saved_percent: int
+    summarization_tokens: int
+    summarization_cost_usd: float
+
+
 class UsageResponse(BaseModel):
     request_tokens: int
     history_tokens: int
@@ -33,6 +44,7 @@ class UsageResponse(BaseModel):
     context_limit: int
     context_remaining: int
     warning: bool
+    compression: CompressionResponse | None = None
 
 
 class ChatResponse(BaseModel):
@@ -75,3 +87,5 @@ class ChatSummaryResponse(BaseModel):
 class ChatDetailResponse(ChatSummaryResponse):
     messages: list[ChatMessageResponse]
     dialog_usage: DialogUsageResponse
+    summary: str | None = None
+    summary_covers: int = 0

@@ -11,5 +11,8 @@ class Settings(BaseSettings):
     context_limit_tokens: int = 8000
     input_price_per_million: float = 0.30
     output_price_per_million: float = 1.20
+    compress_at_tokens: int = 3000
+    keep_recent_messages: int = 10
+    summary_max_tokens: int = 500
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

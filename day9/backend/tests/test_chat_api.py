@@ -1,8 +1,10 @@
 import pytest
+from dataclasses import replace
 from fastapi.testclient import TestClient
 
 from app.domain.models import (
     AgentResult,
+    CompressionInfo,
     ContextLimitExceeded,
     AgentStage,
     AuthenticationGatewayError,
@@ -57,6 +59,8 @@ class FakeRepository:
                     ),
                 ),
             ],
+            summary="Свёртка диалога.",
+            summary_covers=6,
         )
 
     async def create_chat(self):
@@ -92,8 +96,8 @@ class FakeAgent:
         self.calls = []
         self.error = error
 
-    async def run(self, chat_id, message):
-        self.calls.append((chat_id, message))
+    async def run(self, chat_id, message, compress=True):
+        self.calls.append((chat_id, message, compress))
         if self.error:
             raise self.error
         return AgentResult(
@@ -174,7 +178,7 @@ def test_send_message_passes_chat_id_to_agent(client):
 
     assert response.status_code == 200
     assert response.json()["chat_id"] == "chat-1"
-    assert client[2].calls == [("chat-1", "Как меня зовут?")]
+    assert client[2].calls == [("chat-1", "Как меня зовут?", True)]
 
 
 def test_unknown_chat_returns_404(client):
@@ -265,3 +269,62 @@ def test_send_message_over_budget_returns_413(client):
     assert response.json()["context_limit"] == 8000
     assert "превысил лимит контекста" in response.json()["detail"]
     assert "новый чат" in response.json()["detail"].lower()
+
+
+def sample_compression():
+    return CompressionInfo(
+        applied=True,
+        before_tokens=12000,
+        after_tokens=1500,
+        saved_tokens=10500,
+        saved_percent=88,
+        summarization_tokens=8000,
+        summarization_cost_usd=0.0024,
+    )
+
+
+class RecordingAgent:
+    def __init__(self):
+        self.kwargs = None
+
+    async def run(self, chat_id, message, compress=True):
+        self.kwargs = {"chat_id": chat_id, "message": message, "compress": compress}
+        base = sample_report()
+        return AgentResult(
+            answer="ok",
+            model="fake",
+            duration_ms=5,
+            stages=[AgentStage(name="Agent", status="completed")],
+            usage=replace(base, compression=sample_compression()),
+        )
+
+
+def test_message_endpoint_passes_compress_and_reports_compression(client):
+    agent = RecordingAgent()
+    app.dependency_overrides[get_agent] = lambda: agent
+    response = client[0].post(
+        "/api/chats/chat-1/messages",
+        json={"message": "привет", "compress": False},
+    )
+
+    assert response.status_code == 200
+    assert agent.kwargs["compress"] is False
+    compression = response.json()["usage"]["compression"]
+    assert compression["applied"] is True
+    assert compression["saved_percent"] == 88
+
+
+def test_message_endpoint_compression_null_by_default(client):
+    response = client[0].post(
+        "/api/chats/chat-1/messages", json={"message": "привет"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["usage"]["compression"] is None
+
+
+def test_chat_detail_exposes_summary(client):
+    payload = client[0].get("/api/chats/chat-1").json()
+
+    assert payload["summary"] == "Свёртка диалога."
+    assert payload["summary_covers"] == 6
