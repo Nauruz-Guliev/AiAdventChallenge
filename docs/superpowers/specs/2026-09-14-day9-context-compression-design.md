@@ -31,8 +31,8 @@
 
 ## Механика (backend)
 
-1. `ChatRequest` получает поле `compress: bool = True`.
-2. В `Agent.handle_message` при `compress=true`:
+1. `ChatMessageRequest` получает поле `compress: bool = True`.
+2. В `Agent.run(chat_id, user_text, compress=True)`:
    - оценка токенов всей истории (`TiktokenCounter`, как в day8);
    - если `history_tokens <= COMPRESS_AT_TOKENS` — сжатие не нужно, запрос как обычно, в отчёте `applied=false`;
    - иначе — старая часть = история минус `KEEP_RECENT` последних сообщений. Если `summary` отсутствует или `summary_covers < len(старой части)` — вызываем суммаризатор:
@@ -58,12 +58,12 @@ class CompressionReport(BaseModel):
     summarization_cost_usd: float
 ```
 
-`DialogUsage` без изменений (история в хранилище полная). `ChatSession` получает `summary: str | None = None`, `summary_covers: int = 0` — обратно совместимо со старыми чатами (default'ы).
+`DialogUsage` без изменений (история в хранилище полная). `ChatSession` (в коде — dataclass `Chat`) получает `summary: str | None = None`, `summary_covers: int = 0` — обратно совместимо со старыми чатами (default'ы).
 
 ## API
 
-- `POST /api/v1/chats/{id}/messages` — тело `{"content": str, "compress": bool = True}`; ответ дополнен `usage.compression`.
-- `GET /api/v1/chats/{id}` — `summary` в ответе чата, чтобы UI показывал «свёртка есть, покрывает M сообщений».
+- `POST /api/chats/{id}/messages` — тело `{"message": str, "compress": bool = True}` (фактическое поле — `message`, как в day8); ответ дополнен `usage.compression`.
+- `GET /api/chats/{id}` — `summary`, `summary_covers` в `ChatDetailResponse`, чтобы UI показывал «свёртка есть, покрывает M сообщений».
 - 413/404/400 — без изменений.
 
 ## UI (day9)
