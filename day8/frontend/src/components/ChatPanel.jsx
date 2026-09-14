@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import MarkdownMessage from './MarkdownMessage.jsx';
 import UsagePanel from './UsagePanel.jsx';
 
 function UsageLine({ usage }) {
@@ -76,8 +77,10 @@ export default function ChatPanel({
             className={`message-group ${item.role === 'user' ? 'user-group' : 'agent-group'}`}
             key={`${item.role}-${index}`}
           >
-            <div className={`message ${item.role === 'user' ? 'user-message' : 'agent-message'}`}>
-              {item.content}
+            <div className={`message ${item.role === 'user' ? 'user-message' : 'agent-message markdown'}`}>
+              {item.role === 'user'
+                ? item.content
+                : <MarkdownMessage content={item.content} />}
             </div>
             {item.role === 'assistant' && <UsageLine usage={item.usage} />}
           </div>

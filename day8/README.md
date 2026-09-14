@@ -134,7 +134,8 @@ cd day8/backend
 - `backend/app/application/usage.py` — накопительная стоимость и заполнение бюджета;
 - `backend/app/application/agent.py` — pre-check бюджета до отправки и сборка `UsageReport`;
 - `backend/app/infrastructure/deepseek_gateway.py` — точный `usage` из API и маппинг `400 context_length_exceeded`;
-- `frontend/src/components/UsagePanel.jsx` — прогресс-бар бюджета, стоимость, кнопка симуляции.
+- `frontend/src/components/UsagePanel.jsx` — прогресс-бар бюджета, стоимость, кнопка симуляции;
+- `frontend/src/components/MarkdownMessage.jsx` — рендер markdown из ответов модели (`react-markdown` + `remark-gfm`, raw HTML не исполняется).
 
 ## Ограничения
 
