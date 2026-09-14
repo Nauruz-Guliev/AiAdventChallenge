@@ -28,9 +28,9 @@ export function deleteChat(chatId) {
   return request(`/api/chats/${chatId}`, { method: 'DELETE' });
 }
 
-export function sendMessage(chatId, message) {
+export function sendMessage(chatId, message, compress = true) {
   return request(`/api/chats/${chatId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, compress }),
   });
 }

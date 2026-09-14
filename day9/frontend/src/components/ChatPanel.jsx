@@ -19,6 +19,7 @@ function UsageLine({ usage }) {
 }
 
 export default function ChatPanel({
+  compress,
   dialogUsage,
   error,
   loading,
@@ -28,6 +29,7 @@ export default function ChatPanel({
   onNewChat,
   onSimulate,
   onSubmit,
+  onToggleCompress,
   overflow,
   result,
   simulating,
@@ -83,6 +85,12 @@ export default function ChatPanel({
                 : <MarkdownMessage content={item.content} />}
             </div>
             {item.role === 'assistant' && <UsageLine usage={item.usage} />}
+            {item.role === 'assistant' && item.compression?.applied && (
+              <div className="compression-chip">
+                сжатие: {item.compression.before_tokens} → {item.compression.after_tokens} токенов
+                (−{item.compression.saved_percent}%) · свёртка −${item.compression.summarization_cost_usd}
+              </div>
+            )}
           </div>
         ))}
         {loading && (
@@ -123,6 +131,15 @@ export default function ChatPanel({
           {loading ? 'Думает...' : 'Отправить'} <span>↗</span>
         </button>
       </form>
+      <label className="compress-toggle" title="Сворачивать старые сообщения в summary перед отправкой">
+        <input
+          checked={compress}
+          disabled={blocked}
+          onChange={onToggleCompress}
+          type="checkbox"
+        />
+        Сжатие истории
+      </label>
       <p className="composer-hint">Enter — отправить&nbsp;&nbsp;·&nbsp;&nbsp;Shift + Enter — новая строка</p>
     </section>
   );

@@ -27,6 +27,16 @@ export default function App() {
   const [dialogUsage, setDialogUsage] = useState(null);
   const [overflow, setOverflow] = useState('');
   const [simulating, setSimulating] = useState(false);
+  const [compress, setCompress] = useState(
+    () => localStorage.getItem('day9-compress') !== 'false'
+  );
+
+  function handleToggleCompress() {
+    setCompress(current => {
+      localStorage.setItem('day9-compress', String(!current));
+      return !current;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -135,7 +145,7 @@ export default function App() {
     setMessages(current => [...current, { role: 'user', content: text }]);
 
     try {
-      const response = await sendMessage(selectedChatId, text);
+      const response = await sendMessage(selectedChatId, text, compress);
       setMessages(current => [
         ...current,
         {
@@ -148,6 +158,7 @@ export default function App() {
             completion_tokens: response.usage.completion_tokens_api,
             total_tokens: response.usage.total_tokens_api,
           },
+          compression: response.usage?.compression ?? null,
         },
       ]);
       setResult(response);
@@ -216,11 +227,13 @@ export default function App() {
           selectedChatId={selectedChatId}
         />
         <ChatPanel
+          compress={compress}
           dialogUsage={dialogUsage}
           error={error}
           loading={loading || initializing}
           message={message}
           messages={messages}
+          onToggleCompress={handleToggleCompress}
           onChange={setMessage}
           onNewChat={handleCreateChat}
           onSimulate={handleSimulate}

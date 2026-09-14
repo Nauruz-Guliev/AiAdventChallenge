@@ -117,3 +117,6 @@ h2 { margin-bottom: 0; font-size: 24px; letter-spacing: -.04em; }
 .markdown-body th, .markdown-body td { border: 1px solid #243135; padding: 5px 9px; text-align: left; }
 .markdown-body th { background: #0c1114; }
 .markdown-body hr { border: 0; border-top: 1px solid #243135; margin: 12px 0; }
+.compress-toggle { display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 12px; color: #91a0a5; cursor: pointer; width: fit-content; }
+.compress-toggle input { accent-color: #4dd6bd; width: 15px; height: 15px; cursor: pointer; }
+.compression-chip { display: inline-flex; margin-top: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid #39766a; background: rgba(77, 214, 189, 0.08); color: #79e3d0; font-size: 11px; letter-spacing: .02em; width: fit-content; }
