@@ -4,6 +4,19 @@ function survivedCount(survived) {
   return Object.values(survived ?? {}).filter(Boolean).length;
 }
 
+function bestMode(rows) {
+  const alive = rows.filter(r => !r.error);
+  if (!alive.length) return null;
+  const maxSurvived = Math.max(...alive.map(r => survivedCount(r.survived)));
+  const leaders = alive.filter(r => survivedCount(r.survived) === maxSurvived);
+  const minTokens = Math.min(
+    ...leaders.map(r => r.prompt_tokens + r.completion_tokens)
+  );
+  return leaders.find(
+    r => r.prompt_tokens + r.completion_tokens === minTokens
+  ).mode;
+}
+
 export default function ComparePanel({ comparing, error, onOpenChat, onStart, rows }) {
   return (
     <section className="compare">
@@ -27,9 +40,11 @@ export default function ComparePanel({ comparing, error, onOpenChat, onStart, ro
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => (
-              <tr className={row.error ? 'row-error' : undefined} key={row.mode}>
-                <td><b>{MODE_LABELS[row.mode] ?? row.mode}</b></td>
+            {(() => {
+              const best = bestMode(rows);
+              return rows.map(row => (
+              <tr className={[row.error ? 'row-error' : '', row.mode === best ? 'row-best' : ''].join(' ').trim() || undefined} key={row.mode}>
+                <td><span className={`mode-chip mode-${row.mode}`}>{MODE_LABELS[row.mode] ?? row.mode}</span>{row.mode === best && ' 🏆'}</td>
                 <td>
                   {row.error ? (
                     <span className="chip bad">✘ сбой: {row.error}</span>
@@ -53,7 +68,8 @@ export default function ComparePanel({ comparing, error, onOpenChat, onStart, ro
                   <button onClick={() => onOpenChat(row.chat_id)} type="button">открыть</button>
                 </td>
               </tr>
-            ))}
+              ));
+            })()}
           </tbody>
         </table>
       )}

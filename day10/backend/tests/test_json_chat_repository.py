@@ -242,3 +242,31 @@ async def test_append_exchange_into_inactive_branch(tmp_path):
         "u", "a", "u2", "a2"
     ]
     assert updated.active_branch.messages == []
+
+
+@pytest.mark.asyncio
+async def test_chat_mode_defaults_persists_and_migrates(tmp_path):
+    path = tmp_path / "chats.json"
+    repository = JsonChatRepository(path)
+    chat = await repository.create_chat()
+    assert chat.mode == "sliding"
+
+    chat = await repository.append_exchange(
+        chat.id, "u", "a", TokenUsage(1, 1, 2), mode="facts"
+    )
+    assert chat.mode == "facts"
+
+    reloaded = await JsonChatRepository(path).get_chat(chat.id)
+    assert reloaded.mode == "facts"
+
+    path.write_text(json.dumps({"version": 1, "chats": [{
+        "id": "old", "title": "T",
+        "created_at": "2026-09-14T00:00:00+00:00",
+        "updated_at": "2026-09-14T00:00:00+00:00",
+        "active_branch_id": "b", "branches": [{
+            "id": "b", "name": "main", "fork_at": None, "facts": {},
+            "messages": [],
+        }],
+    }]}, ensure_ascii=False), encoding="utf-8")
+    legacy = await JsonChatRepository(path).get_chat("old")
+    assert legacy.mode == "sliding"

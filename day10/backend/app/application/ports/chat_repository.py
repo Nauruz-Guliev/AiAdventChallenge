@@ -19,6 +19,7 @@ class ChatRepository(Protocol):
         assistant_content: str,
         usage: TokenUsage,
         branch_id: str | None = None,
+        mode: str | None = None,
     ) -> Chat: ...
 
     async def save_facts(

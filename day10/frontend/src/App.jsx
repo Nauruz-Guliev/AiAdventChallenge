@@ -50,6 +50,10 @@ export default function App() {
   const [compareError, setCompareError] = useState('');
 
   function applyDetail(chat) {
+    if (chat.mode) {
+      setMode(chat.mode);
+      localStorage.setItem('day10-mode', chat.mode);
+    }
     const chatBranches = chat.branches ?? [];
     setBranches(chatBranches);
     setActiveBranchId(chat.active_branch_id ?? null);

@@ -109,7 +109,12 @@ class Agent:
         response = await self._gateway.complete(context)
         answer = response.text.strip()
         updated_chat = await self._repository.append_exchange(
-            chat_id, message, answer, response.usage, branch_id=branch.id
+            chat_id,
+            message,
+            answer,
+            response.usage,
+            branch_id=branch.id,
+            mode=mode,
         )
 
         dialog = build_dialog_usage(

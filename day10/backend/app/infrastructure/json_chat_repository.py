@@ -76,11 +76,14 @@ class JsonChatRepository:
         assistant_content: str,
         usage: TokenUsage,
         branch_id: str | None = None,
+        mode: str | None = None,
     ) -> Chat:
-        return await self._mutate(
-            chat_id,
-            lambda chat: _do_append(chat, user_content, assistant_content, usage, branch_id),
-        )
+        def mutate(chat: Chat) -> None:
+            _do_append(chat, user_content, assistant_content, usage, branch_id)
+            if mode is not None:
+                chat.mode = mode
+
+        return await self._mutate(chat_id, mutate)
 
     async def save_facts(
         self, chat_id: str, branch_id: str | None, facts: dict[str, str]
@@ -277,6 +280,7 @@ def _chat_from_dict(stored_chat: dict) -> Chat:
             updated_at=stored_chat["updated_at"],
             branches=branches,
             active_branch_id=stored_chat["active_branch_id"],
+            mode=stored_chat.get("mode", "sliding"),
         )
 
     legacy_branch = Branch(
@@ -297,6 +301,7 @@ def _chat_from_dict(stored_chat: dict) -> Chat:
     )
 
 
+
 def _message_from_dict(message: dict) -> ChatMessage:
     usage = message.get("usage")
     return ChatMessage(
@@ -313,6 +318,7 @@ def _chat_to_dict(chat: Chat) -> dict:
         "created_at": chat.created_at,
         "updated_at": chat.updated_at,
         "active_branch_id": chat.active_branch_id,
+        "mode": chat.mode,
         "branches": [
             {
                 "id": branch.id,

@@ -111,6 +111,7 @@ class ChatDetailResponse(ChatSummaryResponse):
     messages: list[ChatMessageResponse]
     branches: list[BranchResponse] = []
     active_branch_id: str | None = None
+    mode: str = "sliding"
     dialog_usage: DialogUsageResponse
 
 

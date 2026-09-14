@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import FactsPanel from './FactsPanel.jsx';
 import MarkdownMessage from './MarkdownMessage.jsx';
-import ModeSelector from './ModeSelector.jsx';
+import ModeSelector, { MODE_LABELS } from './ModeSelector.jsx';
 import UsagePanel from './UsagePanel.jsx';
 
 function ContextChip({ context }) {
@@ -78,6 +78,7 @@ export default function ChatPanel({
       <div className="panel-kicker">CONVERSATION</div>
       <div className="chat-heading-row">
         <h2>Спроси агента</h2>
+        <span className={`mode-chip mode-${mode}`}>{MODE_LABELS[mode] ?? mode}</span>
         <span className="model-chip">deepseek-chat</span>
       </div>
 

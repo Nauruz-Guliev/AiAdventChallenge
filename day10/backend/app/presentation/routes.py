@@ -87,6 +87,7 @@ async def get_chat(
             for branch in chat.branches
         ],
         active_branch_id=chat.active_branch_id,
+        mode=chat.mode,
         dialog_usage=DialogUsageResponse(**vars(dialog)),
     )
 

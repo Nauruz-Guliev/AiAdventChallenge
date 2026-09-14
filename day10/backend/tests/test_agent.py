@@ -53,7 +53,7 @@ class FakeRepository:
         assert chat_id == self.chat.id
         return self.chat
 
-    async def append_exchange(self, chat_id, user_content, assistant_content, usage, branch_id=None):
+    async def append_exchange(self, chat_id, user_content, assistant_content, usage, branch_id=None, mode=None):
         self.saved = (chat_id, user_content, assistant_content, usage)
         self.chat = _chat(
             id=self.chat.id,
@@ -265,6 +265,7 @@ class ModeRepository:
     def __init__(self, chat):
         self.chat = chat
         self.saved_facts = []
+        self.modes = []
 
     async def get_chat(self, chat_id):
         return self.chat
@@ -275,8 +276,9 @@ class ModeRepository:
         return self.chat
 
     async def append_exchange(
-        self, chat_id, user_content, assistant_content, usage, branch_id=None
+        self, chat_id, user_content, assistant_content, usage, branch_id=None, mode=None
     ):
+        self.modes.append(mode)
         branch = next(b for b in self.chat.branches if b.id == (branch_id or self.chat.active_branch_id))
         branch.messages.extend(
             [
@@ -357,6 +359,7 @@ async def test_facts_mode_extracts_then_prepends_and_saves():
     )
 
     assert repository.saved_facts == [("b1", {"бюджет": "1200"})]
+    assert repository.modes == ["facts"]
     main_call = gateway.calls[1]
     assert main_call[1].role == "system" and "бюджет: 1200" in main_call[1].content
     assert result.usage.context.fact_update_tokens == 50

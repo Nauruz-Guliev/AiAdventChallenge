@@ -188,3 +188,11 @@ h2 { margin-bottom: 0; font-size: 24px; letter-spacing: -.04em; }
 .compare-table .chip.score { background: rgba(255,255,255,.06); color: #c8d4d8; }
 .compare-table tr.row-error td { opacity: .8; }
 .compare-table td button { background: none; border: none; color: #4fd1c5; cursor: pointer; font-size: 12px; padding: 0; }
+
+.mode-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; border: 1px solid; }
+.mode-chip.mode-full { color: #e08b8b; border-color: rgba(224,139,139,.5); background: rgba(224,139,139,.08); }
+.mode-chip.mode-sliding { color: #4fd1c5; border-color: rgba(79,209,197,.5); background: rgba(79,209,197,.08); }
+.mode-chip.mode-facts { color: #b48ee8; border-color: rgba(180,142,232,.5); background: rgba(180,142,232,.08); }
+.mode-chip.mode-branching { color: #e8b44f; border-color: rgba(232,180,79,.5); background: rgba(232,180,79,.08); }
+.compare-table tr.row-best td { background: rgba(79,209,197,.06); }
+.compare-table td .mode-chip { margin-right: 6px; }

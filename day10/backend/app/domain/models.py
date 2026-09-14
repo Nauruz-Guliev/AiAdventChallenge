@@ -111,6 +111,7 @@ class Chat:
     updated_at: str
     branches: list[Branch]
     active_branch_id: str
+    mode: str = "sliding"
 
     @property
     def active_branch(self) -> Branch:
