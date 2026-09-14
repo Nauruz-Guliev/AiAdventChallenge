@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   createBranch,
+  runCompare,
   createChat,
   deleteBranch,
   deleteChat,
@@ -13,6 +14,7 @@ import {
 import AgentFlow from './components/AgentFlow.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
 import ChatSidebar from './components/ChatSidebar.jsx';
+import ComparePanel from './components/ComparePanel.jsx';
 
 const initialStages = [
   { name: 'UI', status: 'completed' },
@@ -43,6 +45,9 @@ export default function App() {
   const [branches, setBranches] = useState([]);
   const [activeBranchId, setActiveBranchId] = useState(null);
   const [facts, setFacts] = useState({});
+  const [comparing, setComparing] = useState(false);
+  const [compareRows, setCompareRows] = useState(null);
+  const [compareError, setCompareError] = useState('');
 
   function applyDetail(chat) {
     const chatBranches = chat.branches ?? [];
@@ -74,7 +79,22 @@ export default function App() {
     }
 
     loadInitialChat();
-    async function handleFork(messageIndex) {
+    async function handleCompare() {
+    setComparing(true);
+    setCompareError('');
+    setCompareRows(null);
+    try {
+      const results = await runCompare();
+      setCompareRows(results);
+      setChats(await listChats());
+    } catch (requestError) {
+      setCompareError(requestError.message);
+    } finally {
+      setComparing(false);
+    }
+  }
+
+  async function handleFork(messageIndex) {
     if (!selectedChatId) return;
     try {
       const detail = await createBranch(
@@ -275,6 +295,21 @@ export default function App() {
     }
   }
 
+  async function handleCompare() {
+    setComparing(true);
+    setCompareError('');
+    setCompareRows(null);
+    try {
+      const results = await runCompare();
+      setCompareRows(results);
+      setChats(await listChats());
+    } catch (requestError) {
+      setCompareError(requestError.message);
+    } finally {
+      setComparing(false);
+    }
+  }
+
   async function handleFork(messageIndex) {
     if (!selectedChatId) return;
     try {
@@ -368,6 +403,14 @@ export default function App() {
         />
         <AgentFlow loading={loading} stages={stages} />
       </section>
+
+      <ComparePanel
+        comparing={comparing || loading}
+        error={compareError}
+        onOpenChat={handleSelectChat}
+        onStart={handleCompare}
+        rows={compareRows}
+      />
 
       <footer className="page-footer">
         <span>FASTAPI + REACT</span>

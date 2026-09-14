@@ -59,3 +59,7 @@ export function updateFacts(chatId, facts) {
     method: 'PATCH',
   });
 }
+
+export function runCompare() {
+  return request('/api/compare', { method: 'POST' });
+}
