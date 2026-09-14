@@ -196,3 +196,10 @@ h2 { margin-bottom: 0; font-size: 24px; letter-spacing: -.04em; }
 .mode-chip.mode-branching { color: #e8b44f; border-color: rgba(232,180,79,.5); background: rgba(232,180,79,.08); }
 .compare-table tr.row-best td { background: rgba(79,209,197,.06); }
 .compare-table td .mode-chip { margin-right: 6px; }
+
+.compare-legend { font-size: 11px; color: #6f8087; margin: 10px 0 2px; }
+.compare-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.compare-table td.lost { color: #e08b8b; font-size: 11px; }
+.compare-table .chip.score.ok { background: rgba(122, 216, 138, 0.13); color: #8fd69a; }
+.compare-table .chip.score.mid { background: rgba(232, 180, 79, 0.13); color: #e8b44f; }
+.compare-table .chip.score.bad { background: rgba(224, 139, 139, 0.13); color: #e08b8b; }
