@@ -22,6 +22,16 @@ class UsageConfig:
 
 
 @dataclass(frozen=True)
+class ContextInfo:
+    mode: str
+    sent_messages: int
+    total_messages: int
+    facts_count: int
+    fact_update_tokens: int
+    fact_update_cost_usd: float
+
+
+@dataclass(frozen=True)
 class DialogUsage:
     history_tokens: int
     dialog_total_tokens: int
@@ -44,6 +54,7 @@ class UsageReport:
     context_limit: int
     context_remaining: int
     warning: bool
+    context: ContextInfo | None = None
 
 
 @dataclass(frozen=True)

@@ -53,7 +53,7 @@ class FakeRepository:
         assert chat_id == self.chat.id
         return self.chat
 
-    async def append_exchange(self, chat_id, user_content, assistant_content, usage):
+    async def append_exchange(self, chat_id, user_content, assistant_content, usage, branch_id=None):
         self.saved = (chat_id, user_content, assistant_content, usage)
         self.chat = _chat(
             id=self.chat.id,
@@ -246,3 +246,154 @@ def _chat(id, title, created_at, updated_at, messages):
         active_branch_id=branch.id,
     )
 
+
+
+class ScriptedGateway:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    async def complete(self, messages):
+        self.calls.append(list(messages))
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class ModeRepository:
+    def __init__(self, chat):
+        self.chat = chat
+        self.saved_facts = []
+
+    async def get_chat(self, chat_id):
+        return self.chat
+
+    async def save_facts(self, chat_id, branch_id, facts):
+        self.saved_facts.append((branch_id, dict(facts)))
+        self.chat.active_branch.facts = dict(facts)
+        return self.chat
+
+    async def append_exchange(
+        self, chat_id, user_content, assistant_content, usage, branch_id=None
+    ):
+        branch = next(b for b in self.chat.branches if b.id == (branch_id or self.chat.active_branch_id))
+        branch.messages.extend(
+            [
+                ChatMessage(role="user", content=user_content),
+                ChatMessage(role="assistant", content=assistant_content, usage=usage),
+            ]
+        )
+        return self.chat
+
+
+def mode_chat(count=10, facts=None):
+    branch = Branch(
+        id="b1",
+        name="main",
+        messages=[ChatMessage(role="user", content=f"u{i}") for i in range(count)],
+        facts=facts if facts is not None else {},
+    )
+    return Chat(
+        id="c1",
+        title="T",
+        created_at="2026-09-14T00:00:00+00:00",
+        updated_at="2026-09-14T00:00:00+00:00",
+        branches=[branch],
+        active_branch_id="b1",
+    )
+
+
+def scripted_response(text="ok", prompt=9, completion=3):
+    return LLMResponse(
+        text=text,
+        model="m",
+        usage=TokenUsage(prompt, completion, prompt + completion),
+    )
+
+
+@pytest.mark.asyncio
+async def test_full_mode_sends_everything():
+    gateway = ScriptedGateway([scripted_response()])
+    repository = ModeRepository(mode_chat(10))
+
+    result = await make_agent(gateway, repository).run("c1", "новое", mode="full")
+
+    assert len(gateway.calls[0]) == 10 + 2
+    assert result.usage.context.mode == "full"
+    assert result.usage.context.fact_update_tokens == 0
+
+
+@pytest.mark.asyncio
+async def test_sliding_mode_window_only():
+    gateway = ScriptedGateway([scripted_response()])
+    repository = ModeRepository(mode_chat(10))
+    config = UsageConfig(sliding_window_messages=4)
+
+    result = await make_agent(gateway, repository, config).run(
+        "c1", "новое", mode="sliding"
+    )
+
+    sent = gateway.calls[0]
+    assert len(sent) == 1 + 4 + 1
+    assert result.usage.context.sent_messages == 4
+    assert result.usage.context.total_messages == 10
+
+
+@pytest.mark.asyncio
+async def test_facts_mode_extracts_then_prepends_and_saves():
+    chat = mode_chat(1, facts={})
+    chat.active_branch.messages = [ChatMessage(role="user", content="бюджет 1200")]
+    gateway = ScriptedGateway(
+        [
+            scripted_response('{"бюджет": "1200"}', prompt=40, completion=10),
+            scripted_response("ok", prompt=30, completion=5),
+        ]
+    )
+    repository = ModeRepository(chat)
+
+    result = await make_agent(gateway, repository).run(
+        "c1", "бюджет 1200", mode="facts"
+    )
+
+    assert repository.saved_facts == [("b1", {"бюджет": "1200"})]
+    main_call = gateway.calls[1]
+    assert main_call[1].role == "system" and "бюджет: 1200" in main_call[1].content
+    assert result.usage.context.fact_update_tokens == 50
+    assert result.usage.context.fact_update_cost_usd > 0
+
+
+@pytest.mark.asyncio
+async def test_facts_mode_garbage_extraction_keeps_old():
+    chat = mode_chat(1, facts={"старый": "факт"})
+    gateway = ScriptedGateway(
+        [
+            scripted_response("не json вовсе", prompt=40, completion=10),
+            scripted_response("ok", prompt=30, completion=5),
+        ]
+    )
+    repository = ModeRepository(chat)
+
+    await make_agent(gateway, repository).run("c1", "у", mode="facts")
+
+    assert repository.saved_facts == []
+    assert repository.chat.facts == {"старый": "факт"}
+
+
+@pytest.mark.asyncio
+async def test_precheck_uses_assembled_not_full_history():
+    chat = mode_chat(20)
+    chat.active_branch.messages = [
+        ChatMessage(role="user", content="x" * 400) for _ in range(20)
+    ]
+    config = UsageConfig(
+        context_limit_tokens=600, sliding_window_messages=4
+    )
+    gateway = ScriptedGateway([scripted_response()])
+    agent = make_agent(gateway, ModeRepository(chat), config)
+
+    result = await agent.run("c1", "y", mode="sliding")
+    assert result.usage.context.mode == "sliding"
+
+    with pytest.raises(ContextLimitExceeded):
+        await agent.run("c1", "y", mode="full")
