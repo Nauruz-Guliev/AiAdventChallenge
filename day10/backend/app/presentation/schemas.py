@@ -112,3 +112,15 @@ class ChatDetailResponse(ChatSummaryResponse):
     branches: list[BranchResponse] = []
     active_branch_id: str | None = None
     dialog_usage: DialogUsageResponse
+
+
+class CompareModeResponse(BaseModel):
+    mode: str
+    chat_id: str
+    survived: dict[str, bool]
+    prompt_tokens: int
+    completion_tokens: int
+    fact_update_tokens: int
+    calls: int
+    duration_ms: int
+    error: str | None = None

@@ -24,14 +24,14 @@ class JsonChatRepository:
         self._path = path
         self._lock = asyncio.Lock()
 
-    async def create_chat(self) -> Chat:
+    async def create_chat(self, title: str = "Новый чат") -> Chat:
         async with self._lock:
             store = self._read_store()
             now = _now()
             branch = Branch(id=str(uuid.uuid4()), name="main")
             chat = Chat(
                 id=str(uuid.uuid4()),
-                title="Новый чат",
+                title=title,
                 created_at=now,
                 updated_at=now,
                 branches=[branch],

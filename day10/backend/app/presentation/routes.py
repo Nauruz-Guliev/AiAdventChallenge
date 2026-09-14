@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.application.agent import SYSTEM_PROMPT, Agent
+from app.application.compare import ContextComparator
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.usage import build_dialog_usage
@@ -25,6 +26,7 @@ from app.presentation.dependencies import (
 )
 from app.presentation.schemas import (
     ActiveBranchRequest,
+    CompareModeResponse,
     BranchCreateRequest,
     BranchResponse,
     ChatDetailResponse,
@@ -213,3 +215,12 @@ def _usage_response(report: UsageReport) -> UsageResponse:
         **data,
         context=ContextResponse(**vars(context)) if context else None,
     )
+
+
+@router.post("/api/compare", response_model=list[CompareModeResponse])
+async def compare_strategies(
+    agent: Annotated[Agent, Depends(get_agent)],
+    repository: Annotated[ChatRepository, Depends(get_repository)],
+) -> list[CompareModeResponse]:
+    results = await ContextComparator(agent, repository).run()
+    return [CompareModeResponse(**vars(result)) for result in results]
