@@ -13,6 +13,7 @@ from app.domain.models import (
     LLMGatewayError,
     LLMResponse,
     RateLimitGatewayError,
+    TokenUsage,
 )
 
 
@@ -58,7 +59,16 @@ class DeepSeekGateway:
         if not text:
             raise LLMGatewayError("Provider returned an empty response")
 
+        usage = getattr(completion, "usage", None)
+        if usage is None:
+            raise LLMGatewayError("Provider returned no token usage")
+
         return LLMResponse(
             text=text,
             model=completion.model or self._model,
+            usage=TokenUsage(
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                total_tokens=usage.total_tokens,
+            ),
         )

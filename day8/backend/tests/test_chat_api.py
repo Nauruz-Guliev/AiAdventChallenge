@@ -12,9 +12,27 @@ from app.domain.models import (
     GatewayTimeoutError,
     LLMGatewayError,
     RateLimitGatewayError,
+    TokenUsage,
+    UsageReport,
 )
 from app.main import app
 from app.presentation.dependencies import get_agent, get_repository
+
+
+def sample_report() -> UsageReport:
+    return UsageReport(
+        request_tokens=8,
+        history_tokens=120,
+        response_tokens=20,
+        prompt_tokens_api=128,
+        completion_tokens_api=20,
+        total_tokens_api=148,
+        dialog_total_tokens=148,
+        dialog_cost_usd=0.00042,
+        context_limit=8000,
+        context_remaining=7872,
+        warning=False,
+    )
 
 
 class FakeRepository:
@@ -78,6 +96,7 @@ class FakeAgent:
                 AgentStage(name="Agent", status="completed"),
                 AgentStage(name="DeepSeek API", status="completed"),
             ],
+            usage=sample_report(),
         )
 
 

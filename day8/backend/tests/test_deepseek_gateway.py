@@ -32,9 +32,19 @@ class FakeClient:
         })()
 
 
-def completion(text="adapter answer", model="deepseek-chat"):
+def completion(text="adapter answer", model="deepseek-chat", usage="default"):
+    usage_object = (
+        type("Usage", (), {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        })()
+        if usage == "default"
+        else usage
+    )
     return type("Completion", (), {
         "model": model,
+        "usage": usage_object,
         "choices": [type("Choice", (), {
             "message": type("Message", (), {"content": text})(),
         })()],
@@ -57,6 +67,7 @@ async def test_gateway_sends_openai_compatible_request():
 
     assert response.text == "adapter answer"
     assert response.model == "deepseek-chat"
+    assert response.usage.total_tokens == 15
     assert client.chat.completions.request["model"] == "deepseek-chat"
     assert client.chat.completions.request["messages"] == [
         {"role": "user", "content": "hello"},

@@ -2,7 +2,27 @@ import pytest
 
 from app.application.agent import Agent
 from app.domain.models import AgentResult, AgentStage, Chat, ChatMessage, LLMResponse
-from app.domain.models import InvalidUserMessage, LLMGatewayError
+from app.domain.models import InvalidUserMessage, LLMGatewayError, TokenUsage, UsageReport
+
+
+def sample_usage() -> TokenUsage:
+    return TokenUsage(prompt_tokens=100, completion_tokens=20, total_tokens=120)
+
+
+def sample_report() -> UsageReport:
+    return UsageReport(
+        request_tokens=8,
+        history_tokens=120,
+        response_tokens=20,
+        prompt_tokens_api=128,
+        completion_tokens_api=20,
+        total_tokens_api=148,
+        dialog_total_tokens=148,
+        dialog_cost_usd=0.00042,
+        context_limit=8000,
+        context_remaining=7872,
+        warning=False,
+    )
 
 
 def test_result_contains_answer_model_duration_and_stages():
@@ -11,6 +31,7 @@ def test_result_contains_answer_model_duration_and_stages():
         model="deepseek-chat",
         duration_ms=12,
         stages=[AgentStage(name="Agent", status="completed")],
+        usage=sample_report(),
     )
 
     assert result.answer == "test answer"
@@ -19,14 +40,16 @@ def test_result_contains_answer_model_duration_and_stages():
 
 
 def test_llm_response_contains_text_and_model():
-    response = LLMResponse(text="hello", model="deepseek-chat")
+    response = LLMResponse(text="hello", model="deepseek-chat", usage=sample_usage())
 
     assert response.text == "hello"
 
 
 class FakeGateway:
     def __init__(self, response=None, error=None):
-        self.response = response or LLMResponse("fake answer", "deepseek-chat")
+        self.response = response or LLMResponse(
+            "fake answer", "deepseek-chat", sample_usage()
+        )
         self.error = error
         self.messages = None
 
