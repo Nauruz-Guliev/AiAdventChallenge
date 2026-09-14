@@ -21,17 +21,48 @@ class StageResponse(BaseModel):
     status: StageStatus
 
 
+class UsageResponse(BaseModel):
+    request_tokens: int
+    history_tokens: int
+    response_tokens: int
+    prompt_tokens_api: int
+    completion_tokens_api: int
+    total_tokens_api: int
+    dialog_total_tokens: int
+    dialog_cost_usd: float
+    context_limit: int
+    context_remaining: int
+    warning: bool
+
+
 class ChatResponse(BaseModel):
     chat_id: str
     answer: str
     model: str
     duration_ms: int
     stages: list[StageResponse]
+    usage: UsageResponse
+
+
+class TokenUsageResponse(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
 
 
 class ChatMessageResponse(BaseModel):
     role: Literal["user", "assistant"]
     content: str
+    usage: TokenUsageResponse | None = None
+
+
+class DialogUsageResponse(BaseModel):
+    history_tokens: int
+    dialog_total_tokens: int
+    dialog_cost_usd: float
+    context_limit: int
+    context_remaining: int
+    warning: bool
 
 
 class ChatSummaryResponse(BaseModel):
@@ -43,3 +74,4 @@ class ChatSummaryResponse(BaseModel):
 
 class ChatDetailResponse(ChatSummaryResponse):
     messages: list[ChatMessageResponse]
+    dialog_usage: DialogUsageResponse

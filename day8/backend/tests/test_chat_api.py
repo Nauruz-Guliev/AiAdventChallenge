@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from app.domain.models import (
     AgentResult,
+    ContextLimitExceeded,
     AgentStage,
     AuthenticationGatewayError,
     Chat,
@@ -46,7 +47,15 @@ class FakeRepository:
             updated_at="2026-09-13T12:00:00+00:00",
             messages=[
                 ChatMessage(role="user", content="Меня зовут Анна"),
-                ChatMessage(role="assistant", content="Приятно познакомиться"),
+                ChatMessage(
+                    role="assistant",
+                    content="Приятно познакомиться",
+                    usage=TokenUsage(
+                        prompt_tokens=100,
+                        completion_tokens=20,
+                        total_tokens=120,
+                    ),
+                ),
             ],
         )
 
@@ -123,10 +132,30 @@ def test_get_chat_returns_history(client):
     response = client[0].get("/api/chats/chat-1")
 
     assert response.status_code == 200
-    assert response.json()["messages"] == [
+    assert [
+        {"role": m["role"], "content": m["content"]}
+        for m in response.json()["messages"]
+    ] == [
         {"role": "user", "content": "Меня зовут Анна"},
         {"role": "assistant", "content": "Приятно познакомиться"},
     ]
+
+
+def test_get_chat_returns_message_and_dialog_usage(client):
+    response = client[0].get("/api/chats/chat-1")
+
+    payload = response.json()
+    assert payload["messages"][0]["usage"] is None
+    assert payload["messages"][1]["usage"] == {
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "total_tokens": 120,
+    }
+    dialog = payload["dialog_usage"]
+    assert dialog["dialog_total_tokens"] == 120
+    assert dialog["context_limit"] == 8000
+    assert dialog["history_tokens"] > 0
+    assert 0 <= dialog["context_remaining"] < 8000
 
 
 def test_list_chats_returns_summaries(client):
@@ -201,3 +230,38 @@ def test_send_message_maps_provider_errors(client, error, status_code, detail):
 
     assert response.status_code == status_code
     assert response.json() == {"detail": detail}
+
+
+def test_send_message_returns_usage_breakdown(client):
+    response = client[0].post(
+        "/api/chats/chat-1/messages",
+        json={"message": "Как меня зовут?"},
+    )
+
+    assert response.status_code == 200
+    usage = response.json()["usage"]
+    assert usage["request_tokens"] == 8
+    assert usage["history_tokens"] == 120
+    assert usage["response_tokens"] == 20
+    assert usage["prompt_tokens_api"] == 128
+    assert usage["dialog_total_tokens"] == 148
+    assert usage["context_limit"] == 8000
+    assert usage["warning"] is False
+
+
+def test_send_message_over_budget_returns_413(client):
+    fake_agent = FakeAgent(
+        error=ContextLimitExceeded(estimated_tokens=8400, context_limit=8000)
+    )
+    app.dependency_overrides[get_agent] = lambda: fake_agent
+
+    response = client[0].post(
+        "/api/chats/chat-1/messages",
+        json={"message": "привет"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["estimated_tokens"] == 8400
+    assert response.json()["context_limit"] == 8000
+    assert "превысил лимит контекста" in response.json()["detail"]
+    assert "новый чат" in response.json()["detail"].lower()

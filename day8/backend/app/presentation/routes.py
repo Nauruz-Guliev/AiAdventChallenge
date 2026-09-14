@@ -2,17 +2,27 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
 
+from app.application.agent import SYSTEM_PROMPT, Agent
 from app.application.ports.chat_repository import ChatRepository
-from app.application.agent import Agent
-from app.domain.models import Chat, ChatSummary
-from app.presentation.dependencies import get_agent, get_repository
+from app.application.ports.token_counter import TokenCounter
+from app.application.usage import build_dialog_usage
+from app.domain.models import Chat, ChatMessage, ChatSummary, UsageConfig
+from app.presentation.dependencies import (
+    get_agent,
+    get_repository,
+    get_token_counter,
+    get_usage_config,
+)
 from app.presentation.schemas import (
     ChatDetailResponse,
     ChatMessageRequest,
     ChatMessageResponse,
     ChatResponse,
     ChatSummaryResponse,
+    DialogUsageResponse,
     StageResponse,
+    TokenUsageResponse,
+    UsageResponse,
 )
 
 
@@ -37,14 +47,34 @@ async def list_chats(
 async def get_chat(
     chat_id: str,
     repository: Annotated[ChatRepository, Depends(get_repository)],
+    counter: Annotated[TokenCounter, Depends(get_token_counter)],
+    config: Annotated[UsageConfig, Depends(get_usage_config)],
 ) -> ChatDetailResponse:
     chat = await repository.get_chat(chat_id)
+    dialog = build_dialog_usage(
+        [ChatMessage(role="system", content=SYSTEM_PROMPT), *chat.messages],
+        counter,
+        config,
+    )
     return ChatDetailResponse(
         **_summary_response(chat).model_dump(),
         messages=[
-            ChatMessageResponse(role=message.role, content=message.content)
+            ChatMessageResponse(
+                role=message.role,
+                content=message.content,
+                usage=(
+                    TokenUsageResponse(
+                        prompt_tokens=message.usage.prompt_tokens,
+                        completion_tokens=message.usage.completion_tokens,
+                        total_tokens=message.usage.total_tokens,
+                    )
+                    if message.usage
+                    else None
+                ),
+            )
             for message in chat.messages
         ],
+        dialog_usage=DialogUsageResponse(**vars(dialog)),
     )
 
 
@@ -73,6 +103,7 @@ async def send_message(
             StageResponse(name=stage.name, status=stage.status)
             for stage in result.stages
         ],
+        usage=UsageResponse(**vars(result.usage)),
     )
 
 

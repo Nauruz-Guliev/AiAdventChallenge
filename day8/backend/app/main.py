@@ -7,6 +7,7 @@ from app.domain.models import (
     AuthenticationGatewayError,
     ChatNotFound,
     ChatPersistenceError,
+    ContextLimitExceeded,
     GatewayTimeoutError,
     InvalidUserMessage,
     LLMGatewayError,
@@ -35,6 +36,29 @@ async def chat_persistence_error_handler(request: Request, error: ChatPersistenc
     return JSONResponse(
         status_code=500,
         content={"detail": "Не удалось загрузить или сохранить историю чата."},
+    )
+
+
+@app.exception_handler(ContextLimitExceeded)
+async def context_limit_handler(request: Request, error: ContextLimitExceeded):
+    if error.estimated_tokens and error.context_limit:
+        detail = (
+            f"Диалог превысил лимит контекста ({error.estimated_tokens} из "
+            f"{error.context_limit} токенов). Сообщение не отправлено и не сохранено. "
+            "Начните новый чат."
+        )
+    else:
+        detail = (
+            "Провайдер отклонил запрос: превышен лимит контекста модели. "
+            "Сообщение не сохранено. Начните новый чат."
+        )
+    return JSONResponse(
+        status_code=413,
+        content={
+            "detail": detail,
+            "estimated_tokens": error.estimated_tokens,
+            "context_limit": error.context_limit,
+        },
     )
 
 
