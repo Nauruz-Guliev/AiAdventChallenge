@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import UsagePanel from './UsagePanel.jsx';
 
 function UsageLine({ usage }) {
@@ -38,6 +39,12 @@ export default function ChatPanel({
   }
 
   const blocked = loading || simulating || Boolean(overflow);
+  const conversationRef = useRef(null);
+
+  useEffect(() => {
+    const element = conversationRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [messages, loading]);
 
   return (
     <section className="chat-panel">
@@ -54,7 +61,10 @@ export default function ChatPanel({
         onSimulate={onSimulate}
       />
 
-      <div className={`conversation ${messages.length || error || overflow ? 'has-response' : ''}`}>
+      <div
+        className={`conversation ${messages.length || error || overflow ? 'has-response' : ''}`}
+        ref={conversationRef}
+      >
         {!messages.length && !error && !overflow && !loading && (
           <div className="empty-state">
             <span className="empty-icon">✦</span>

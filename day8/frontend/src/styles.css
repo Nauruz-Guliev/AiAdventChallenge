@@ -42,10 +42,11 @@ h1 em { color: #79e3d0; font-style: normal; }
 .chat-heading-row, .flow-heading-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
 h2 { margin-bottom: 0; font-size: 24px; letter-spacing: -.04em; }
 .model-chip { color: #79e3d0; border: 1px solid #285148; border-radius: 100px; padding: 7px 10px; font-size: 9px; letter-spacing: .04em; }
-.conversation { flex: 1; min-height: 260px; max-height: 430px; overflow-y: auto; padding: 32px 5px 20px 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; }
+.conversation { flex: 1; min-height: 320px; max-height: min(60vh, 640px); overflow-y: auto; padding: 32px 5px 20px 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 12px; }
+.conversation > :last-child { margin-top: auto; }
 .empty-state { margin: auto; text-align: center; color: #637378; font-size: 14px; line-height: 1.6; }
 .empty-icon { display: block; margin-bottom: 14px; color: #f6a67d; font-size: 28px; }
-.message { max-width: 85%; padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+.message { max-width: 85%; padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: break-word; }
 .user-message { align-self: flex-end; color: #dffaf5; background: #17463f; border-bottom-right-radius: 4px; }
 .agent-message { align-self: flex-start; color: #cbd8da; background: #1a2529; border-bottom-left-radius: 4px; }
 .loading-message { display: flex; gap: 5px; padding: 18px 20px; }

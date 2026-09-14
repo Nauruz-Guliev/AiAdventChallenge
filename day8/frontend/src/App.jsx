@@ -132,11 +132,12 @@ export default function App() {
       { name: 'DeepSeek API', status: 'pending' },
     ]);
 
+    setMessages(current => [...current, { role: 'user', content: text }]);
+
     try {
       const response = await sendMessage(selectedChatId, text);
       setMessages(current => [
         ...current,
-        { role: 'user', content: text },
         {
           role: 'assistant',
           content: response.answer,
@@ -155,6 +156,7 @@ export default function App() {
       setChats(await listChats());
       return response;
     } catch (requestError) {
+      setMessages(current => current.slice(0, -1));
       if (requestError.status === 413) {
         setOverflow(requestError.message);
       } else {
