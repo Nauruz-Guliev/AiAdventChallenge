@@ -5,7 +5,9 @@ async function request(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.detail || 'Ошибка запроса.');
+    const error = new Error(payload.detail || 'Ошибка запроса.');
+    error.status = response.status;
+    throw error;
   }
   return payload;
 }

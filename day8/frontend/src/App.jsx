@@ -10,6 +10,10 @@ const initialStages = [
   { name: 'DeepSeek API', status: 'pending' },
 ];
 
+const SIMULATION_FILLER =
+  'Опиши очень подробно, как устроен контекст большого диалога, почему история пересылается целиком и как это влияет на токены и стоимость запросов. ';
+const SIMULATION_PARTS = 12;
+
 export default function App() {
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
@@ -20,6 +24,9 @@ export default function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [dialogUsage, setDialogUsage] = useState(null);
+  const [overflow, setOverflow] = useState('');
+  const [simulating, setSimulating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +63,8 @@ export default function App() {
     setResult(null);
     setError('');
     setStages(initialStages);
+    setDialogUsage(chat.dialog_usage);
+    setOverflow('');
   }
 
   async function handleSelectChat(chatId) {
@@ -69,7 +78,7 @@ export default function App() {
   }
 
   async function handleCreateChat() {
-    if (loading) return;
+    if (loading || simulating) return;
     setError('');
     try {
       const newChat = await createChat();
@@ -78,6 +87,8 @@ export default function App() {
       setMessages([]);
       setResult(null);
       setStages(initialStages);
+      setDialogUsage(null);
+      setOverflow('');
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -104,19 +115,15 @@ export default function App() {
       setMessages([]);
       setResult(null);
       setStages(initialStages);
+      setDialogUsage(null);
+      setOverflow('');
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage || !selectedChatId || loading) return;
-
-    const previousMessages = messages;
+  async function sendToChat(text) {
     setLoading(true);
-    setMessage('');
     setError('');
     setResult(null);
     setStages([
@@ -126,61 +133,106 @@ export default function App() {
     ]);
 
     try {
-      const response = await sendMessage(selectedChatId, trimmedMessage);
+      const response = await sendMessage(selectedChatId, text);
       setMessages(current => [
         ...current,
-        { role: 'user', content: trimmedMessage },
-        { role: 'assistant', content: response.answer },
+        { role: 'user', content: text },
+        {
+          role: 'assistant',
+          content: response.answer,
+          usage: {
+            request_tokens: response.usage.request_tokens,
+            history_tokens: response.usage.history_tokens,
+            prompt_tokens: response.usage.prompt_tokens_api,
+            completion_tokens: response.usage.completion_tokens_api,
+            total_tokens: response.usage.total_tokens_api,
+          },
+        },
       ]);
       setResult(response);
       setStages(response.stages);
+      setDialogUsage(response.usage);
       setChats(await listChats());
+      return response;
     } catch (requestError) {
-      setMessages(previousMessages);
-      setError(requestError.message);
+      if (requestError.status === 413) {
+        setOverflow(requestError.message);
+      } else {
+        setError(requestError.message);
+      }
       setStages(currentStages => currentStages.map(stage => ({
         ...stage,
         status: stage.name === 'DeepSeek API' ? 'error' : stage.status,
       })));
+      return null;
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || !selectedChatId || loading || simulating || overflow) return;
+
+    setMessage('');
+    await sendToChat(trimmedMessage);
+  }
+
+  async function handleSimulate() {
+    if (!selectedChatId || loading || simulating || overflow) return;
+
+    setSimulating(true);
+    try {
+      for (let part = 1; part <= SIMULATION_PARTS; part += 1) {
+        const response = await sendToChat(`Симуляция, часть ${part}. ${SIMULATION_FILLER.repeat(18)}`);
+        if (!response) break;
+      }
+    } finally {
+      setSimulating(false);
     }
   }
 
   return (
     <main className="page-shell">
       <header className="hero">
-        <div className="eyebrow"><span className="pulse-dot" /> DAY 07 / CONTEXT PERSISTENCE</div>
-        <h1>Разговор, который<br /><em>не исчезает.</em></h1>
+        <div className="eyebrow"><span className="pulse-dot" /> DAY 08 / TOKEN COUNTING</div>
+        <h1>Диалог, который<br /><em>виден в токенах.</em></h1>
         <p className="hero-copy">
-          История живёт в JSON, поэтому агент помнит контекст даже после перезапуска приложения.
+          Каждый запрос пересылает историю заново. Смотри, как растут токены и стоимость,
+          и что ломается на лимите контекста.
         </p>
       </header>
 
-      <section className="workspace" aria-label="Persistent agent workspace">
+      <section className="workspace" aria-label="Token-aware agent workspace">
         <ChatSidebar
           chats={chats}
-          disabled={loading || initializing}
+          disabled={loading || initializing || simulating}
           onCreate={handleCreateChat}
           onDelete={handleDeleteChat}
           onSelect={handleSelectChat}
           selectedChatId={selectedChatId}
         />
         <ChatPanel
+          dialogUsage={dialogUsage}
           error={error}
           loading={loading || initializing}
           message={message}
           messages={messages}
           onChange={setMessage}
+          onNewChat={handleCreateChat}
+          onSimulate={handleSimulate}
           onSubmit={handleSubmit}
+          overflow={overflow}
           result={result}
+          simulating={simulating}
         />
         <AgentFlow loading={loading} stages={stages} />
       </section>
 
       <footer className="page-footer">
         <span>FASTAPI + REACT</span>
-        <span>PERSISTENT JSON CONTEXT</span>
+        <span>TOKEN BUDGET</span>
       </footer>
     </main>
   );

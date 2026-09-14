@@ -1,11 +1,34 @@
+import UsagePanel from './UsagePanel.jsx';
+
+function UsageLine({ usage }) {
+  if (!usage) return null;
+  if (usage.request_tokens != null) {
+    return (
+      <div className="usage-line">
+        запрос {usage.request_tokens} · история ≈{usage.history_tokens} (оценка) · ответ {usage.completion_tokens} · всего {usage.total_tokens} токенов
+      </div>
+    );
+  }
+  return (
+    <div className="usage-line">
+      промпт {usage.prompt_tokens} · ответ {usage.completion_tokens} · всего {usage.total_tokens} токенов (API)
+    </div>
+  );
+}
+
 export default function ChatPanel({
+  dialogUsage,
   error,
   loading,
   message,
   messages,
   onChange,
+  onNewChat,
+  onSimulate,
   onSubmit,
+  overflow,
   result,
+  simulating,
 }) {
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -13,6 +36,8 @@ export default function ChatPanel({
       event.currentTarget.form.requestSubmit();
     }
   }
+
+  const blocked = loading || simulating || Boolean(overflow);
 
   return (
     <section className="chat-panel">
@@ -22,8 +47,15 @@ export default function ChatPanel({
         <span className="model-chip">deepseek-chat</span>
       </div>
 
-      <div className={`conversation ${messages.length || error ? 'has-response' : ''}`}>
-        {!messages.length && !error && !loading && (
+      <UsagePanel
+        disabled={loading || simulating}
+        simulating={simulating}
+        usage={dialogUsage}
+        onSimulate={onSimulate}
+      />
+
+      <div className={`conversation ${messages.length || error || overflow ? 'has-response' : ''}`}>
+        {!messages.length && !error && !overflow && !loading && (
           <div className="empty-state">
             <span className="empty-icon">✦</span>
             <p>Агент готов. История этого чата<br />сохранится после перезапуска.</p>
@@ -31,10 +63,13 @@ export default function ChatPanel({
         )}
         {messages.map((item, index) => (
           <div
-            className={`message ${item.role === 'user' ? 'user-message' : 'agent-message'}`}
+            className={`message-group ${item.role === 'user' ? 'user-group' : 'agent-group'}`}
             key={`${item.role}-${index}`}
           >
-            {item.content}
+            <div className={`message ${item.role === 'user' ? 'user-message' : 'agent-message'}`}>
+              {item.content}
+            </div>
+            {item.role === 'assistant' && <UsageLine usage={item.usage} />}
           </div>
         ))}
         {loading && (
@@ -43,6 +78,15 @@ export default function ChatPanel({
           </div>
         )}
         {error && <div className="error-card"><strong>Запрос не завершён</strong><span>{error}</span></div>}
+        {overflow && (
+          <div className="error-card overflow-card">
+            <strong>Лимит контекста превышен</strong>
+            <span>{overflow}</span>
+            <button className="overflow-new-chat" onClick={onNewChat} type="button">
+              Начать новый чат
+            </button>
+          </div>
+        )}
       </div>
 
       {result && !loading && (
@@ -55,14 +99,14 @@ export default function ChatPanel({
       <form className="composer" onSubmit={onSubmit}>
         <textarea
           aria-label="Сообщение для агента"
-          disabled={loading}
+          disabled={blocked}
           onChange={event => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Напиши сообщение..."
+          placeholder={overflow ? 'Диалог превысил лимит контекста — начните новый чат' : 'Напиши сообщение...'}
           rows="2"
           value={message}
         />
-        <button disabled={loading || !message.trim()} type="submit">
+        <button disabled={blocked || !message.trim()} type="submit">
           {loading ? 'Думает...' : 'Отправить'} <span>↗</span>
         </button>
       </form>
