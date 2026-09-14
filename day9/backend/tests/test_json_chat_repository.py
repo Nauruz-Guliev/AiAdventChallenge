@@ -23,6 +23,8 @@ async def test_create_chat_persists_empty_chat(tmp_path):
                 "created_at": chat.created_at,
                 "updated_at": chat.updated_at,
                 "messages": [],
+                "summary": None,
+                "summary_covers": 0,
             }
         ],
     }
@@ -126,3 +128,38 @@ async def test_storage_without_usage_field_loads_none(tmp_path):
     chat = await JsonChatRepository(path).get_chat("chat-1")
 
     assert chat.messages[0].usage is None
+
+
+@pytest.mark.asyncio
+async def test_save_summary_round_trip(tmp_path):
+    repository = JsonChatRepository(tmp_path / "chats.json")
+    chat = await repository.create_chat()
+
+    updated = await repository.save_summary(chat.id, "Пользователь обсуждал X.", 4)
+    loaded = await repository.get_chat(chat.id)
+
+    assert updated.summary == "Пользователь обсуждал X."
+    assert updated.summary_covers == 4
+    assert loaded.summary == "Пользователь обсуждал X."
+    assert loaded.summary_covers == 4
+
+
+@pytest.mark.asyncio
+async def test_save_summary_missing_chat_raises(tmp_path):
+    repository = JsonChatRepository(tmp_path / "chats.json")
+    with pytest.raises(ChatNotFound):
+        await repository.save_summary("missing", "s", 1)
+
+
+@pytest.mark.asyncio
+async def test_legacy_chat_without_summary_fields(tmp_path):
+    path = tmp_path / "chats.json"
+    path.write_text(json.dumps({"version": 1, "chats": [{
+        "id": "legacy", "title": "T", "created_at": "x", "updated_at": "y",
+        "messages": [],
+    }]}, ensure_ascii=False))
+
+    chat = await JsonChatRepository(path).get_chat("legacy")
+
+    assert chat.summary is None
+    assert chat.summary_covers == 0

@@ -64,6 +64,17 @@ class JsonChatRepository:
             store["chats"] = remaining
             self._write_store(store)
 
+    async def save_summary(self, chat_id: str, summary: str, covers: int) -> Chat:
+        async with self._lock:
+            store = self._read_store()
+            for stored_chat in store["chats"]:
+                if stored_chat["id"] == chat_id:
+                    stored_chat["summary"] = summary
+                    stored_chat["summary_covers"] = covers
+                    self._write_store(store)
+                    return _chat_from_dict(stored_chat)
+            raise ChatNotFound(chat_id)
+
     async def append_exchange(
         self,
         chat_id: str,
@@ -184,6 +195,8 @@ def _chat_from_dict(stored_chat: dict) -> Chat:
         created_at=stored_chat["created_at"],
         updated_at=stored_chat["updated_at"],
         messages=[_message_from_dict(message) for message in stored_chat["messages"]],
+        summary=stored_chat.get("summary"),
+        summary_covers=stored_chat.get("summary_covers", 0),
     )
 
 
@@ -203,6 +216,8 @@ def _chat_to_dict(chat: Chat) -> dict:
         "created_at": chat.created_at,
         "updated_at": chat.updated_at,
         "messages": [_message_to_dict(message) for message in chat.messages],
+        "summary": chat.summary,
+        "summary_covers": chat.summary_covers,
     }
 
 

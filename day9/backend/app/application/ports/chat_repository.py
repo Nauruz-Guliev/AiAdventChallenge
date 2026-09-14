@@ -19,3 +19,7 @@ class ChatRepository(Protocol):
         assistant_content: str,
         usage: TokenUsage,
     ) -> Chat: ...
+
+    async def save_summary(
+        self, chat_id: str, summary: str, covers: int
+    ) -> Chat: ...

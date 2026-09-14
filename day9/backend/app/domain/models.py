@@ -88,6 +88,8 @@ class Chat:
     created_at: str
     updated_at: str
     messages: list[ChatMessage]
+    summary: str | None = None
+    summary_covers: int = 0
 
 
 class InvalidUserMessage(ValueError):
