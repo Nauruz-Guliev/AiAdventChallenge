@@ -1,6 +1,6 @@
 import pytest
 
-from app.application.agent import Agent
+from app.application.agent import SYSTEM_PROMPT, Agent
 from app.domain.models import (
     Chat,
     ChatMessage,
@@ -213,3 +213,179 @@ async def test_over_budget_message_is_not_saved():
         ).run("chat-1", "Привет ещё раз")
 
     assert repository.saved is None
+
+
+def sample_llm_response() -> LLMResponse:
+    return LLMResponse("fake answer", "deepseek-chat", sample_usage())
+
+
+class ScriptedGateway:
+    """Отдаёт responses по порядку; пишет все вызовы в .calls."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    async def complete(self, messages):
+        self.calls.append(messages)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class CompressionRepository:
+    def __init__(self, history):
+        self.chat = Chat(
+            id="chat-1",
+            title="Т",
+            created_at="2026-09-14T12:00:00+00:00",
+            updated_at="2026-09-14T12:00:00+00:00",
+            messages=list(history),
+        )
+        self.summaries = []
+
+    def replace_like(self, summary=None, covers=None, extra=()):
+        chat = self.chat
+        return Chat(
+            id=chat.id,
+            title=chat.title,
+            created_at=chat.created_at,
+            updated_at=chat.updated_at,
+            messages=[*chat.messages, *extra],
+            summary=chat.summary if summary is None else summary,
+            summary_covers=chat.summary_covers if covers is None else covers,
+        )
+
+    async def get_chat(self, chat_id):
+        return self.chat
+
+    async def save_summary(self, chat_id, summary, covers):
+        self.summaries.append((chat_id, summary, covers))
+        self.chat = self.replace_like(summary=summary, covers=covers)
+        return self.chat
+
+    async def append_exchange(self, chat_id, user_content, assistant_content, usage):
+        self.chat = self.replace_like(extra=[
+            ChatMessage(role="user", content=user_content),
+            ChatMessage(role="assistant", content=assistant_content, usage=usage),
+        ])
+        return self.chat
+
+
+def long_history(pairs=12):
+    filler = " " + "информация " * 60
+    history = []
+    for index in range(pairs):
+        history.append(ChatMessage(role="user", content=f"вопрос {index}{filler}"))
+        history.append(ChatMessage(role="assistant", content=f"ответ {index}{filler}"))
+    return history
+
+
+def build_compression_agent(gateway, repository):
+    return make_agent(
+        gateway, repository, config=UsageConfig(context_limit_tokens=20000)
+    )
+
+
+@pytest.mark.asyncio
+async def test_no_compression_below_threshold():
+    repo = CompressionRepository([ChatMessage(role="user", content="короткий")])
+    gateway = ScriptedGateway([sample_llm_response()])
+
+    result = await build_compression_agent(gateway, repo).run("chat-1", "ещё вопрос")
+
+    assert result.usage.compression is None
+    assert len(gateway.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_compression_sums_up_then_sends_tail():
+    repo = CompressionRepository(long_history())
+    summary_response = LLMResponse(
+        "Итог: пользователь обсуждал информацию.",
+        "fake-model",
+        TokenUsage(prompt_tokens=9000, completion_tokens=100, total_tokens=9100),
+    )
+    gateway = ScriptedGateway([summary_response, sample_llm_response()])
+
+    result = await build_compression_agent(gateway, repo).run(
+        "chat-1", "что я просил в начале?"
+    )
+
+    assert len(gateway.calls) == 2
+    summarization_call, main_call = gateway.calls
+    assert summarization_call[0].role == "system"
+    assert main_call[0].content == SYSTEM_PROMPT
+    assert main_call[1].role == "system" and "Итог:" in main_call[1].content
+    assert len(main_call) == 1 + 1 + 10 + 1
+    assert repo.summaries == [("chat-1", "Итог: пользователь обсуждал информацию.", 14)]
+    compression = result.usage.compression
+    assert compression.applied is True
+    assert compression.before_tokens > compression.after_tokens
+    assert compression.saved_tokens == (
+        compression.before_tokens - compression.after_tokens
+    )
+    assert compression.summarization_tokens == 9100
+    assert result.usage.history_tokens == compression.after_tokens
+
+
+@pytest.mark.asyncio
+async def test_compression_reuses_cached_summary():
+    history = long_history()
+    repo = CompressionRepository(history)
+    repo.chat = repo.replace_like(summary="готовая свёртка", covers=14)
+    gateway = ScriptedGateway([sample_llm_response()])
+
+    result = await build_compression_agent(gateway, repo).run("chat-1", "продолжим")
+
+    assert len(gateway.calls) == 1
+    assert "готовая свёртка" in gateway.calls[0][1].content
+    assert result.usage.compression.applied is True
+    assert result.usage.compression.summarization_tokens == 0
+
+
+@pytest.mark.asyncio
+async def test_compress_disabled_sends_full_history():
+    repo = CompressionRepository(long_history())
+    gateway = ScriptedGateway([sample_llm_response()])
+
+    result = await build_compression_agent(gateway, repo).run(
+        "chat-1", "вопрос", compress=False
+    )
+
+    assert len(gateway.calls) == 1
+    assert len(gateway.calls[0]) == 1 + 24 + 1
+    assert result.usage.compression is None
+
+
+@pytest.mark.asyncio
+async def test_compression_cannot_rescue_giant_tail():
+    huge = [
+        ChatMessage(role="user", content="токен " * 3000),
+        ChatMessage(role="assistant", content="ответ " * 3000),
+    ]
+    repo = CompressionRepository(huge)
+    gateway = ScriptedGateway([])
+    agent = make_agent(
+        gateway, repo, config=UsageConfig(context_limit_tokens=10000)
+    )
+
+    with pytest.raises(ContextLimitExceeded):
+        await agent.run("chat-1", "ещё")
+
+
+@pytest.mark.asyncio
+async def test_summary_persisted_before_main_call_and_survives_error():
+    repo = CompressionRepository(long_history())
+    gateway = ScriptedGateway(
+        [
+            LLMResponse("свёртка", "fake-model", sample_usage()),
+            LLMGatewayError("boom"),
+        ]
+    )
+
+    with pytest.raises(LLMGatewayError):
+        await build_compression_agent(gateway, repo).run("chat-1", "вопрос")
+
+    assert repo.summaries == [("chat-1", "свёртка", 14)]

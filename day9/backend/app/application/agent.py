@@ -3,13 +3,21 @@ from time import perf_counter
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.llm_gateway import LLMGateway
 from app.application.ports.token_counter import TokenCounter
-from app.application.usage import build_dialog_usage
+from app.application.compression import (
+    build_summarization_messages,
+    build_summary_message,
+    split_history,
+)
+from app.application.usage import build_dialog_usage, summarization_cost_usd
 from app.domain.models import (
     AgentResult,
+    Chat,
+    CompressionInfo,
     AgentStage,
     ChatMessage,
     ContextLimitExceeded,
     InvalidUserMessage,
+    TokenUsage,
     UsageConfig,
     UsageReport,
 )
@@ -51,32 +59,61 @@ class Agent:
             )
         return message
 
-    async def run(self, chat_id: str, user_text: str) -> AgentResult:
+    async def run(
+        self, chat_id: str, user_text: str, compress: bool = True
+    ) -> AgentResult:
         message = self._validate_message(user_text)
         chat = await self._repository.get_chat(chat_id)
-
-        system_message = ChatMessage(role="system", content=SYSTEM_PROMPT)
-        history_messages = [system_message, *chat.messages]
         new_message = ChatMessage(role="user", content=message)
-        history_tokens = self._counter.count_messages(history_messages)
+        system_message = ChatMessage(role="system", content=SYSTEM_PROMPT)
+        history = list(chat.messages)
+        full_history_tokens = self._counter.count_messages(
+            [system_message, *history]
+        )
         request_tokens = self._counter.count_messages([new_message])
-        estimated = history_tokens + request_tokens
+
+        compression: CompressionInfo | None = None
+        sent_history_tokens = full_history_tokens
+        context = [system_message, *history, new_message]
+        if compress:
+            old, recent = split_history(history, self._config.keep_recent_messages)
+            if old and full_history_tokens > self._config.compress_at_tokens:
+                summary, covers, summarization_usage = await self._ensure_summary(
+                    chat, old
+                )
+                request_history = [build_summary_message(summary, covers), *recent]
+                sent_history_tokens = self._counter.count_messages(
+                    [system_message, *request_history]
+                )
+                saved = full_history_tokens - sent_history_tokens
+                compression = CompressionInfo(
+                    applied=True,
+                    before_tokens=full_history_tokens,
+                    after_tokens=sent_history_tokens,
+                    saved_tokens=saved,
+                    saved_percent=round(100 * saved / full_history_tokens),
+                    summarization_tokens=summarization_usage.total_tokens,
+                    summarization_cost_usd=summarization_cost_usd(
+                        summarization_usage, self._config
+                    ),
+                )
+                context = [system_message, *request_history, new_message]
+
+        estimated = sent_history_tokens + request_tokens
         if estimated > self._config.context_limit_tokens:
             raise ContextLimitExceeded(
                 estimated, self._config.context_limit_tokens
             )
 
         started_at = perf_counter()
-        response = await self._gateway.complete([*history_messages, new_message])
+        response = await self._gateway.complete(context)
         answer = response.text.strip()
         updated_chat = await self._repository.append_exchange(
             chat_id, message, answer, response.usage
         )
 
         dialog = build_dialog_usage(
-            [system_message, *updated_chat.messages],
-            self._counter,
-            self._config,
+            [system_message, *updated_chat.messages], self._counter, self._config
         )
         return AgentResult(
             answer=answer,
@@ -89,7 +126,7 @@ class Agent:
             ],
             usage=UsageReport(
                 request_tokens=request_tokens,
-                history_tokens=history_tokens,
+                history_tokens=sent_history_tokens,
                 response_tokens=response.usage.completion_tokens,
                 prompt_tokens_api=response.usage.prompt_tokens,
                 completion_tokens_api=response.usage.completion_tokens,
@@ -99,5 +136,20 @@ class Agent:
                 context_limit=dialog.context_limit,
                 context_remaining=dialog.context_remaining,
                 warning=dialog.warning,
+                compression=compression,
             ),
         )
+
+    async def _ensure_summary(
+        self, chat: Chat, old: list[ChatMessage]
+    ) -> tuple[str, int, TokenUsage]:
+        if chat.summary is not None and chat.summary_covers >= len(old):
+            return chat.summary, chat.summary_covers, TokenUsage(0, 0, 0)
+        response = await self._gateway.complete(
+            build_summarization_messages(
+                chat.summary, old, self._config.summary_max_tokens
+            )
+        )
+        summary = response.text.strip()
+        await self._repository.save_summary(chat.id, summary, len(old))
+        return summary, len(old), response.usage
