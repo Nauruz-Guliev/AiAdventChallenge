@@ -93,7 +93,7 @@ class FakeAgent:
         self.calls = []
         self.error = error
 
-    async def run(self, chat_id, message):
+    async def run(self, chat_id, message, mode="sliding"):
         self.calls.append((chat_id, message))
         if self.error:
             raise self.error
@@ -279,3 +279,148 @@ def _chat(id, title, created_at, updated_at, messages):
         active_branch_id=branch.id,
     )
 
+
+
+from dataclasses import replace as _replace
+
+from app.domain.models import ContextInfo
+from app.infrastructure.json_chat_repository import JsonChatRepository
+
+
+class ModeAgent:
+    def __init__(self):
+        self.last_mode = None
+
+    async def run(self, chat_id, message, mode="sliding"):
+        self.last_mode = mode
+        base = sample_report()
+        return AgentResult(
+            answer="ok",
+            model="m",
+            duration_ms=1,
+            stages=[AgentStage(name="Agent", status="completed")],
+            usage=_replace(
+                base,
+                context=ContextInfo(
+                    mode=mode,
+                    sent_messages=1,
+                    total_messages=1,
+                    facts_count=0,
+                    fact_update_tokens=0,
+                    fact_update_cost_usd=0.0,
+                ),
+            ),
+        )
+
+
+def test_message_request_accepts_mode_and_returns_context(client):
+    agent = ModeAgent()
+    app.dependency_overrides[get_agent] = lambda: agent
+
+    response = client[0].post(
+        "/api/chats/chat-1/messages",
+        json={"message": "привет", "mode": "facts"},
+    )
+
+    assert response.status_code == 200
+    assert agent.last_mode == "facts"
+    assert response.json()["usage"]["context"]["mode"] == "facts"
+
+
+def test_message_request_default_mode_is_sliding(client):
+    agent = ModeAgent()
+    app.dependency_overrides[get_agent] = lambda: agent
+
+    response = client[0].post(
+        "/api/chats/chat-1/messages", json={"message": "привет"}
+    )
+
+    assert agent.last_mode == "sliding"
+
+
+def test_invalid_mode_rejected(client):
+    response = client[0].post(
+        "/api/chats/chat-1/messages",
+        json={"message": "х", "mode": "summary"},
+    )
+    assert response.status_code == 422
+
+
+class SavingAgent:
+    def __init__(self, repository):
+        self.repository = repository
+
+    async def run(self, chat_id, message, mode="sliding"):
+        await self.repository.append_exchange(
+            chat_id, message, f"ответ на {message}", TokenUsage(5, 5, 10)
+        )
+        return AgentResult(
+            answer="ok",
+            model="m",
+            duration_ms=1,
+            stages=[AgentStage(name="Agent", status="completed")],
+            usage=sample_report(),
+        )
+
+
+@pytest.fixture
+def repo_client(tmp_path):
+    repository = JsonChatRepository(tmp_path / "chats.json")
+    app.dependency_overrides[get_repository] = lambda: repository
+    app.dependency_overrides[get_agent] = lambda: SavingAgent(repository)
+    with TestClient(app) as test_client:
+        yield test_client, repository
+    app.dependency_overrides.clear()
+
+
+def test_branch_lifecycle_over_http(repo_client):
+    client, repository = repo_client
+    chat_id = client.post("/api/chats").json()["id"]
+    for i in range(2):
+        assert client.post(
+            f"/api/chats/{chat_id}/messages", json={"message": f"u{i}"}
+        ).status_code == 200
+
+    created = client.post(
+        f"/api/chats/{chat_id}/branches",
+        json={"after_message_index": 2, "name": "Б"},
+    )
+    assert created.status_code == 200
+    detail = created.json()
+    assert len(detail["branches"]) == 2
+    assert detail["active_branch_id"] == detail["branches"][1]["id"]
+    main_id = detail["branches"][0]["id"]
+    assert client.get(f"/api/chats/{chat_id}").json()["branches"][0]["messages"]
+
+    switched = client.patch(
+        f"/api/chats/{chat_id}/active-branch", json={"branch_id": main_id}
+    )
+    assert switched.status_code == 200
+    assert switched.json()["active_branch_id"] == main_id
+
+    branch_b_id = detail["branches"][1]["id"]
+    assert client.delete(f"/api/chats/{chat_id}/branches/{branch_b_id}").status_code == 200
+    assert client.delete(f"/api/chats/{chat_id}/branches/{branch_b_id}").status_code == 404
+    assert client.delete(f"/api/chats/{chat_id}/branches/{main_id}").status_code == 409
+    assert client.post(
+        f"/api/chats/{chat_id}/branches",
+        json={"after_message_index": 999, "name": "X"},
+    ).status_code == 400
+
+
+def test_facts_patch_caps_and_persists(repo_client):
+    client, repository = repo_client
+    chat_id = client.post("/api/chats").json()["id"]
+    facts = {f"k{i}": "v" for i in range(30)}
+
+    response = client.patch(
+        f"/api/chats/{chat_id}/facts", json={"facts": facts}
+    )
+
+    assert response.status_code == 200
+    payload = client.get(f"/api/chats/{chat_id}").json()
+    stored = next(
+        b["facts"] for b in payload["branches"]
+        if b["id"] == payload["active_branch_id"]
+    )
+    assert len(stored) == 20

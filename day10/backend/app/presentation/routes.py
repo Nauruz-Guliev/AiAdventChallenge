@@ -1,20 +1,35 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.application.agent import SYSTEM_PROMPT, Agent
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.usage import build_dialog_usage
-from app.domain.models import Chat, ChatMessage, ChatSummary, UsageConfig, UsageReport
+from app.domain.models import (
+    BranchNotFound,
+    Chat,
+    ChatMessage,
+    ChatNotFound,
+    ChatSummary,
+    LastBranchError,
+    UsageConfig,
+    UsageReport,
+)
 from app.presentation.dependencies import (
     get_agent,
     get_repository,
+    get_settings,
     get_token_counter,
     get_usage_config,
 )
 from app.presentation.schemas import (
+    ActiveBranchRequest,
+    BranchCreateRequest,
+    BranchResponse,
     ChatDetailResponse,
+    ContextResponse,
+    FactsUpdateRequest,
     ChatMessageRequest,
     ChatMessageResponse,
     ChatResponse,
@@ -58,24 +73,99 @@ async def get_chat(
     )
     return ChatDetailResponse(
         **_summary_response(chat).model_dump(),
-        messages=[
-            ChatMessageResponse(
-                role=message.role,
-                content=message.content,
-                usage=(
-                    TokenUsageResponse(
-                        prompt_tokens=message.usage.prompt_tokens,
-                        completion_tokens=message.usage.completion_tokens,
-                        total_tokens=message.usage.total_tokens,
-                    )
-                    if message.usage
-                    else None
-                ),
+        messages=_message_responses(chat.messages),
+        branches=[
+            BranchResponse(
+                id=branch.id,
+                name=branch.name,
+                fork_at=branch.fork_at,
+                facts=dict(branch.facts),
+                messages=_message_responses(branch.messages),
             )
-            for message in chat.messages
+            for branch in chat.branches
         ],
+        active_branch_id=chat.active_branch_id,
         dialog_usage=DialogUsageResponse(**vars(dialog)),
     )
+
+
+def _message_responses(messages):
+    return [
+        ChatMessageResponse(
+            role=message.role,
+            content=message.content,
+            usage=(
+                TokenUsageResponse(
+                    prompt_tokens=message.usage.prompt_tokens,
+                    completion_tokens=message.usage.completion_tokens,
+                    total_tokens=message.usage.total_tokens,
+                )
+                if message.usage
+                else None
+            ),
+        )
+        for message in messages
+    ]
+
+
+@router.post("/api/chats/{chat_id}/branches", response_model=ChatDetailResponse)
+async def create_branch(
+    chat_id: str,
+    request: BranchCreateRequest,
+    repository: Annotated[ChatRepository, Depends(get_repository)],
+) -> ChatDetailResponse:
+    try:
+        chat = await repository.fork_branch(
+            chat_id, request.after_message_index, request.name
+        )
+    except IndexError as error:
+        raise HTTPException(status_code=400, detail="Message index is out of range") from error
+    except ChatNotFound as error:
+        raise HTTPException(status_code=404, detail="Chat not found") from error
+    return await get_chat(chat_id, repository, get_token_counter(), get_usage_config())
+
+
+@router.patch("/api/chats/{chat_id}/active-branch", response_model=ChatDetailResponse)
+async def activate_branch(
+    chat_id: str,
+    request: ActiveBranchRequest,
+    repository: Annotated[ChatRepository, Depends(get_repository)],
+) -> ChatDetailResponse:
+    try:
+        await repository.set_active_branch(chat_id, request.branch_id)
+    except (BranchNotFound, ChatNotFound) as error:
+        raise HTTPException(status_code=404, detail="Branch not found") from error
+    return await get_chat(chat_id, repository, get_token_counter(), get_usage_config())
+
+
+@router.delete("/api/chats/{chat_id}/branches/{branch_id}", response_model=ChatDetailResponse)
+async def remove_branch(
+    chat_id: str,
+    branch_id: str,
+    repository: Annotated[ChatRepository, Depends(get_repository)],
+) -> ChatDetailResponse:
+    try:
+        await repository.delete_branch(chat_id, branch_id)
+    except LastBranchError as error:
+        raise HTTPException(status_code=409, detail="Cannot delete the last branch") from error
+    except (BranchNotFound, ChatNotFound) as error:
+        raise HTTPException(status_code=404, detail="Branch not found") from error
+    return await get_chat(chat_id, repository, get_token_counter(), get_usage_config())
+
+
+@router.patch("/api/chats/{chat_id}/facts", response_model=ChatDetailResponse)
+async def update_facts(
+    chat_id: str,
+    request: FactsUpdateRequest,
+    repository: Annotated[ChatRepository, Depends(get_repository)],
+) -> ChatDetailResponse:
+    settings = get_settings()
+    capped = dict(list(request.facts.items())[: settings.facts_max_items])
+    try:
+        await repository.save_facts(chat_id, None, capped)
+    except ChatNotFound as error:
+        raise HTTPException(status_code=404, detail="Chat not found") from error
+    return await get_chat(chat_id, repository, get_token_counter(), get_usage_config())
 
 
 @router.delete("/api/chats/{chat_id}", status_code=204)
@@ -93,7 +183,7 @@ async def send_message(
     request: ChatMessageRequest,
     agent: Annotated[Agent, Depends(get_agent)],
 ) -> ChatResponse:
-    result = await agent.run(chat_id, request.message)
+    result = await agent.run(chat_id, request.message, mode=request.mode)
     return ChatResponse(
         chat_id=chat_id,
         answer=result.answer,
@@ -117,4 +207,9 @@ def _summary_response(chat: Chat | ChatSummary) -> ChatSummaryResponse:
 
 
 def _usage_response(report: UsageReport) -> UsageResponse:
-    return UsageResponse(**vars(report))
+    data = dict(vars(report))
+    context = data.pop("context")
+    return UsageResponse(
+        **data,
+        context=ContextResponse(**vars(context)) if context else None,
+    )

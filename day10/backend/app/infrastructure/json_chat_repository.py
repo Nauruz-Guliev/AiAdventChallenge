@@ -124,9 +124,9 @@ class JsonChatRepository:
 
     async def delete_branch(self, chat_id: str, branch_id: str) -> Chat:
         def mutate(chat: Chat) -> None:
+            branch = _pick_branch(chat, branch_id)
             if len(chat.branches) <= 1:
                 raise LastBranchError(chat_id)
-            branch = _pick_branch(chat, branch_id)
             chat.branches.remove(branch)
             if chat.active_branch_id == branch_id:
                 chat.active_branch_id = chat.branches[0].id

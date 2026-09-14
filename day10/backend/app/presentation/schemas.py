@@ -5,8 +5,12 @@ from pydantic import BaseModel, Field, field_validator
 from app.domain.models import StageStatus
 
 
+ContextMode = Literal["full", "sliding", "facts", "branching"]
+
+
 class ChatMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+    mode: ContextMode = "sliding"
 
     @field_validator("message")
     @classmethod
@@ -21,6 +25,15 @@ class StageResponse(BaseModel):
     status: StageStatus
 
 
+class ContextResponse(BaseModel):
+    mode: str
+    sent_messages: int
+    total_messages: int
+    facts_count: int
+    fact_update_tokens: int
+    fact_update_cost_usd: float
+
+
 class UsageResponse(BaseModel):
     request_tokens: int
     history_tokens: int
@@ -33,6 +46,7 @@ class UsageResponse(BaseModel):
     context_limit: int
     context_remaining: int
     warning: bool
+    context: ContextResponse | None = None
 
 
 class ChatResponse(BaseModel):
@@ -72,6 +86,29 @@ class ChatSummaryResponse(BaseModel):
     updated_at: str
 
 
+class BranchResponse(BaseModel):
+    id: str
+    name: str
+    fork_at: int | None
+    facts: dict[str, str]
+    messages: list[ChatMessageResponse]
+
+
+class BranchCreateRequest(BaseModel):
+    after_message_index: int = Field(ge=0)
+    name: str = Field(min_length=1, max_length=40)
+
+
+class ActiveBranchRequest(BaseModel):
+    branch_id: str
+
+
+class FactsUpdateRequest(BaseModel):
+    facts: dict[str, str]
+
+
 class ChatDetailResponse(ChatSummaryResponse):
     messages: list[ChatMessageResponse]
+    branches: list[BranchResponse] = []
+    active_branch_id: str | None = None
     dialog_usage: DialogUsageResponse
