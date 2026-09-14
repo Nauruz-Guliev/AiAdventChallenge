@@ -36,6 +36,8 @@ export default function App() {
       localStorage.setItem('day9-compress', String(!current));
       return !current;
     });
+    setOverflow('');
+    setStages(initialStages);
   }
 
   useEffect(() => {

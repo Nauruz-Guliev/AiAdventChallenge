@@ -123,7 +123,7 @@ export default function ChatPanel({
           disabled={blocked}
           onChange={event => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={overflow ? 'Диалог превысил лимит контекста — начните новый чат' : 'Напиши сообщение...'}
+          placeholder={overflow ? 'Диалог превысил лимит — включите сжатие истории ниже или начните новый чат' : 'Напиши сообщение...'}
           rows="2"
           value={message}
         />
@@ -134,7 +134,7 @@ export default function ChatPanel({
       <label className="compress-toggle" title="Сворачивать старые сообщения в summary перед отправкой">
         <input
           checked={compress}
-          disabled={blocked}
+          disabled={loading || simulating}
           onChange={onToggleCompress}
           type="checkbox"
         />

@@ -45,7 +45,7 @@ async def context_limit_handler(request: Request, error: ContextLimitExceeded):
         detail = (
             f"Диалог превысил лимит контекста ({error.estimated_tokens} из "
             f"{error.context_limit} токенов). Сообщение не отправлено и не сохранено. "
-            "Начните новый чат."
+            "Включите сжатие истории или начните новый чат."
         )
     else:
         detail = (
