@@ -3,12 +3,14 @@ from openai import (
     APITimeoutError,
     AsyncOpenAI,
     AuthenticationError,
+    BadRequestError,
     RateLimitError,
 )
 
 from app.domain.models import (
     AuthenticationGatewayError,
     ChatMessage,
+    ContextLimitExceeded,
     GatewayTimeoutError,
     LLMGatewayError,
     LLMResponse,
@@ -52,6 +54,10 @@ class DeepSeekGateway:
             raise GatewayTimeoutError from error
         except APIConnectionError as error:
             raise LLMGatewayError from error
+        except BadRequestError as error:
+            if _is_context_length_error(error):
+                raise ContextLimitExceeded() from error
+            raise LLMGatewayError from error
         except Exception as error:
             raise LLMGatewayError from error
 
@@ -72,3 +78,10 @@ class DeepSeekGateway:
                 total_tokens=usage.total_tokens,
             ),
         )
+
+
+def _is_context_length_error(error: BadRequestError) -> bool:
+    body = error.body if isinstance(error.body, dict) else {}
+    inner = body.get("error") if isinstance(body.get("error"), dict) else {}
+    code = inner.get("code")
+    return code == "context_length_exceeded" or "context_length_exceeded" in str(error)

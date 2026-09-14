@@ -1,13 +1,21 @@
 import httpx
 import pytest
-from openai import APIConnectionError, APITimeoutError, AuthenticationError, RateLimitError
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    RateLimitError,
+)
 
 from app.domain.models import (
     AuthenticationGatewayError,
     ChatMessage,
+    ContextLimitExceeded,
     GatewayTimeoutError,
     LLMGatewayError,
     RateLimitGatewayError,
+    TokenUsage,
 )
 from app.infrastructure.deepseek_gateway import DeepSeekGateway
 
@@ -104,3 +112,35 @@ async def test_gateway_maps_timeout_and_connection_errors():
 
     with pytest.raises(LLMGatewayError):
         await DeepSeekGateway(client=FakeClient(error=APIConnectionError(request=request))).complete([])
+
+
+@pytest.mark.asyncio
+async def test_gateway_rejects_response_without_usage():
+    gateway = DeepSeekGateway(client=FakeClient(completion(usage=None)))
+
+    with pytest.raises(LLMGatewayError):
+        await gateway.complete([ChatMessage(role="user", content="hello")])
+
+
+@pytest.mark.asyncio
+async def test_gateway_maps_context_length_error():
+    error = BadRequestError(
+        "context_length_exceeded: maximum context length exceeded",
+        response=error_response(400),
+        body={"error": {"code": "context_length_exceeded"}},
+    )
+
+    with pytest.raises(ContextLimitExceeded):
+        await DeepSeekGateway(client=FakeClient(error=error)).complete([])
+
+
+@pytest.mark.asyncio
+async def test_gateway_maps_other_bad_requests_to_gateway_error():
+    error = BadRequestError(
+        "invalid_request_error: unknown field",
+        response=error_response(400),
+        body={"error": {"code": "invalid_request_error"}},
+    )
+
+    with pytest.raises(LLMGatewayError):
+        await DeepSeekGateway(client=FakeClient(error=error)).complete([])
