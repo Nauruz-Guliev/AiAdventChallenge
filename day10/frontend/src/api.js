@@ -28,9 +28,34 @@ export function deleteChat(chatId) {
   return request(`/api/chats/${chatId}`, { method: 'DELETE' });
 }
 
-export function sendMessage(chatId, message) {
+export function sendMessage(chatId, message, mode = 'sliding') {
   return request(`/api/chats/${chatId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, mode }),
+  });
+}
+
+export function createBranch(chatId, afterMessageIndex, name) {
+  return request(`/api/chats/${chatId}/branches`, {
+    body: JSON.stringify({ after_message_index: afterMessageIndex, name }),
+    method: 'POST',
+  });
+}
+
+export function setActiveBranch(chatId, branchId) {
+  return request(`/api/chats/${chatId}/active-branch`, {
+    body: JSON.stringify({ branch_id: branchId }),
+    method: 'PATCH',
+  });
+}
+
+export function deleteBranch(chatId, branchId) {
+  return request(`/api/chats/${chatId}/branches/${branchId}`, { method: 'DELETE' });
+}
+
+export function updateFacts(chatId, facts) {
+  return request(`/api/chats/${chatId}/facts`, {
+    body: JSON.stringify({ facts }),
+    method: 'PATCH',
   });
 }

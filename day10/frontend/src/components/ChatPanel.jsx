@@ -1,6 +1,23 @@
 import { useEffect, useRef } from 'react';
+import FactsPanel from './FactsPanel.jsx';
 import MarkdownMessage from './MarkdownMessage.jsx';
+import ModeSelector from './ModeSelector.jsx';
 import UsagePanel from './UsagePanel.jsx';
+
+function ContextChip({ context }) {
+  const sent = context.sent_messages;
+  const total = context.total_messages;
+  let text;
+  if (context.mode === 'sliding') text = `окно: ${sent} из ${total}`;
+  else if (context.mode === 'facts') {
+    const extract = context.fact_update_tokens
+      ? ` · экстракция ${context.fact_update_tokens} токенов`
+      : '';
+    text = `факты: ${context.facts_count} + ${sent} сообщений${extract}`;
+  } else if (context.mode === 'branching') text = `ветка: ${total} сообщений`;
+  else text = `полный контекст: ${total}`;
+  return <div className="context-chip">{text}</div>;
+}
 
 function UsageLine({ usage }) {
   if (!usage) return null;
@@ -19,7 +36,11 @@ function UsageLine({ usage }) {
 }
 
 export default function ChatPanel({
+  activeBranchId,
+  branches,
   dialogUsage,
+  facts,
+  mode,
   error,
   loading,
   message,
@@ -27,7 +48,12 @@ export default function ChatPanel({
   onChange,
   onNewChat,
   onSimulate,
+  onFactsChange,
+  onFork,
+  onModeChange,
   onSubmit,
+  onDeleteBranch,
+  onSwitchBranch,
   overflow,
   result,
   simulating,
@@ -62,6 +88,30 @@ export default function ChatPanel({
         onSimulate={onSimulate}
       />
 
+      {mode === 'branching' && branches.length > 0 && (
+        <div className="branch-tabs">
+          {branches.map(branch => (
+            <span className={branch.id === activeBranchId ? 'tab active' : 'tab'} key={branch.id}>
+              <button disabled={blocked} onClick={() => onSwitchBranch(branch.id)} type="button">
+                {branch.name}
+                {branch.fork_at != null ? ` @${branch.fork_at}` : ''}
+              </button>
+              {branches.length > 1 && (
+                <button
+                  aria-label={`Удалить ветку ${branch.name}`}
+                  className="tab-close"
+                  disabled={blocked}
+                  onClick={() => onDeleteBranch(branch.id)}
+                  type="button"
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div
         className={`conversation ${messages.length || error || overflow ? 'has-response' : ''}`}
         ref={conversationRef}
@@ -83,6 +133,12 @@ export default function ChatPanel({
                 : <MarkdownMessage content={item.content} />}
             </div>
             {item.role === 'assistant' && <UsageLine usage={item.usage} />}
+            {item.role === 'assistant' && item.context && <ContextChip context={item.context} />}
+            {item.role === 'assistant' && mode === 'branching' && (
+              <button className="fork-button" disabled={blocked} onClick={() => onFork(index)} type="button">
+                🌿 Ветвиться отсюда
+              </button>
+            )}
           </div>
         ))}
         {loading && (
@@ -115,7 +171,7 @@ export default function ChatPanel({
           disabled={blocked}
           onChange={event => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={overflow ? 'Диалог превысил лимит — начните новый чат' : 'Напиши сообщение...'}
+          placeholder={overflow ? 'Лимит — смените режим на «Окно»/«Факты» или начните новый чат' : 'Напиши сообщение...'}
           rows="2"
           value={message}
         />
@@ -123,6 +179,10 @@ export default function ChatPanel({
           {loading ? 'Думает...' : 'Отправить'} <span>↗</span>
         </button>
       </form>
+      <ModeSelector disabled={loading || simulating} mode={mode} onChange={onModeChange} />
+      {mode === 'facts' && (
+        <FactsPanel disabled={loading || simulating} facts={facts ?? {}} onChange={onFactsChange} />
+      )}
       <p className="composer-hint">Enter — отправить&nbsp;&nbsp;·&nbsp;&nbsp;Shift + Enter — новая строка</p>
     </section>
   );

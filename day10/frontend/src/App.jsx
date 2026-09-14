@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { createChat, deleteChat, getChat, listChats, sendMessage } from './api.js';
+import {
+  createBranch,
+  createChat,
+  deleteBranch,
+  deleteChat,
+  getChat,
+  listChats,
+  sendMessage,
+  setActiveBranch,
+  updateFacts,
+} from './api.js';
 import AgentFlow from './components/AgentFlow.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
 import ChatSidebar from './components/ChatSidebar.jsx';
@@ -27,6 +37,20 @@ export default function App() {
   const [dialogUsage, setDialogUsage] = useState(null);
   const [overflow, setOverflow] = useState('');
   const [simulating, setSimulating] = useState(false);
+  const [mode, setMode] = useState(
+    () => localStorage.getItem('day10-mode') ?? 'sliding'
+  );
+  const [branches, setBranches] = useState([]);
+  const [activeBranchId, setActiveBranchId] = useState(null);
+  const [facts, setFacts] = useState({});
+
+  function applyDetail(chat) {
+    const chatBranches = chat.branches ?? [];
+    setBranches(chatBranches);
+    setActiveBranchId(chat.active_branch_id ?? null);
+    const active = chatBranches.find(b => b.id === chat.active_branch_id);
+    setFacts(active?.facts ?? {});
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +74,54 @@ export default function App() {
     }
 
     loadInitialChat();
-    return () => {
+    async function handleFork(messageIndex) {
+    if (!selectedChatId) return;
+    try {
+      const detail = await createBranch(
+        selectedChatId,
+        messageIndex + 1,
+        `ветка ${branches.length + 1}`
+      );
+      applyDetail(detail);
+      setMessages(detail.messages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleSwitchBranch(branchId) {
+    if (!selectedChatId) return;
+    try {
+      const detail = await setActiveBranch(selectedChatId, branchId);
+      applyDetail(detail);
+      setMessages(detail.messages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleDeleteBranch(branchId) {
+    if (!selectedChatId || !window.confirm('Удалить эту ветку со всеми сообщениями?')) return;
+    try {
+      const detail = await deleteBranch(selectedChatId, branchId);
+      applyDetail(detail);
+      setMessages(detail.messages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleFactsChange(nextFacts) {
+    if (!selectedChatId) return;
+    setFacts(nextFacts);
+    try {
+      applyDetail(await updateFacts(selectedChatId, nextFacts));
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  return () => {
       cancelled = true;
     };
   }, []);
@@ -64,6 +135,13 @@ export default function App() {
     setError('');
     setStages(initialStages);
     setDialogUsage(chat.dialog_usage);
+    setOverflow('');
+    applyDetail(chat);
+  }
+
+  function handleModeChange(nextMode) {
+    setMode(nextMode);
+    localStorage.setItem('day10-mode', nextMode);
     setOverflow('');
   }
 
@@ -135,7 +213,7 @@ export default function App() {
     setMessages(current => [...current, { role: 'user', content: text }]);
 
     try {
-      const response = await sendMessage(selectedChatId, text);
+      const response = await sendMessage(selectedChatId, text, mode);
       setMessages(current => [
         ...current,
         {
@@ -155,6 +233,7 @@ export default function App() {
       setStages(response.stages);
       setDialogUsage(response.usage);
       setChats(await listChats());
+      applyDetail(await getChat(selectedChatId));
       return response;
     } catch (requestError) {
       setMessages(current => current.slice(0, -1));
@@ -196,14 +275,62 @@ export default function App() {
     }
   }
 
+  async function handleFork(messageIndex) {
+    if (!selectedChatId) return;
+    try {
+      const detail = await createBranch(
+        selectedChatId,
+        messageIndex + 1,
+        `ветка ${branches.length + 1}`
+      );
+      applyDetail(detail);
+      setMessages(detail.messages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleSwitchBranch(branchId) {
+    if (!selectedChatId) return;
+    try {
+      const detail = await setActiveBranch(selectedChatId, branchId);
+      applyDetail(detail);
+      setMessages(detail.messages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleDeleteBranch(branchId) {
+    if (!selectedChatId || !window.confirm('Удалить эту ветку со всеми сообщениями?')) return;
+    try {
+      const detail = await deleteBranch(selectedChatId, branchId);
+      applyDetail(detail);
+      setMessages(detail.messages);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleFactsChange(nextFacts) {
+    if (!selectedChatId) return;
+    setFacts(nextFacts);
+    try {
+      applyDetail(await updateFacts(selectedChatId, nextFacts));
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   return (
     <main className="page-shell">
       <header className="hero">
         <div className="eyebrow"><span className="pulse-dot" /> DAY 10 / CONTEXT STRATEGIES</div>
         <h1>Диалог, который<br /><em>не тонет в истории.</em></h1>
         <p className="hero-copy">
-          Старые сообщения сворачиваются в summary, хвост остаётся как есть.
-          Сравнивай качество и расход токенов с тумблером сжатия.
+          Четыре стратегии памяти: полная история, скользящее окно,
+          KV-facts и ветвление. Прогони один ТЗ-сценарий на всех —
+          смотри, кто что теряет.
         </p>
       </header>
 
@@ -217,15 +344,24 @@ export default function App() {
           selectedChatId={selectedChatId}
         />
         <ChatPanel
+          activeBranchId={activeBranchId}
+          branches={branches}
           dialogUsage={dialogUsage}
+          facts={facts}
+          mode={mode}
           error={error}
           loading={loading || initializing}
           message={message}
           messages={messages}
           onChange={setMessage}
+          onFactsChange={handleFactsChange}
+          onFork={handleFork}
+          onModeChange={handleModeChange}
+          onDeleteBranch={handleDeleteBranch}
           onNewChat={handleCreateChat}
           onSimulate={handleSimulate}
           onSubmit={handleSubmit}
+          onSwitchBranch={handleSwitchBranch}
           overflow={overflow}
           result={result}
           simulating={simulating}
