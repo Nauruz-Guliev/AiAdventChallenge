@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from app.application.agent import SYSTEM_PROMPT, Agent
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.profile_repository import ProfileRepository
+from app.application.ports.task_repository import TaskRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.profiles import normalize_profile_fields
+from app.application.task_engine import PAUSE_NOTICE
 from app.application.usage import build_dialog_usage
 from app.domain.models import (
     LONG_TERM_CATEGORIES,
@@ -28,10 +30,12 @@ from app.domain.models import (
     UserProfile,
     WorkingMemory,
 )
+from app.domain.task_state import DONE_ACTION, STAGE_ORDER, TaskState
 from app.presentation.dependencies import (
     get_agent,
     get_profile_repository,
     get_repository,
+    get_task_repository,
     get_token_counter,
     get_usage_config,
 )
@@ -55,6 +59,7 @@ from app.presentation.schemas import (
     ProfileStoreResponse,
     ProfileUpdateRequest,
     StageResponse,
+    TaskStateResponse,
     TokenUsageResponse,
     UsageResponse,
     UsedMemoryResponse,
@@ -441,12 +446,55 @@ async def clear_rejected_candidates(
     return {"removed": removed}
 
 
+@router.get("/api/task/state", response_model=TaskStateResponse)
+async def get_task_state(
+    tasks: Annotated[TaskRepository, Depends(get_task_repository)],
+) -> TaskStateResponse:
+    return _task_response(await tasks.get())
+
+
+@router.post("/api/task/pause", response_model=TaskStateResponse)
+async def pause_task(
+    tasks: Annotated[TaskRepository, Depends(get_task_repository)],
+) -> TaskStateResponse:
+    state = await tasks.get()
+    if state is None:
+        return _task_response(None)
+    state = state.pause()
+    await tasks.save(state)
+    return _task_response(state)
+
+
+@router.post("/api/task/resume", response_model=TaskStateResponse)
+async def resume_task(
+    tasks: Annotated[TaskRepository, Depends(get_task_repository)],
+) -> TaskStateResponse:
+    state = await tasks.get()
+    if state is None:
+        return _task_response(None)
+    state = state.resume()
+    await tasks.save(state)
+    return _task_response(state)
+
+
 @router.post("/api/chats/{chat_id}/messages", response_model=ChatResponse)
 async def send_message(
     chat_id: str,
     request: ChatMessageRequest,
     agent: Annotated[Agent, Depends(get_agent)],
+    tasks: Annotated[TaskRepository, Depends(get_task_repository)],
 ) -> ChatResponse:
+    state = await tasks.get()
+    if state is not None and state.paused:
+        return ChatResponse(
+            chat_id=chat_id,
+            answer=PAUSE_NOTICE,
+            model="—",
+            duration_ms=0,
+            stages=[StageResponse(name="Задача на паузе", status="completed")],
+            usage=_zero_usage(),
+            task=_task_response(state),
+        )
     result = await agent.run(chat_id, request.message)
     return ChatResponse(
         chat_id=chat_id,
@@ -459,6 +507,41 @@ async def send_message(
         ],
         usage=_usage_response(result.usage),
         used=_used_response(result.used),
+        task=TaskStateResponse(**result.task) if result.task else None,
+    )
+
+
+def _task_response(state: TaskState | None) -> TaskStateResponse:
+    if state is None:
+        return TaskStateResponse(active=False, expected_action=DONE_ACTION)
+    return TaskStateResponse(
+        active=True,
+        task=state.task,
+        stage=state.stage.value,
+        stage_index=STAGE_ORDER.index(state.stage),
+        step=state.step_number,
+        total_steps=state.total_steps,
+        step_label=state.step_label,
+        expected_action=state.expected_action,
+        paused=state.paused,
+        steps=list(state.steps),
+    )
+
+
+def _zero_usage() -> UsageResponse:
+    return UsageResponse(
+        request_tokens=0,
+        history_tokens=0,
+        response_tokens=0,
+        prompt_tokens_api=0,
+        completion_tokens_api=0,
+        total_tokens_api=0,
+        dialog_total_tokens=0,
+        dialog_cost_usd=0.0,
+        context_limit=0,
+        context_remaining=0,
+        warning=False,
+        memory=None,
     )
 
 

@@ -7,6 +7,7 @@ from app.domain.models import UsageConfig
 from app.infrastructure.deepseek_gateway import DeepSeekGateway
 from app.infrastructure.json_memory_repository import JsonMemoryRepository
 from app.infrastructure.json_profile_repository import JsonProfileRepository
+from app.infrastructure.json_task_repository import JsonTaskRepository
 from app.infrastructure.settings import Settings
 from app.infrastructure.token_counter import TiktokenCounter
 
@@ -30,6 +31,12 @@ def get_repository() -> JsonMemoryRepository:
 def get_profile_repository() -> JsonProfileRepository:
     settings = get_settings()
     return JsonProfileRepository(profiles_path=Path(settings.profiles_file))
+
+
+@lru_cache
+def get_task_repository() -> JsonTaskRepository:
+    settings = get_settings()
+    return JsonTaskRepository(state_path=Path(settings.task_state_file))
 
 
 @lru_cache
@@ -67,4 +74,5 @@ def get_agent() -> Agent:
         model=settings.deepseek_model,
         candidates_enabled=settings.candidates_enabled,
         profiles=get_profile_repository(),
+        task_repository=get_task_repository(),
     )

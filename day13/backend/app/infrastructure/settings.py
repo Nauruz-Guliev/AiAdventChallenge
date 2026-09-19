@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     long_term_file: str = "data/long_term.json"
     candidates_file: str = "data/candidates.json"
     profiles_file: str = "data/profiles.json"
+    task_state_file: str = "data/task_state.json"
     context_limit_tokens: int = 8000
     input_price_per_million: float = 0.30
     output_price_per_million: float = 1.20

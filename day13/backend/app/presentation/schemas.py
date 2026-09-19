@@ -69,6 +69,19 @@ class UsedMemoryResponse(BaseModel):
     long_term: dict[str, list[str]] = {}
 
 
+class TaskStateResponse(BaseModel):
+    active: bool = False
+    task: str | None = None
+    stage: str | None = None
+    stage_index: int = 0
+    step: int = 0
+    total_steps: int = 0
+    step_label: str | None = None
+    expected_action: str
+    paused: bool = False
+    steps: list[str] = []
+
+
 class ChatResponse(BaseModel):
     chat_id: str
     answer: str
@@ -77,6 +90,7 @@ class ChatResponse(BaseModel):
     stages: list[StageResponse]
     usage: UsageResponse
     used: UsedMemoryResponse | None = None
+    task: TaskStateResponse | None = None
 
 
 class TokenUsageResponse(BaseModel):
