@@ -27,10 +27,7 @@ import ChatPanel from './components/ChatPanel.jsx';
 import ConfirmDialog from './components/ConfirmDialog.jsx';
 import MemoryMap from './components/MemoryMap.jsx';
 import SessionStrip from './components/SessionStrip.jsx';
-
-const TONE_LABELS = { formal: 'деловой тон', friendly: 'дружелюбный тон', neutral: 'нейтральный тон' };
-const LENGTH_LABELS = { short: 'коротко', medium: 'средне', detailed: 'подробно' };
-const STRUCTURE_LABELS = { prose: 'текст', bullets: 'списки', markdown: 'markdown' };
+import { LENGTH_LABELS, STRUCTURE_LABELS, TONE_LABELS_FULL } from './profile-labels.js';
 
 export default function App() {
   const [chats, setChats] = useState([]);
@@ -370,7 +367,7 @@ export default function App() {
   );
   const profileSignature = activeProfile
     ? [
-        TONE_LABELS[activeProfile.tone],
+        TONE_LABELS_FULL[activeProfile.tone],
         LENGTH_LABELS[activeProfile.length],
         STRUCTURE_LABELS[activeProfile.structure],
         ...(activeProfile.constraints ?? []),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LENGTH_LABELS, STRUCTURE_LABELS, TONE_LABELS } from '../profile-labels.js';
 
 const TONE_OPTIONS = [
   { value: 'formal', label: 'Деловой' },
@@ -97,26 +98,30 @@ export default function ProfilePanel({
       </div>
 
       <div className="layer-body">
-        <div className="profile-switch">
-          <div className="profile-chips" role="group" aria-label="Выбор профиля">
-            {profiles.map(profile => (
-              <button
-                className={`chip ${
-                  profile.id === activeProfile?.id ? 'chip--profile is-active' : ''
-                }`}
-                disabled={disabled}
-                key={profile.id}
-                onClick={() => onActivate(profile.id)}
-                type="button"
-              >
-                {profile.title || 'Без названия'}
-              </button>
-            ))}
+        <div className="profile-picker">
+          <div className="profile-list" role="group" aria-label="Выбор профиля">
+            {profiles.map(profile => {
+              const active = profile.id === activeProfile?.id;
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`profile-card${active ? ' is-active' : ''}`}
+                  disabled={disabled}
+                  key={profile.id}
+                  onClick={() => onActivate(profile.id)}
+                  type="button"
+                >
+                  <span className="profile-card-title">{profile.title || 'Без названия'}</span>
+                  <span className="profile-card-sig">
+                    {`${TONE_LABELS[profile.tone] ?? profile.tone} · ${LENGTH_LABELS[profile.length] ?? profile.length} · ${STRUCTURE_LABELS[profile.structure] ?? profile.structure}`}
+                  </span>
+                  {active && <span className="profile-card-mark">активен</span>}
+                </button>
+              );
+            })}
           </div>
           <details className="profile-add">
-            <summary aria-label="Добавить профиль из пресета" title="Добавить профиль">
-              +
-            </summary>
+            <summary>＋ Добавить из пресета</summary>
             <div className="preset-list" role="group" aria-label="Пресеты профилей">
               {presets.map(preset => (
                 <button

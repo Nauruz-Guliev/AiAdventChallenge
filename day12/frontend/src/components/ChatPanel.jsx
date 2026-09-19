@@ -1,25 +1,11 @@
 import { useEffect, useRef } from 'react';
 import MarkdownMessage from './MarkdownMessage.jsx';
+import { LENGTH_LABELS, STRUCTURE_LABELS, TONE_LABELS } from '../profile-labels.js';
 
 const CATEGORY_LABELS = {
   profile: 'Профиль',
   decisions: 'Решения',
   knowledge: 'Знания',
-};
-const TONE_LABELS = {
-  formal: 'деловой',
-  friendly: 'дружелюбный',
-  neutral: 'нейтральный',
-};
-const LENGTH_LABELS = {
-  short: 'коротко',
-  medium: 'средне',
-  detailed: 'подробно',
-};
-const STRUCTURE_LABELS = {
-  prose: 'текст',
-  bullets: 'списки',
-  markdown: 'markdown',
 };
 
 function UsedMemory({ used }) {
