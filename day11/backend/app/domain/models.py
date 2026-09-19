@@ -3,6 +3,10 @@ from typing import Literal
 
 
 StageStatus = Literal["pending", "active", "completed", "error"]
+WorkingStatus = Literal["active", "done"]
+CandidateStatus = Literal["pending", "approved", "rejected"]
+
+LONG_TERM_CATEGORIES = ("profile", "decisions", "knowledge")
 
 
 @dataclass(frozen=True)
@@ -17,18 +21,17 @@ class UsageConfig:
     context_limit_tokens: int = 8000
     input_price_per_million: float = 0.30
     output_price_per_million: float = 1.20
-    sliding_window_messages: int = 10
-    facts_max_items: int = 20
+    long_term_max_per_category: int = 50
+    long_term_max_item_chars: int = 500
 
 
 @dataclass(frozen=True)
-class ContextInfo:
-    mode: str
-    sent_messages: int
-    total_messages: int
-    facts_count: int
-    fact_update_tokens: int
-    fact_update_cost_usd: float
+class MemoryInfo:
+    long_term_count: int
+    long_term_tokens: int
+    working_tokens: int
+    history_tokens: int
+    candidate_tokens: int
 
 
 @dataclass(frozen=True)
@@ -54,7 +57,7 @@ class UsageReport:
     context_limit: int
     context_remaining: int
     warning: bool
-    context: ContextInfo | None = None
+    memory: MemoryInfo | None = None
 
 
 @dataclass(frozen=True)
@@ -95,12 +98,46 @@ class ChatSummary:
 
 
 @dataclass
-class Branch:
+class WorkingMemory:
+    goal: str = ""
+    constraints: list[str] = field(default_factory=list)
+    decisions: list[str] = field(default_factory=list)
+    status: str = "active"
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.goal.strip() and not self.constraints and not self.decisions
+
+
+@dataclass
+class LongTermEntry:
     id: str
-    name: str
-    fork_at: int | None = None
-    messages: list[ChatMessage] = field(default_factory=list)
-    facts: dict[str, str] = field(default_factory=dict)
+    text: str
+    source_chat_id: str
+    created_at: str
+
+
+@dataclass
+class LongTermMemory:
+    profile: list[LongTermEntry] = field(default_factory=list)
+    decisions: list[LongTermEntry] = field(default_factory=list)
+    knowledge: list[LongTermEntry] = field(default_factory=list)
+
+    def entries(self, category: str) -> list[LongTermEntry]:
+        return getattr(self, category)
+
+    def total_count(self) -> int:
+        return len(self.profile) + len(self.decisions) + len(self.knowledge)
+
+
+@dataclass
+class MemoryCandidate:
+    id: str
+    text: str
+    category: str
+    source_chat_id: str
+    status: str = "pending"
+    created_at: str = ""
 
 
 @dataclass
@@ -109,24 +146,8 @@ class Chat:
     title: str
     created_at: str
     updated_at: str
-    branches: list[Branch]
-    active_branch_id: str
-    mode: str = "sliding"
-
-    @property
-    def active_branch(self) -> Branch:
-        for branch in self.branches:
-            if branch.id == self.active_branch_id:
-                return branch
-        raise BranchNotFound(self.active_branch_id)
-
-    @property
-    def messages(self) -> list[ChatMessage]:
-        return self.active_branch.messages
-
-    @property
-    def facts(self) -> dict[str, str]:
-        return self.active_branch.facts
+    messages: list[ChatMessage] = field(default_factory=list)
+    working_memory: WorkingMemory = field(default_factory=WorkingMemory)
 
 
 class InvalidUserMessage(ValueError):
@@ -137,15 +158,19 @@ class ChatNotFound(RuntimeError):
     pass
 
 
-class BranchNotFound(RuntimeError):
-    pass
-
-
-class LastBranchError(ValueError):
-    pass
-
-
 class ChatPersistenceError(RuntimeError):
+    pass
+
+
+class CandidateNotFound(RuntimeError):
+    pass
+
+
+class CandidateConflict(ValueError):
+    pass
+
+
+class LongTermEntryNotFound(RuntimeError):
     pass
 
 
