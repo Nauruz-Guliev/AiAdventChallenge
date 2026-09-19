@@ -114,6 +114,15 @@ async def test_gateway_maps_timeout_and_connection_errors():
         await DeepSeekGateway(client=FakeClient(error=APIConnectionError(request=request))).complete([])
 
 
+def test_gateway_default_client_is_generous_with_time_and_retries():
+    gateway = DeepSeekGateway(api_key="test-key")
+
+    assert gateway._client.max_retries == 2
+    assert gateway._client.timeout.read == 180.0
+    assert gateway._client.timeout.connect == 15.0
+    assert gateway._client.timeout.write == 60.0
+
+
 @pytest.mark.asyncio
 async def test_gateway_rejects_response_without_usage():
     gateway = DeepSeekGateway(client=FakeClient(completion(usage=None)))

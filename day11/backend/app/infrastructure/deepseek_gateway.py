@@ -1,6 +1,8 @@
+from httpx import Timeout
 from openai import (
     APIConnectionError,
     APITimeoutError,
+    APIStatusError,
     AsyncOpenAI,
     AuthenticationError,
     BadRequestError,
@@ -31,8 +33,8 @@ class DeepSeekGateway:
         self._client = client or AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=30,
-            max_retries=0,
+            timeout=Timeout(connect=15.0, read=180.0, write=60.0, pool=15.0),
+            max_retries=2,
         )
 
     async def complete(self, messages: list[ChatMessage]) -> LLMResponse:
@@ -57,6 +59,8 @@ class DeepSeekGateway:
         except BadRequestError as error:
             if _is_context_length_error(error):
                 raise ContextLimitExceeded() from error
+            raise LLMGatewayError from error
+        except APIStatusError as error:
             raise LLMGatewayError from error
         except Exception as error:
             raise LLMGatewayError from error
