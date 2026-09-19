@@ -17,6 +17,7 @@ import {
   sendMessage,
 } from './api.js';
 import ChatPanel from './components/ChatPanel.jsx';
+import ConfirmDialog from './components/ConfirmDialog.jsx';
 import MemoryMap from './components/MemoryMap.jsx';
 import SessionStrip from './components/SessionStrip.jsx';
 
@@ -33,6 +34,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [overflow, setOverflow] = useState('');
+  const [confirmState, setConfirmState] = useState(null);
 
   function applyDetail(chat) {
     setMessages(chat.messages ?? []);
@@ -104,8 +106,20 @@ export default function App() {
     }
   }
 
-  async function handleDeleteChat(chatId) {
-    if (loading || !window.confirm('Удалить чат? Долговременная память сохранится.')) return;
+  function requestDeleteChat(chatId) {
+    if (loading) return;
+    setConfirmState({
+      title: 'Удалить чат?',
+      body: 'Сообщения этого чата исчезнут. Долговременная память сохранится.',
+      confirmLabel: 'Удалить',
+      onConfirm: () => {
+        setConfirmState(null);
+        performDeleteChat(chatId);
+      },
+    });
+  }
+
+  async function performDeleteChat(chatId) {
     try {
       await deleteChat(chatId);
       const remaining = await listChats();
@@ -185,8 +199,20 @@ export default function App() {
     }
   }
 
-  async function handleClearHistory() {
-    if (!window.confirm('Очистить историю диалога? Рабочая и долговременная память останутся.')) return;
+  function requestClearHistory() {
+    if (loading) return;
+    setConfirmState({
+      title: 'Очистить историю диалога?',
+      body: 'Сообщения этого чата будут удалены. Рабочая и долговременная память останутся.',
+      confirmLabel: 'Очистить',
+      onConfirm: () => {
+        setConfirmState(null);
+        performClearHistory();
+      },
+    });
+  }
+
+  async function performClearHistory() {
     try {
       applyDetail(await clearHistory(selectedChatId));
     } catch (requestError) {
@@ -275,7 +301,7 @@ export default function App() {
           messageCount={messages.length}
           onAddEntry={handleAddEntry}
           onApprove={handleApprove}
-          onClearHistory={handleClearHistory}
+          onClearHistory={requestClearHistory}
           onCompleteWorking={handleCompleteWorking}
           onDeleteEntry={handleDeleteEntry}
           onReject={handleReject}
@@ -289,7 +315,7 @@ export default function App() {
             chats={chats}
             disabled={disabled}
             onCreate={handleCreateChat}
-            onDelete={handleDeleteChat}
+            onDelete={requestDeleteChat}
             onSelect={handleSelectChat}
             selectedChatId={selectedChatId}
           />
@@ -306,6 +332,17 @@ export default function App() {
           />
         </div>
       </section>
+
+      {confirmState && (
+        <ConfirmDialog
+          body={confirmState.body}
+          confirmLabel={confirmState.confirmLabel}
+          onCancel={() => setConfirmState(null)}
+          onConfirm={confirmState.onConfirm}
+          open
+          title={confirmState.title}
+        />
+      )}
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import CandidateTray from './CandidateTray.jsx';
+import CategoryPicker from './CategoryPicker.jsx';
 
 const CATEGORY_LABELS = {
   profile: 'Профиль',
@@ -253,20 +254,12 @@ export default function MemoryMap({
             ))}
           </div>
           <div className="add-row">
-            <select
-              aria-label="Категория новой записи"
+            <CategoryPicker
               disabled={disabled}
-              onChange={event =>
-                setNewEntry(current => ({ ...current, category: event.target.value }))
-              }
+              label="Категория новой записи"
+              onChange={value => setNewEntry(current => ({ ...current, category: value }))}
               value={newEntry.category}
-            >
-              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            />
             <input
               disabled={disabled}
               onChange={event =>

@@ -1,10 +1,5 @@
 import { useState } from 'react';
-
-const CATEGORY_LABELS = {
-  profile: 'Профиль',
-  decisions: 'Решения',
-  knowledge: 'Знания',
-};
+import CategoryPicker from './CategoryPicker.jsx';
 
 export default function CandidateTray({ candidates, disabled, onApprove, onReject }) {
   const [drafts, setDrafts] = useState({});
@@ -42,21 +37,12 @@ export default function CandidateTray({ candidates, disabled, onApprove, onRejec
                   value={draft.text}
                 />
                 <div className="candidate-foot">
-                  <select
-                    aria-label="Куда сохранить"
-                    className="candidate-cat"
+                  <CategoryPicker
                     disabled={disabled}
-                    onChange={event =>
-                      update(candidate.id, { category: event.target.value })
-                    }
+                    label="Куда сохранить"
+                    onChange={value => update(candidate.id, { category: value })}
                     value={draft.category}
-                  >
-                    {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <button
                     className="btn btn--commit"
                     disabled={disabled || !draft.text.trim()}
