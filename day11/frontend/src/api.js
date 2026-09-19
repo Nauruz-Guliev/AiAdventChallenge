@@ -77,8 +77,11 @@ export function listCandidates(status = 'pending') {
   return request(`/api/candidates?status=${status}`);
 }
 
-export function approveCandidate(candidateId) {
-  return request(`/api/candidates/${candidateId}/approve`, { method: 'POST' });
+export function approveCandidate(candidateId, payload = {}) {
+  return request(`/api/candidates/${candidateId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function rejectCandidate(candidateId) {

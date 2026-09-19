@@ -114,6 +114,11 @@ class CandidateResponse(BaseModel):
     created_at: str
 
 
+class CandidateApproveRequest(BaseModel):
+    text: str | None = None
+    category: str | None = None
+
+
 class DialogUsageResponse(BaseModel):
     history_tokens: int
     dialog_total_tokens: int

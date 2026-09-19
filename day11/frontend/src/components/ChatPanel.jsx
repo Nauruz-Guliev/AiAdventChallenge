@@ -1,6 +1,48 @@
 import { useEffect, useRef } from 'react';
 import MarkdownMessage from './MarkdownMessage.jsx';
 
+const CATEGORY_LABELS = {
+  profile: 'Профиль',
+  decisions: 'Решения',
+  knowledge: 'Знания',
+};
+
+function UsedMemory({ used }) {
+  const longTermParts = used.longTerm
+    ? Object.entries(used.longTerm)
+        .filter(([, list]) => list.length)
+        .map(([category, list]) => `${CATEGORY_LABELS[category]}: ${list.join('; ')}`)
+    : [];
+  const working = used.working;
+  const workingParts = working
+    ? [working.goal && `цель: ${working.goal}`, ...working.constraints, ...working.decisions].filter(Boolean)
+    : [];
+
+  return (
+    <details className="trace">
+      <summary>Что учтено в ответе</summary>
+      <div className="trace-body">
+        <div>
+          <span className="trace-label mono">краткосрочная</span>
+          история: {used.historyCount} сообщ.
+        </div>
+        {workingParts.length > 0 && (
+          <div>
+            <span className="trace-label mono">рабочая</span>
+            {workingParts.join('; ')}
+          </div>
+        )}
+        {longTermParts.length > 0 && (
+          <div>
+            <span className="trace-label mono">долговременная</span>
+            {longTermParts.join(' · ')}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export default function ChatPanel({
   error,
   loading,
@@ -54,6 +96,7 @@ export default function ChatPanel({
                 ? item.content
                 : <MarkdownMessage content={item.content} />}
             </div>
+            {item.role === 'assistant' && item.used && <UsedMemory used={item.used} />}
           </div>
         ))}
         {loading && (

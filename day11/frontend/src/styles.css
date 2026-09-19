@@ -135,9 +135,16 @@ h1, h2, h3, p { margin-top: 0; }
 .candidate {
   border: 1px solid var(--line); border-radius: var(--radius); padding: 11px 12px; background: var(--surface-2);
 }
-.candidate-text { display: block; font-size: 14px; }
-.candidate-foot { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
-.candidate-cat { margin-right: auto; color: var(--text-mute); font-size: 12px; }
+.candidate-edit {
+  width: 100%; padding: 7px 9px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 14px; color: var(--text);
+}
+.candidate-edit:focus { border-color: var(--line-strong); outline: none; }
+.candidate-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.candidate-cat {
+  margin-right: auto; padding: 6px 8px; background: var(--bg); color: var(--text-dim);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 12.5px;
+}
 
 /* Long-term drawers */
 .drawers { display: flex; flex-direction: column; gap: 13px; }
@@ -181,6 +188,18 @@ h1, h2, h3, p { margin-top: 0; }
 .turn--user .bubble { background: var(--surface-3); color: var(--text); border: 1px solid var(--line); white-space: pre-wrap; }
 .turn--agent .bubble { background: transparent; border: 1px solid var(--line); }
 .turn--agent .bubble.markdown { white-space: normal; }
+
+.trace { margin-top: 1px; }
+.trace summary { cursor: pointer; color: var(--text-mute); font-size: 12px; list-style: none; }
+.trace summary::-webkit-details-marker { display: none; }
+.trace summary::before { content: '▸ '; }
+.trace[open] summary::before { content: '▾ '; }
+.trace summary:hover { color: var(--text-dim); }
+.trace-body {
+  margin-top: 7px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-dim);
+}
+.trace-label { display: inline-block; min-width: 108px; color: var(--text-mute); }
 
 .empty-state { margin: auto; text-align: center; color: var(--text-mute); font-size: 14px; max-width: 36ch; }
 .empty-state strong { display: block; margin-bottom: 6px; color: var(--text-dim); font-weight: 600; }

@@ -194,19 +194,30 @@ class JsonMemoryRepository:
                 if status is None or item["status"] == status
             ]
 
-    async def approve_candidate(self, candidate_id: str) -> LongTermEntry:
+    async def approve_candidate(
+        self,
+        candidate_id: str,
+        category: str | None = None,
+        text: str | None = None,
+    ) -> LongTermEntry:
         async with self._lock:
             store = self._read_candidates()
             candidate = _find_candidate(store, candidate_id)
             if candidate.status != "pending":
                 raise CandidateConflict(candidate_id)
+            target_category = category or candidate.category
+            if target_category not in LONG_TERM_CATEGORIES:
+                raise ValueError(f"unknown category: {target_category}")
+            final_text = (candidate.text if text is None else text).strip()
+            if not final_text:
+                raise ValueError("empty entry text")
             long_term = self._read_long_term()
-            entries = long_term.entries(candidate.category)
-            if any(item.text == candidate.text for item in entries):
-                raise CandidateConflict(candidate.text)
+            entries = long_term.entries(target_category)
+            if any(item.text == final_text for item in entries):
+                raise CandidateConflict(final_text)
             entry = LongTermEntry(
                 id=str(uuid.uuid4()),
-                text=candidate.text,
+                text=final_text,
                 source_chat_id=candidate.source_chat_id,
                 created_at=_now(),
             )

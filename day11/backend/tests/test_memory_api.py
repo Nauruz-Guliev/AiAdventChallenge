@@ -155,6 +155,41 @@ def test_candidates_approve_reject(client, tmp_path):
     assert http.post("/api/candidates/cand-1/reject").status_code == 409
 
 
+def test_approve_candidate_choose_where_and_what(client, tmp_path):
+    http, repository = client
+    chat_id = http.post("/api/chats").json()["id"]
+    (tmp_path / "candidates.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "candidates": [
+                    {"id": "c1", "text": "люблю Kotlin", "category": "knowledge", "source_chat_id": chat_id, "status": "pending", "created_at": "t"},
+                    {"id": "c2", "text": "ещё", "category": "knowledge", "source_chat_id": chat_id, "status": "pending", "created_at": "t"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    approved = http.post(
+        "/api/candidates/c1/approve",
+        json={"category": "profile", "text": "Пишу на Kotlin"},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["text"] == "Пишу на Kotlin"
+    long_term = http.get("/api/long-term").json()
+    assert long_term["profile"][0]["text"] == "Пишу на Kotlin"
+    assert long_term["knowledge"] == []
+
+    assert http.post(
+        "/api/candidates/c2/approve", json={"category": "nonsense"}
+    ).status_code == 400
+    assert http.post(
+        "/api/candidates/c2/approve", json={"text": "   "}
+    ).status_code == 400
+
+
 def test_send_message_returns_memory_usage(client):
     http, _ = client
     chat_id = http.post("/api/chats").json()["id"]

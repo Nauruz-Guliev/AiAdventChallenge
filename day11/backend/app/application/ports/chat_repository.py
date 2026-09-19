@@ -58,7 +58,12 @@ class ChatRepository(Protocol):
         self, status: str | None = "pending"
     ) -> list[MemoryCandidate]: ...
 
-    async def approve_candidate(self, candidate_id: str) -> LongTermEntry: ...
+    async def approve_candidate(
+        self,
+        candidate_id: str,
+        category: str | None = None,
+        text: str | None = None,
+    ) -> LongTermEntry: ...
 
     async def reject_candidate(self, candidate_id: str) -> MemoryCandidate: ...
 

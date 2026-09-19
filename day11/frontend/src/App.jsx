@@ -123,6 +123,23 @@ export default function App() {
   }
 
   async function sendToChat(text) {
+    const used = {
+      historyCount: messages.length,
+      working: working
+        ? {
+            goal: working.goal,
+            constraints: [...working.constraints],
+            decisions: [...working.decisions],
+          }
+        : null,
+      longTerm: longTerm
+        ? {
+            profile: longTerm.profile.map(entry => entry.text),
+            decisions: longTerm.decisions.map(entry => entry.text),
+            knowledge: longTerm.knowledge.map(entry => entry.text),
+          }
+        : null,
+    };
     setLoading(true);
     setError('');
     setResult(null);
@@ -132,11 +149,10 @@ export default function App() {
       const response = await sendMessage(selectedChatId, text);
       setMessages(current => [
         ...current,
-        { role: 'assistant', content: response.answer },
+        { role: 'assistant', content: response.answer, used },
       ]);
       setResult(response);
       setChats(await listChats());
-      applyDetail(await getChat(selectedChatId));
       await refreshMemory();
       return response;
     } catch (requestError) {
@@ -219,9 +235,9 @@ export default function App() {
     }
   }
 
-  async function handleApprove(candidateId) {
+  async function handleApprove(candidateId, payload) {
     try {
-      await approveCandidate(candidateId);
+      await approveCandidate(candidateId, payload);
       await refreshMemory();
     } catch (requestError) {
       setError(requestError.message);

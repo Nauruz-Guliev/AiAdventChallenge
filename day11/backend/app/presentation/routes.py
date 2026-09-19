@@ -26,6 +26,7 @@ from app.presentation.dependencies import (
     get_usage_config,
 )
 from app.presentation.schemas import (
+    CandidateApproveRequest,
     CandidateResponse,
     ChatDetailResponse,
     ChatMessageRequest,
@@ -237,9 +238,18 @@ async def list_candidates(
 async def approve_candidate(
     candidate_id: str,
     repository: Annotated[ChatRepository, Depends(get_repository)],
+    request: CandidateApproveRequest | None = None,
 ) -> LongTermEntryResponse:
+    category = request.category if request else None
+    text = request.text if request else None
+    if category is not None and category not in ("profile", "decisions", "knowledge"):
+        raise HTTPException(status_code=400, detail="Неизвестная категория памяти")
+    if text is not None and not text.strip():
+        raise HTTPException(status_code=400, detail="Текст записи не может быть пустым")
     try:
-        entry = await repository.approve_candidate(candidate_id)
+        entry = await repository.approve_candidate(
+            candidate_id, category=category, text=text
+        )
     except CandidateNotFound as error:
         raise HTTPException(
             status_code=404, detail="Кандидат не найден"

@@ -125,6 +125,25 @@ async def test_candidates_flow_approve_reject_and_dedup(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_approve_candidate_with_chosen_category_and_text(tmp_path):
+    repository = repo(tmp_path)
+    chat = await repository.create_chat()
+    await repository.add_candidates(
+        [{"text": "люблю Kotlin", "category": "knowledge"}], chat.id
+    )
+    pending = await repository.list_candidates("pending")
+
+    entry = await repository.approve_candidate(
+        pending[0].id, category="profile", text="Пишу на Kotlin"
+    )
+
+    assert entry.text == "Пишу на Kotlin"
+    long_term = await repository.get_long_term()
+    assert long_term.profile[0].text == "Пишу на Kotlin"
+    assert long_term.knowledge == []
+
+
+@pytest.mark.asyncio
 async def test_malformed_chat_file_raises_persistence_error(tmp_path):
     repository = repo(tmp_path)
     chat = await repository.create_chat()
