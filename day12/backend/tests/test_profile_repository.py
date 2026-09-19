@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.domain.models import (
@@ -63,3 +65,45 @@ async def test_deleting_active_switches_to_first_remaining(tmp_path):
 
     assert (await repository.get_active()).id != active_id
     assert len((await repository.get_store()).profiles) == 3
+
+
+async def test_corrupt_file_reseeds_without_overwriting(tmp_path):
+    path = tmp_path / "profiles.json"
+    path.write_text("{not json", encoding="utf-8")
+
+    store = await repo(tmp_path).get_store()
+
+    assert len(store.profiles) == 4
+    assert path.read_text(encoding="utf-8") == "{not json"
+
+
+async def test_invalid_persisted_enums_are_clamped(tmp_path):
+    path = tmp_path / "profiles.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "active_id": "p1",
+                "profiles": [
+                    {
+                        "id": "p1",
+                        "title": "X",
+                        "tone": "weird",
+                        "length": "huge",
+                        "structure": "??",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    store = await repo(tmp_path).get_store()
+
+    profile = store.profiles[0]
+    assert (profile.tone, profile.length, profile.structure) == (
+        "neutral",
+        "medium",
+        "prose",
+    )

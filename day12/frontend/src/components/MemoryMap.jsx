@@ -34,6 +34,7 @@ export default function MemoryMap({
   onCompleteWorking,
   onCreateFromPreset,
   onDeleteEntry,
+  onDuplicateProfile,
   onReject,
   onRequestDeleteProfile,
   onResetWorking,
@@ -94,6 +95,7 @@ export default function MemoryMap({
         disabled={disabled}
         onActivate={onActivateProfile}
         onCreateFromPreset={onCreateFromPreset}
+        onDuplicate={onDuplicateProfile}
         onRequestDelete={onRequestDeleteProfile}
         onUpdate={onUpdateProfile}
         presets={presets}

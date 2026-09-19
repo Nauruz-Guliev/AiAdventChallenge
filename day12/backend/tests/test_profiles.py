@@ -28,6 +28,11 @@ def test_profile_with_any_preference_is_not_empty():
     assert not profile().is_empty
 
 
+def test_language_only_profile_is_not_empty():
+    assert not UserProfile(id="p1", language="en").is_empty
+    assert UserProfile(id="p2").is_empty
+
+
 def test_store_finds_active_profile():
     store = ProfileStore(active_id="p2", profiles=[profile(id="p1"), profile(id="p2")])
     assert store.active().id == "p2"

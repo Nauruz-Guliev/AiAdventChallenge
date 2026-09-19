@@ -88,7 +88,7 @@ def test_create_custom_profile_and_validation(client):
     assert created.json()["title"] == "Свой"
 
     bad = client.post("/api/profiles", json={"title": "X", "tone": "nonsense"})
-    assert bad.status_code in (400, 422)
+    assert bad.status_code == 422
 
     too_many = client.post(
         "/api/profiles",
@@ -104,3 +104,16 @@ def test_cannot_delete_last_profile_and_404(client):
         assert client.delete(f"/api/profiles/{profile_id}").status_code == 204
     assert client.delete(f"/api/profiles/{ids[0]}").status_code == 400
     assert client.delete("/api/profiles/missing").status_code == 404
+
+
+def test_update_title_is_validated(client):
+    store = client.get("/api/profiles").json()
+    profile_id = store["profiles"][0]["id"]
+
+    blank = client.put(f"/api/profiles/{profile_id}", json={"title": "   "})
+    assert blank.status_code == 400
+
+    too_long = client.put(
+        f"/api/profiles/{profile_id}", json={"title": "x" * 61}
+    )
+    assert too_long.status_code == 400

@@ -5,6 +5,7 @@ import {
   clearHistory,
   completeWorkingMemory,
   createChat,
+  createProfile,
   createProfileFromPreset,
   deleteChat,
   deleteLongTermEntry,
@@ -302,6 +303,26 @@ export default function App() {
     }
   }
 
+  async function handleDuplicateProfile(profile) {
+    if (!profile) return;
+    const base = (profile.title || 'Профиль').slice(0, 52);
+    try {
+      await createProfile({
+        title: `${base} (копия)`,
+        name: profile.name,
+        role: profile.role,
+        language: profile.language,
+        tone: profile.tone,
+        length: profile.length,
+        structure: profile.structure,
+        constraints: profile.constraints,
+      });
+      await refreshProfiles();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   async function handleUpdateProfile(profileId, fields) {
     try {
       await updateProfile(profileId, fields);
@@ -375,6 +396,7 @@ export default function App() {
           onCompleteWorking={handleCompleteWorking}
           onCreateFromPreset={handleCreateProfileFromPreset}
           onDeleteEntry={handleDeleteEntry}
+          onDuplicateProfile={handleDuplicateProfile}
           onReject={handleReject}
           onRequestDeleteProfile={requestDeleteProfile}
           onResetWorking={handleResetWorking}

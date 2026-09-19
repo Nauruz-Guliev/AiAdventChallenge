@@ -480,6 +480,12 @@ def _profile_response(profile: UserProfile) -> ProfileResponse:
 
 
 def _validate_profile_fields(fields: dict, config: UsageConfig) -> None:
+    title = fields.get("title")
+    if title is not None and (not title.strip() or len(title) > 60):
+        raise HTTPException(
+            status_code=400,
+            detail="Название профиля должно быть от 1 до 60 символов",
+        )
     constraints = fields.get("constraints")
     if constraints is None:
         return

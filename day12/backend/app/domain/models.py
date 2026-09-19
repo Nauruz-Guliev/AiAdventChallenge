@@ -157,6 +157,7 @@ class UserProfile:
         return (
             not self.name.strip()
             and not self.role.strip()
+            and self.language == "ru"
             and self.tone == "neutral"
             and self.length == "medium"
             and self.structure == "prose"

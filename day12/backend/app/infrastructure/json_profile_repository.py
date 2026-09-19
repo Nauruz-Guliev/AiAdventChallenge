@@ -4,7 +4,11 @@ from pathlib import Path
 
 from app.domain.models import (
     DEFAULT_ACTIVE_PRESET_KEY,
+    PROFILE_LENGTHS,
     PROFILE_PRESETS,
+    PROFILE_STRUCTURES,
+    PROFILE_TONES,
+    ChatPersistenceError,
     ProfileConflict,
     ProfileNotFound,
     ProfileStore,
@@ -76,7 +80,10 @@ class JsonProfileRepository:
             store = _seed_store()
             self._write_store(store)
             return store
-        payload = read_json_object(self._profiles_path)
+        try:
+            payload = read_json_object(self._profiles_path)
+        except ChatPersistenceError:
+            return _seed_store()
         profiles = [
             _profile_from_dict(item) for item in payload.get("profiles", [])
         ]
@@ -134,14 +141,17 @@ def _profile_to_dict(profile: UserProfile) -> dict:
 
 
 def _profile_from_dict(payload: dict) -> UserProfile:
+    tone = str(payload.get("tone", "neutral"))
+    length = str(payload.get("length", "medium"))
+    structure = str(payload.get("structure", "prose"))
     return UserProfile(
         id=str(payload.get("id", "")),
         title=str(payload.get("title", "")),
         name=str(payload.get("name", "")),
         role=str(payload.get("role", "")),
         language=str(payload.get("language", "ru")),
-        tone=str(payload.get("tone", "neutral")),
-        length=str(payload.get("length", "medium")),
-        structure=str(payload.get("structure", "prose")),
+        tone=tone if tone in PROFILE_TONES else "neutral",
+        length=length if length in PROFILE_LENGTHS else "medium",
+        structure=structure if structure in PROFILE_STRUCTURES else "prose",
         constraints=[str(item) for item in payload.get("constraints", [])],
     )

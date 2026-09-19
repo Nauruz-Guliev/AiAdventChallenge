@@ -54,6 +54,7 @@ export default function ProfilePanel({
   disabled,
   onActivate,
   onCreateFromPreset,
+  onDuplicate,
   onRequestDelete,
   onUpdate,
   presets,
@@ -65,7 +66,7 @@ export default function ProfilePanel({
   useEffect(() => {
     setForm(activeProfile ? { ...EMPTY_FORM, ...activeProfile } : EMPTY_FORM);
     setNewConstraint('');
-  }, [activeProfile]);
+  }, [activeProfile?.id]);
 
   function patch(key, value) {
     setForm(current => ({ ...current, [key]: value }));
@@ -232,6 +233,14 @@ export default function ProfilePanel({
                 type="button"
               >
                 Сохранить профиль
+              </button>
+              <button
+                className="btn btn--ghost"
+                disabled={disabled}
+                onClick={() => onDuplicate(activeProfile)}
+                type="button"
+              >
+                Дублировать
               </button>
               <button
                 className="btn btn--ghost"
