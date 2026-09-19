@@ -82,10 +82,10 @@ export default function MemoryMap({
   return (
     <aside className="map" aria-label="Память ассистента">
       <div className="map-head">
-        <h2>Разрез памяти</h2>
+        <h2>Персонализация</h2>
         <span>
-          Три слоя хранятся отдельно: сверху — то, что живёт один чат, снизу —
-          то, что остаётся навсегда.
+          Профиль подключается к каждому запросу. Слои памяти дня 11 живут под ним
+          и сворачиваются, чтобы не мешать.
         </span>
       </div>
 
@@ -99,6 +99,12 @@ export default function MemoryMap({
         presets={presets}
         profiles={profiles}
       />
+
+      <details className="legacy-memory">
+        <summary>
+          <span className="legacy-title">Память дня 11</span>
+          <span className="legacy-sub mono">краткосрочная · рабочая · долговременная</span>
+        </summary>
 
       <section className="layer layer--short">
         <div className="layer-head">
@@ -301,6 +307,7 @@ export default function MemoryMap({
           </div>
         </div>
       </section>
+      </details>
     </aside>
   );
 }
