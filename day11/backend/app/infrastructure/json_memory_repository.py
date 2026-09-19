@@ -74,6 +74,7 @@ class JsonMemoryRepository:
         user_content: str,
         assistant_content: str,
         usage: TokenUsage,
+        used: dict | None = None,
     ) -> Chat:
         async with self._lock:
             chat = self._read_chat(chat_id)
@@ -83,7 +84,10 @@ class JsonMemoryRepository:
                 [
                     ChatMessage(role="user", content=user_content),
                     ChatMessage(
-                        role="assistant", content=assistant_content, usage=usage
+                        role="assistant",
+                        content=assistant_content,
+                        usage=usage,
+                        used=used,
                     ),
                 ]
             )
@@ -383,6 +387,8 @@ def _message_to_dict(message: ChatMessage) -> dict:
             "completion_tokens": message.usage.completion_tokens,
             "total_tokens": message.usage.total_tokens,
         }
+    if message.used is not None:
+        stored["used"] = message.used
     return stored
 
 
@@ -392,6 +398,7 @@ def _message_from_dict(message: dict) -> ChatMessage:
         role=message["role"],
         content=message["content"],
         usage=TokenUsage(**usage) if usage else None,
+        used=message.get("used"),
     )
 
 

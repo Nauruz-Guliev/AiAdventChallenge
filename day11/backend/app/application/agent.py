@@ -3,6 +3,7 @@ from time import perf_counter
 from app.application.memory import (
     build_candidate_messages,
     build_long_term_block,
+    build_memory_trace,
     build_prompt,
     build_working_block,
     parse_candidates,
@@ -91,6 +92,7 @@ class Agent:
         new_message = ChatMessage(role="user", content=message)
         prompt = build_prompt(chat, long_term, SYSTEM_PROMPT)
         call_messages = [*prompt, new_message]
+        used = build_memory_trace(chat, long_term)
         request_tokens = self._counter.count_messages([new_message])
         sent_history_tokens = self._counter.count_messages(call_messages) - request_tokens
         if sent_history_tokens + request_tokens > self._config.context_limit_tokens:
@@ -103,7 +105,7 @@ class Agent:
         response = await self._gateway.complete(call_messages)
         answer = response.text.strip()
         updated_chat = await self._repository.append_exchange(
-            chat_id, message, answer, response.usage
+            chat_id, message, answer, response.usage, used=used
         )
 
         candidate_tokens = 0
@@ -159,4 +161,5 @@ class Agent:
                     candidate_tokens=candidate_tokens + command_tokens,
                 ),
             ),
+            used=used,
         )

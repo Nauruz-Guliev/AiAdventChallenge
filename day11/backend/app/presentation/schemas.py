@@ -44,6 +44,18 @@ class UsageResponse(BaseModel):
     memory: MemoryInfoResponse | None = None
 
 
+class UsedWorkingMemoryResponse(BaseModel):
+    goal: str
+    constraints: list[str]
+    decisions: list[str]
+
+
+class UsedMemoryResponse(BaseModel):
+    history_count: int
+    working: UsedWorkingMemoryResponse | None = None
+    long_term: dict[str, list[str]] = {}
+
+
 class ChatResponse(BaseModel):
     chat_id: str
     answer: str
@@ -51,6 +63,7 @@ class ChatResponse(BaseModel):
     duration_ms: int
     stages: list[StageResponse]
     usage: UsageResponse
+    used: UsedMemoryResponse | None = None
 
 
 class TokenUsageResponse(BaseModel):
@@ -63,6 +76,7 @@ class ChatMessageResponse(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     usage: TokenUsageResponse | None = None
+    used: UsedMemoryResponse | None = None
 
 
 class WorkingMemoryResponse(BaseModel):

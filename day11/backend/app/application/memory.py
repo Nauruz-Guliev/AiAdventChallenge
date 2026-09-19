@@ -63,6 +63,28 @@ def build_working_block(working: WorkingMemory) -> ChatMessage | None:
     )
 
 
+def build_memory_trace(chat: Chat, long_term: LongTermMemory) -> dict:
+    long_term_used: dict[str, list[str]] = {}
+    if build_long_term_block(long_term) is not None:
+        for category in LONG_TERM_CATEGORIES:
+            texts = [item.text for item in long_term.entries(category)]
+            if texts:
+                long_term_used[category] = texts
+    working = chat.working_memory
+    working_used = None
+    if build_working_block(working) is not None:
+        working_used = {
+            "goal": working.goal,
+            "constraints": list(working.constraints),
+            "decisions": list(working.decisions),
+        }
+    return {
+        "history_count": len(chat.messages) + 1,
+        "working": working_used,
+        "long_term": long_term_used,
+    }
+
+
 def build_prompt(
     chat: Chat, long_term: LongTermMemory, system_prompt: str
 ) -> list[ChatMessage]:

@@ -123,23 +123,6 @@ export default function App() {
   }
 
   async function sendToChat(text) {
-    const used = {
-      historyCount: messages.length + 1,
-      working: working
-        ? {
-            goal: working.goal,
-            constraints: [...working.constraints],
-            decisions: [...working.decisions],
-          }
-        : null,
-      longTerm: longTerm
-        ? {
-            profile: longTerm.profile.map(entry => entry.text),
-            decisions: longTerm.decisions.map(entry => entry.text),
-            knowledge: longTerm.knowledge.map(entry => entry.text),
-          }
-        : null,
-    };
     setLoading(true);
     setError('');
     setResult(null);
@@ -149,7 +132,7 @@ export default function App() {
       const response = await sendMessage(selectedChatId, text);
       setMessages(current => [
         ...current,
-        { role: 'assistant', content: response.answer, used },
+        { role: 'assistant', content: response.answer, used: response.used ?? null },
       ]);
       setResult(response);
       setChats(await listChats());
@@ -179,8 +162,10 @@ export default function App() {
   async function handleSaveWorking(nextWorking) {
     try {
       applyDetail(await saveWorkingMemory(selectedChatId, nextWorking));
+      return true;
     } catch (requestError) {
       setError(requestError.message);
+      return false;
     }
   }
 

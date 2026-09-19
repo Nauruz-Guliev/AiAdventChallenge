@@ -111,7 +111,10 @@ h1, h2, h3, p { margin-top: 0; }
   border-color: var(--line-strong); outline: none;
 }
 .working-form textarea { resize: vertical; min-height: 34px; }
-.row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+.save-state { color: var(--text-mute); font-size: 12px; margin-left: 2px; }
+.save-state.saved { color: var(--violet); }
+.layer-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-mute); }
 
 /* Buttons */
 .btn {

@@ -7,6 +7,7 @@ from app.domain.models import (
     ContextLimitExceeded,
     InvalidUserMessage,
     LLMResponse,
+    LongTermEntry,
     LongTermMemory,
     TokenUsage,
     UsageConfig,
@@ -41,6 +42,7 @@ class MemoryRepository:
         self.chat = chat
         self.long_term = LongTermMemory()
         self.appended = []
+        self.appended_used = []
         self.candidates = []
         self.entries = []
 
@@ -50,12 +52,15 @@ class MemoryRepository:
     async def get_long_term(self):
         return self.long_term
 
-    async def append_exchange(self, chat_id, user, assistant, token_usage):
+    async def append_exchange(self, chat_id, user, assistant, token_usage, used=None):
         self.appended.append((user, assistant))
+        self.appended_used.append(used)
         self.chat.messages.extend(
             [
                 ChatMessage(role="user", content=user),
-                ChatMessage(role="assistant", content=assistant, usage=token_usage),
+                ChatMessage(
+                    role="assistant", content=assistant, usage=token_usage, used=used
+                ),
             ]
         )
         return self.chat
@@ -86,6 +91,27 @@ def sample_chat(working=None):
         messages=[ChatMessage(role="user", content="привет")],
         working_memory=working or WorkingMemory(),
     )
+
+
+@pytest.mark.asyncio
+async def test_agent_result_includes_memory_trace():
+    repository = MemoryRepository(
+        sample_chat(WorkingMemory(goal="Собрать ТЗ", constraints=["бюджет 900"]))
+    )
+    repository.long_term = LongTermMemory(
+        knowledge=[
+            LongTermEntry(id="e1", text="аллергия", source_chat_id="c1", created_at="t")
+        ]
+    )
+    gateway = ScriptedGateway([response(), response("[]")])
+    agent = make_agent(gateway, repository)
+
+    result = await agent.run("c1", "какой бюджет?")
+
+    assert result.used["history_count"] == 2
+    assert result.used["working"]["goal"] == "Собрать ТЗ"
+    assert result.used["long_term"] == {"knowledge": ["аллергия"]}
+    assert repository.appended_used[0]["working"]["constraints"] == ["бюджет 900"]
 
 
 @pytest.mark.asyncio

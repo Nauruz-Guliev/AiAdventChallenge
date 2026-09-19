@@ -39,6 +39,7 @@ export default function MemoryMap({
   const [constraints, setConstraints] = useState((working?.constraints ?? []).join('\n'));
   const [decisions, setDecisions] = useState((working?.decisions ?? []).join('\n'));
   const [newEntry, setNewEntry] = useState({ category: 'knowledge', text: '' });
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setGoal(working?.goal ?? '');
@@ -46,14 +47,23 @@ export default function MemoryMap({
     setDecisions((working?.decisions ?? []).join('\n'));
   }, [working]);
 
-  function submitWorking(event) {
+  const dirty =
+    goal !== (working?.goal ?? '') ||
+    constraints !== (working?.constraints ?? []).join('\n') ||
+    decisions !== (working?.decisions ?? []).join('\n');
+
+  async function submitWorking(event) {
     event.preventDefault();
-    onSaveWorking({
+    const ok = await onSaveWorking({
       goal,
       constraints: constraints.split('\n').map(item => item.trim()).filter(Boolean),
       decisions: decisions.split('\n').map(item => item.trim()).filter(Boolean),
       status: working?.status ?? 'active',
     });
+    if (ok) {
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    }
   }
 
   const total = longTerm
@@ -138,6 +148,8 @@ export default function MemoryMap({
               <button className="btn" disabled={disabled} type="submit">
                 Сохранить
               </button>
+              {dirty && <span className="save-state mono">есть изменения</span>}
+              {!dirty && saved && <span className="save-state saved mono">сохранено</span>}
               <button
                 className="btn"
                 disabled={disabled}
@@ -155,6 +167,10 @@ export default function MemoryMap({
                 Новая задача
               </button>
             </div>
+            <p className="layer-hint">
+              Ассистент видит карточку в каждом ответе, пока задача активна.
+              «Завершить» отключает влияние.
+            </p>
           </form>
         </div>
       </section>

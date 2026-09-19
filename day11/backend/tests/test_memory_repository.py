@@ -144,6 +144,21 @@ async def test_approve_candidate_with_chosen_category_and_text(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_memory_trace_persists_with_assistant_message(tmp_path):
+    repository = repo(tmp_path)
+    chat = await repository.create_chat()
+    used = {
+        "history_count": 2,
+        "working": {"goal": "g", "constraints": [], "decisions": []},
+        "long_term": {"knowledge": ["k"]},
+    }
+    await repository.append_exchange(chat.id, "u", "a", TokenUsage(1, 1, 2), used=used)
+
+    reloaded = await repo(tmp_path).get_chat(chat.id)
+    assert reloaded.messages[1].used == used
+
+
+@pytest.mark.asyncio
 async def test_malformed_chat_file_raises_persistence_error(tmp_path):
     repository = repo(tmp_path)
     chat = await repository.create_chat()

@@ -26,6 +26,7 @@ class ChatRepository(Protocol):
         user_content: str,
         assistant_content: str,
         usage: TokenUsage,
+        used: dict | None = None,
     ) -> Chat: ...
 
     async def clear_messages(self, chat_id: str) -> Chat: ...

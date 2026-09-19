@@ -43,6 +43,8 @@ from app.presentation.schemas import (
     StageResponse,
     TokenUsageResponse,
     UsageResponse,
+    UsedMemoryResponse,
+    UsedWorkingMemoryResponse,
     WorkingMemoryRequest,
     WorkingMemoryResponse,
 )
@@ -312,6 +314,18 @@ async def send_message(
             for stage in result.stages
         ],
         usage=_usage_response(result.usage),
+        used=_used_response(result.used),
+    )
+
+
+def _used_response(used: dict | None) -> UsedMemoryResponse | None:
+    if not used:
+        return None
+    working = used.get("working")
+    return UsedMemoryResponse(
+        history_count=used.get("history_count", 0),
+        working=UsedWorkingMemoryResponse(**working) if working else None,
+        long_term=used.get("long_term", {}),
     )
 
 
@@ -347,6 +361,7 @@ def _message_responses(messages) -> list[ChatMessageResponse]:
                 if message.usage
                 else None
             ),
+            used=_used_response(message.used),
         )
         for message in messages
     ]

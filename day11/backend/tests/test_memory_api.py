@@ -47,6 +47,11 @@ class FakeAgent:
             duration_ms=1,
             stages=[AgentStage(name="Agent", status="completed")],
             usage=report(),
+            used={
+                "history_count": 2,
+                "working": None,
+                "long_term": {"knowledge": ["аллергия"]},
+            },
         )
 
 
@@ -223,6 +228,7 @@ def test_send_message_returns_memory_usage(client):
     assert response.status_code == 200
     assert response.json()["answer"] == "ответ"
     assert response.json()["usage"]["memory"]["candidate_tokens"] == 9
+    assert response.json()["used"]["long_term"]["knowledge"] == ["аллергия"]
 
 
 def test_send_message_blank_returns_422(client):

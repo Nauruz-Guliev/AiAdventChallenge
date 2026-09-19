@@ -65,6 +65,7 @@ class ChatMessage:
     role: Literal["system", "user", "assistant"]
     content: str
     usage: TokenUsage | None = None
+    used: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ class AgentResult:
     duration_ms: int
     stages: list[AgentStage]
     usage: UsageReport
+    used: dict | None = None
 
 
 @dataclass(frozen=True)

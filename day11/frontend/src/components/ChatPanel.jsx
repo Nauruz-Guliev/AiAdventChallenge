@@ -8,8 +8,8 @@ const CATEGORY_LABELS = {
 };
 
 function UsedMemory({ used }) {
-  const longTermParts = used.longTerm
-    ? Object.entries(used.longTerm)
+  const longTermParts = used.long_term
+    ? Object.entries(used.long_term)
         .filter(([, list]) => list.length)
         .map(([category, list]) => `${CATEGORY_LABELS[category]}: ${list.join('; ')}`)
     : [];
@@ -24,7 +24,7 @@ function UsedMemory({ used }) {
       <div className="trace-body">
         <div>
           <span className="trace-label mono">краткосрочная</span>
-          диалог в контексте: {used.historyCount} сообщ.
+          диалог в контексте: {used.history_count} сообщ.
         </div>
         {workingParts.length > 0 && (
           <div>
