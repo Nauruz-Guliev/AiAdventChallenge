@@ -111,14 +111,12 @@ export default function ChatPanel({
       <div className="conversation" ref={conversationRef}>
         {!messages.length && !error && !overflow && !loading && (
           <div className="empty-state">
-            <span className="empty-marks" aria-hidden="true">
-              <i className="empty-mark empty-mark--short" />
-              <i className="empty-mark empty-mark--work" />
-              <i className="empty-mark empty-mark--long" />
+            <span className="empty-signature mono">
+              профиль подключается к каждому ответу
             </span>
-            <strong>Агент готов</strong>
-            Напишите сообщение. История останется в этом чате, а то, что решите
-            запомнить, — навсегда.
+            <strong>Отвечу в вашем стиле</strong>
+            Задайте вопрос: активный профиль задаст тон и формат, а память дня 11
+            сохранит факты.
           </div>
         )}
         {messages.map((item, index) => (

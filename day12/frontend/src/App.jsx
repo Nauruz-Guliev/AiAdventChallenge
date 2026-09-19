@@ -28,6 +28,10 @@ import ConfirmDialog from './components/ConfirmDialog.jsx';
 import MemoryMap from './components/MemoryMap.jsx';
 import SessionStrip from './components/SessionStrip.jsx';
 
+const TONE_LABELS = { formal: 'деловой тон', friendly: 'дружелюбный тон', neutral: 'нейтральный тон' };
+const LENGTH_LABELS = { short: 'коротко', medium: 'средне', detailed: 'подробно' };
+const STRUCTURE_LABELS = { prose: 'текст', bullets: 'списки', markdown: 'markdown' };
+
 export default function App() {
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
@@ -355,6 +359,25 @@ export default function App() {
 
   const activeProfile =
     profileStore.profiles.find(item => item.id === profileStore.active_id) ?? null;
+  const profileOff = Boolean(
+    activeProfile &&
+      activeProfile.tone === 'neutral' &&
+      activeProfile.length === 'medium' &&
+      activeProfile.structure === 'prose' &&
+      !(activeProfile.constraints ?? []).length &&
+      !activeProfile.name &&
+      !activeProfile.role,
+  );
+  const profileSignature = activeProfile
+    ? [
+        TONE_LABELS[activeProfile.tone],
+        LENGTH_LABELS[activeProfile.length],
+        STRUCTURE_LABELS[activeProfile.structure],
+        ...(activeProfile.constraints ?? []),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
   const disabled = loading || initializing;
   const recent = messages.slice(-4);
 
@@ -362,24 +385,26 @@ export default function App() {
     <main className="app">
       <header className="masthead">
         <div>
-          <h1>Память ассистента</h1>
+          <h1>Персонализация ассистента</h1>
           <p>
-            Три раздельных слоя: диалог, карточка текущей задачи и то, что вы
-            решили помнить всегда.
+            Профиль задаёт стиль, объём, формат и ограничения и подключается к
+            каждому запросу. Память дня 11 живёт отдельно и свёрнута ниже.
           </p>
         </div>
-        <ul className="legend">
-          <li><span className="swatch mist" /> Краткосрочная</li>
-          <li><span className="swatch amber" /> Рабочая</li>
-          <li><span className="swatch deep" /> Долговременная</li>
-        </ul>
+        {activeProfile && (
+          <div className="signature" aria-label="Активный профиль">
+            <span className="signature-label mono">профиль</span>
+            <span className="signature-title">
+              {activeProfile.title || 'Без названия'}
+            </span>
+            <span className="signature-meta mono">
+              {profileOff ? 'персонализация выключена' : profileSignature}
+            </span>
+          </div>
+        )}
       </header>
 
-      <div className="spine" aria-hidden="true">
-        <span className="spine-seg spine-seg--short" />
-        <span className="spine-seg spine-seg--work" />
-        <span className="spine-seg spine-seg--long" />
-      </div>
+      <div className="spine" aria-hidden="true" />
 
       <section className="split">
         <MemoryMap

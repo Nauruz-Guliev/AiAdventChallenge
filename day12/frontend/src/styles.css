@@ -8,7 +8,8 @@
   --line-strong: rgba(255, 255, 255, 0.13);
   --text: #edeef0;
   --text-dim: #9ba1a6;
-  --text-mute: #6b7176;
+  --text-mute: #878e95;
+  --focus: rgba(237, 238, 240, 0.22);
   --sky: #7dd3fc;
   --sky-glow: rgba(125, 211, 252, 0.08);
   --violet: #c4b5fd;
@@ -42,6 +43,7 @@ body::after {
 ::selection { background: var(--sky-glow); }
 .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .92em; letter-spacing: -.01em; }
 button, input, textarea, select { font: inherit; color: inherit; }
+::placeholder { color: #7f868d; }
 :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 h1, h2, h3, p { margin-top: 0; }
 
@@ -58,23 +60,21 @@ h1, h2, h3, p { margin-top: 0; }
   letter-spacing: -.035em; line-height: 1.04;
 }
 .masthead p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: 14.5px; }
-.legend { display: flex; gap: 20px; list-style: none; margin: 0; padding: 0 0 4px; }
-.legend li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
-.swatch { width: 9px; height: 9px; border-radius: 50%; }
-.swatch.mist { background: var(--sky); box-shadow: 0 0 0 3px rgba(125, 211, 252, .12); }
-.swatch.amber { background: var(--violet); box-shadow: 0 0 0 3px rgba(196, 181, 253, .12); }
-.swatch.deep { background: var(--gold); box-shadow: 0 0 0 3px rgba(245, 196, 81, .12); }
+.signature {
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-end;
+  padding: 10px 14px; border: 1px solid var(--line); border-left: 2px solid var(--profile);
+  border-radius: var(--radius); background: var(--surface);
+}
+.signature-label { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-mute); }
+.signature-title { font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: var(--profile); }
+.signature-meta { font-size: 12px; color: var(--text-dim); text-align: right; }
 
-/* Memory spine — the signature divider */
+/* Divider */
 .spine {
-  display: grid; grid-template-columns: 4fr 3fr 3fr; gap: 4px;
-  height: 2px; margin-bottom: 22px;
+  height: 1px; margin-bottom: 22px;
+  background: rgba(143, 227, 192, .30);
   animation: rise .55s var(--ease) .04s both;
 }
-.spine-seg { border-radius: 999px; opacity: .85; }
-.spine-seg--short { background: var(--sky); }
-.spine-seg--work { background: var(--violet); }
-.spine-seg--long { background: var(--gold); }
 
 /* Layout */
 .split {
@@ -123,15 +123,11 @@ h1, h2, h3, p { margin-top: 0; }
 .layer-body { padding: 0 20px 16px; }
 
 .layer--short { border-left: 2px solid var(--sky); }
-.layer--short .layer-head h3::before { background: var(--sky); box-shadow: 0 0 0 3px rgba(125, 211, 252, .12); }
+.layer--short .layer-head h3::before { background: var(--sky); }
 .layer--work { border-left: 2px solid var(--violet); }
-.layer--work .layer-head h3::before { background: var(--violet); box-shadow: 0 0 0 3px rgba(196, 181, 253, .12); }
-.layer--work.is-active {
-  background: rgba(196, 181, 253, 0.045);
-  box-shadow: inset 0 0 32px rgba(196, 181, 253, 0.05);
-}
-.layer--long { border-left: 2px solid var(--gold); background: var(--surface-2); }
-.layer--long .layer-head h3::before { background: var(--gold); box-shadow: 0 0 0 3px rgba(245, 196, 81, .12); }
+.layer--work .layer-head h3::before { background: var(--violet); }
+.layer--long { border-left: 2px solid var(--gold); }
+.layer--long .layer-head h3::before { background: var(--gold); }
 
 /* Short-term tape */
 .tape { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 7px; }
@@ -148,13 +144,10 @@ h1, h2, h3, p { margin-top: 0; }
   border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 14px; color: var(--text);
   transition: border-color .16s ease, box-shadow .16s ease;
 }
-.working-form input:focus, .working-form textarea:focus {
-  border-color: rgba(196, 181, 253, .45); outline: none;
-  box-shadow: 0 0 0 3px rgba(196, 181, 253, .12);
-}
+.working-form input:focus, .working-form textarea:focus,
 .add-row input:focus, .add-row select:focus {
-  border-color: rgba(245, 196, 81, .45); outline: none;
-  box-shadow: 0 0 0 3px rgba(245, 196, 81, .12);
+  border-color: rgba(255, 255, 255, .22); outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
 }
 .working-form textarea { resize: vertical; min-height: 34px; }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
@@ -221,8 +214,8 @@ h1, h2, h3, p { margin-top: 0; }
   transition: border-color .16s ease, box-shadow .16s ease;
 }
 .candidate-edit:focus {
-  border-color: rgba(245, 196, 81, .45); outline: none;
-  box-shadow: 0 0 0 3px rgba(245, 196, 81, .12);
+  border-color: rgba(255, 255, 255, .22); outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
 }
 .candidate-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .candidate-foot .seg { margin-right: auto; }
@@ -313,11 +306,11 @@ h1, h2, h3, p { margin-top: 0; }
 
 .empty-state { margin: auto; text-align: center; color: var(--text-dim); font-size: 14px; max-width: 38ch; line-height: 1.65; }
 .empty-state strong { display: block; margin-bottom: 8px; color: var(--text); font-weight: 600; font-size: 16px; letter-spacing: -.01em; }
-.empty-marks { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
-.empty-mark { width: 34px; height: 3px; border-radius: 999px; opacity: .6; }
-.empty-mark--short { background: var(--sky); }
-.empty-mark--work { background: var(--violet); }
-.empty-mark--long { background: var(--gold); }
+.empty-signature {
+  display: inline-block; margin-bottom: 14px; padding: 3px 10px;
+  border: 1px solid rgba(143, 227, 192, .35); border-radius: 999px;
+  color: var(--profile); font-size: 11px; letter-spacing: .02em;
+}
 
 .note { border: 1px solid var(--line-strong); border-left: 2px solid var(--danger); border-radius: var(--radius); padding: 12px 16px; font-size: 14px; color: var(--text-dim); }
 .note strong { display: block; margin-bottom: 3px; color: var(--text); }
@@ -333,8 +326,8 @@ h1, h2, h3, p { margin-top: 0; }
   transition: border-color .16s ease, box-shadow .16s ease;
 }
 .composer textarea:focus {
-  border-color: rgba(125, 211, 252, .45); outline: none;
-  box-shadow: 0 0 0 3px var(--sky-glow);
+  border-color: rgba(255, 255, 255, .22); outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
 }
 .composer .btn {
   background: var(--text); color: var(--bg); border-color: transparent; font-weight: 600;
@@ -381,7 +374,8 @@ h1, h2, h3, p { margin-top: 0; }
 }
 
 /* --- Профиль (персонализация) --- */
-.layer--profile { border-left-color: var(--profile); }
+.layer--profile { border-left: 2px solid var(--profile); background: rgba(143, 227, 192, .022); }
+.layer--profile .layer-head h3::before { background: var(--profile); }
 
 .badge--profile { color: var(--profile); border-color: rgba(143, 227, 192, .35); background: rgba(143, 227, 192, .08); }
 .trace-label--profile::before { background: var(--profile); }
@@ -401,7 +395,7 @@ h1, h2, h3, p { margin-top: 0; }
 }
 .chip:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
 .chip:disabled { opacity: .38; cursor: not-allowed; }
-.chip.is-active { color: var(--profile); border-color: rgba(143, 227, 192, .5); background: rgba(143, 227, 192, .10); }
+.chip.is-active { color: var(--profile); border-color: rgba(143, 227, 192, .5); background: rgba(143, 227, 192, .10); font-weight: 500; }
 .chip--ghost { border-style: dashed; color: var(--text-mute); }
 .chip--ghost:hover:not(:disabled) { color: var(--profile); border-color: rgba(143, 227, 192, .35); }
 
@@ -410,8 +404,13 @@ h1, h2, h3, p { margin-top: 0; }
 .seg-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .seg-label { font-size: 11px; letter-spacing: .04em; color: var(--text-mute); }
 
-.constraint-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.constraint-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
+.constraint-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.constraint-list li {
+  display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 11px;
+  font-size: 12.5px; color: var(--text-dim);
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: 999px;
+}
+.constraint-list .entry-del { font-size: 14px; }
 
 /* Свёрнутые слои памяти дня 11 */
 .legacy-memory { margin-top: 16px; }
