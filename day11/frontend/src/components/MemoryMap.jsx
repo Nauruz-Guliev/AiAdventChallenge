@@ -106,7 +106,11 @@ export default function MemoryMap({
         </div>
       </section>
 
-      <section className="layer layer--work">
+      <section
+        className={`layer layer--work ${
+          working?.status === 'done' ? 'is-done' : 'is-active'
+        }`}
+      >
         <div className="layer-head">
           <h3>Рабочая</h3>
           <span className="meta mono">

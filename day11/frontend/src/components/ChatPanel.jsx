@@ -23,18 +23,18 @@ function UsedMemory({ used }) {
       <summary>Что учтено в ответе</summary>
       <div className="trace-body">
         <div>
-          <span className="trace-label mono">краткосрочная</span>
+          <span className="trace-label trace-label--short mono">краткосрочная</span>
           диалог в контексте: {used.history_count} сообщ.
         </div>
         {workingParts.length > 0 && (
           <div>
-            <span className="trace-label mono">рабочая</span>
+            <span className="trace-label trace-label--work mono">рабочая</span>
             {workingParts.join('; ')}
           </div>
         )}
         {longTermParts.length > 0 && (
           <div>
-            <span className="trace-label mono">долговременная</span>
+            <span className="trace-label trace-label--long mono">долговременная</span>
             {longTermParts.join(' · ')}
           </div>
         )}
