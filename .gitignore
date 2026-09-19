@@ -10,3 +10,8 @@
 
 # Superpowers process artifacts (plans are local-only)
 docs/superpowers/plans/
+
+# Personal planning pages (local only, not for the repo)
+day11/video-script.html
+day12/testing-guide.html
+day12/video-script.html
