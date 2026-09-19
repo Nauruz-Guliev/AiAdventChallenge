@@ -97,31 +97,40 @@ export default function ProfilePanel({
       </div>
 
       <div className="layer-body">
-        <div className="profile-chips" role="group" aria-label="Выбор профиля">
-          {profiles.map(profile => (
-            <button
-              className={`chip ${
-                profile.id === activeProfile?.id ? 'chip--profile is-active' : ''
-              }`}
-              disabled={disabled}
-              key={profile.id}
-              onClick={() => onActivate(profile.id)}
-              type="button"
-            >
-              {profile.title || 'Без названия'}
-            </button>
-          ))}
-          {presets.map(preset => (
-            <button
-              className="chip chip--ghost"
-              disabled={disabled}
-              key={preset.key}
-              onClick={() => onCreateFromPreset(preset.key)}
-              type="button"
-            >
-              + {preset.label}
-            </button>
-          ))}
+        <div className="profile-switch">
+          <div className="profile-chips" role="group" aria-label="Выбор профиля">
+            {profiles.map(profile => (
+              <button
+                className={`chip ${
+                  profile.id === activeProfile?.id ? 'chip--profile is-active' : ''
+                }`}
+                disabled={disabled}
+                key={profile.id}
+                onClick={() => onActivate(profile.id)}
+                type="button"
+              >
+                {profile.title || 'Без названия'}
+              </button>
+            ))}
+          </div>
+          <details className="profile-add">
+            <summary aria-label="Добавить профиль из пресета" title="Добавить профиль">
+              +
+            </summary>
+            <div className="preset-list" role="group" aria-label="Пресеты профилей">
+              {presets.map(preset => (
+                <button
+                  className="preset-item"
+                  disabled={disabled}
+                  key={preset.key}
+                  onClick={() => onCreateFromPreset(preset.key)}
+                  type="button"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
 
         {!empty && (
@@ -200,6 +209,9 @@ export default function ProfilePanel({
                     </button>
                   </li>
                 ))}
+                {!form.constraints.length && (
+                  <li className="constraint-empty">нет ограничений</li>
+                )}
               </ul>
               <div className="add-row">
                 <input
