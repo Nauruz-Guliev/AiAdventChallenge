@@ -7,12 +7,14 @@ from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.usage import build_dialog_usage
 from app.domain.models import (
+    LONG_TERM_CATEGORIES,
     CandidateConflict,
     CandidateNotFound,
     Chat,
     ChatMessage,
     ChatNotFound,
     ChatSummary,
+    LongTermEntry,
     LongTermEntryNotFound,
     LongTermMemory,
     UsageConfig,
@@ -168,7 +170,7 @@ async def replace_long_term(
     repository: Annotated[ChatRepository, Depends(get_repository)],
     config: Annotated[UsageConfig, Depends(get_usage_config)],
 ) -> LongTermResponse:
-    for category in ("profile", "decisions", "knowledge"):
+    for category in LONG_TERM_CATEGORIES:
         entries = getattr(request, category)
         if len(entries) > config.long_term_max_per_category:
             raise HTTPException(
@@ -184,8 +186,6 @@ async def replace_long_term(
                     status_code=400,
                     detail="Запись долговременной памяти слишком длинная.",
                 )
-    from app.domain.models import LongTermEntry
-
     long_term = LongTermMemory(
         profile=[LongTermEntry(**entry.model_dump()) for entry in request.profile],
         decisions=[
@@ -207,7 +207,7 @@ async def delete_long_term_entry(
     entry_id: str,
     repository: Annotated[ChatRepository, Depends(get_repository)],
 ) -> Response:
-    if category not in ("profile", "decisions", "knowledge"):
+    if category not in LONG_TERM_CATEGORIES:
         raise HTTPException(
             status_code=404, detail="Неизвестная категория памяти"
         )
@@ -242,7 +242,7 @@ async def approve_candidate(
 ) -> LongTermEntryResponse:
     category = request.category if request else None
     text = request.text if request else None
-    if category is not None and category not in ("profile", "decisions", "knowledge"):
+    if category is not None and category not in LONG_TERM_CATEGORIES:
         raise HTTPException(status_code=400, detail="Неизвестная категория памяти")
     if text is not None and not text.strip():
         raise HTTPException(status_code=400, detail="Текст записи не может быть пустым")
