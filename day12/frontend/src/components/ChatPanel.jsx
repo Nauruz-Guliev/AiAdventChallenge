@@ -6,6 +6,21 @@ const CATEGORY_LABELS = {
   decisions: 'Решения',
   knowledge: 'Знания',
 };
+const TONE_LABELS = {
+  formal: 'деловой',
+  friendly: 'дружелюбный',
+  neutral: 'нейтральный',
+};
+const LENGTH_LABELS = {
+  short: 'коротко',
+  medium: 'средне',
+  detailed: 'подробно',
+};
+const STRUCTURE_LABELS = {
+  prose: 'текст',
+  bullets: 'списки',
+  markdown: 'markdown',
+};
 
 function UsedMemory({ used }) {
   const longTermParts = used.long_term
@@ -17,11 +32,26 @@ function UsedMemory({ used }) {
   const workingParts = working
     ? [working.goal && `цель: ${working.goal}`, ...working.constraints, ...working.decisions].filter(Boolean)
     : [];
+  const profile = used.profile;
+  const profileParts = profile
+    ? [
+        profile.tone && `тон: ${TONE_LABELS[profile.tone] ?? profile.tone}`,
+        profile.length && `объём: ${LENGTH_LABELS[profile.length] ?? profile.length}`,
+        profile.structure && `формат: ${STRUCTURE_LABELS[profile.structure] ?? profile.structure}`,
+        ...(profile.constraints ?? []),
+      ].filter(Boolean)
+    : [];
 
   return (
     <details className="trace">
       <summary>Что учтено в ответе</summary>
       <div className="trace-body">
+        {profileParts.length > 0 && (
+          <div>
+            <span className="trace-label trace-label--profile mono">профиль</span>
+            {profileParts.join('; ')}
+          </div>
+        )}
         <div>
           <span className="trace-label trace-label--short mono">краткосрочная</span>
           диалог в контексте: {used.history_count} сообщ.
@@ -136,8 +166,9 @@ export default function ChatPanel({
           <span className="mono"><b>время</b> {(result.duration_ms / 1000).toFixed(1)} с</span>
           {memory && (
             <span className="mono">
-              <b>память</b> долг. {memory.long_term_tokens} / рабоч.{' '}
-              {memory.working_tokens} / истор. {memory.history_tokens}
+              <b>профиль</b> {memory.profile_tokens ?? 0} · <b>память</b> долг.{' '}
+              {memory.long_term_tokens} / рабоч. {memory.working_tokens} / истор.{' '}
+              {memory.history_tokens}
             </span>
           )}
         </div>

@@ -87,3 +87,40 @@ export function approveCandidate(candidateId, payload = {}) {
 export function rejectCandidate(candidateId) {
   return request(`/api/candidates/${candidateId}/reject`, { method: 'POST' });
 }
+
+export function getProfiles() {
+  return request('/api/profiles');
+}
+
+export function getProfilePresets() {
+  return request('/api/profiles/presets');
+}
+
+export function createProfile(payload) {
+  return request('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createProfileFromPreset(key) {
+  return request('/api/profiles/from-preset', {
+    method: 'POST',
+    body: JSON.stringify({ key }),
+  });
+}
+
+export function updateProfile(profileId, payload) {
+  return request(`/api/profiles/${profileId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProfile(profileId) {
+  return request(`/api/profiles/${profileId}`, { method: 'DELETE' });
+}
+
+export function activateProfile(profileId) {
+  return request(`/api/profiles/${profileId}/activate`, { method: 'POST' });
+}

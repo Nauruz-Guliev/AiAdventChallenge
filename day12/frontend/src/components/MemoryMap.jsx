@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import CandidateTray from './CandidateTray.jsx';
 import CategoryPicker from './CategoryPicker.jsx';
+import ProfilePanel from './ProfilePanel.jsx';
 
 const CATEGORY_LABELS = {
   profile: 'Профиль',
@@ -20,19 +21,26 @@ function shortDate(value) {
 }
 
 export default function MemoryMap({
+  activeProfile,
   candidates,
   chats,
   disabled,
   longTerm,
   messageCount,
+  onActivateProfile,
   onAddEntry,
   onApprove,
   onClearHistory,
   onCompleteWorking,
+  onCreateFromPreset,
   onDeleteEntry,
   onReject,
+  onRequestDeleteProfile,
   onResetWorking,
   onSaveWorking,
+  onUpdateProfile,
+  presets,
+  profiles,
   recent,
   working,
 }) {
@@ -80,6 +88,17 @@ export default function MemoryMap({
           то, что остаётся навсегда.
         </span>
       </div>
+
+      <ProfilePanel
+        activeProfile={activeProfile}
+        disabled={disabled}
+        onActivate={onActivateProfile}
+        onCreateFromPreset={onCreateFromPreset}
+        onRequestDelete={onRequestDeleteProfile}
+        onUpdate={onUpdateProfile}
+        presets={presets}
+        profiles={profiles}
+      />
 
       <section className="layer layer--short">
         <div className="layer-head">

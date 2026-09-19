@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
+  activateProfile,
   approveCandidate,
   clearHistory,
   completeWorkingMemory,
   createChat,
+  createProfileFromPreset,
   deleteChat,
   deleteLongTermEntry,
+  deleteProfile,
   getChat,
   getLongTerm,
+  getProfilePresets,
+  getProfiles,
   listCandidates,
   listChats,
   rejectCandidate,
@@ -15,6 +20,7 @@ import {
   resetWorkingMemory,
   saveWorkingMemory,
   sendMessage,
+  updateProfile,
 } from './api.js';
 import ChatPanel from './components/ChatPanel.jsx';
 import ConfirmDialog from './components/ConfirmDialog.jsx';
@@ -35,6 +41,8 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [overflow, setOverflow] = useState('');
   const [confirmState, setConfirmState] = useState(null);
+  const [profileStore, setProfileStore] = useState({ active_id: '', profiles: [] });
+  const [presets, setPresets] = useState([]);
 
   function applyDetail(chat) {
     setMessages(chat.messages ?? []);
@@ -44,6 +52,15 @@ export default function App() {
   async function refreshMemory() {
     setLongTerm(await getLongTerm());
     setCandidates(await listCandidates('pending'));
+  }
+
+  async function refreshProfiles() {
+    const [store, presetList] = await Promise.all([
+      getProfiles(),
+      getProfilePresets(),
+    ]);
+    setProfileStore(store);
+    setPresets(presetList);
   }
 
   useEffect(() => {
@@ -59,6 +76,7 @@ export default function App() {
         setChats(availableChats);
         await loadChat(availableChats[0].id);
         await refreshMemory();
+        await refreshProfiles();
       } catch (requestError) {
         if (!cancelled) setError(requestError.message);
       } finally {
@@ -266,6 +284,56 @@ export default function App() {
     }
   }
 
+  async function handleActivateProfile(profileId) {
+    try {
+      await activateProfile(profileId);
+      await refreshProfiles();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleCreateProfileFromPreset(key) {
+    try {
+      await createProfileFromPreset(key);
+      await refreshProfiles();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleUpdateProfile(profileId, fields) {
+    try {
+      await updateProfile(profileId, fields);
+      await refreshProfiles();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  function requestDeleteProfile(profileId) {
+    setConfirmState({
+      title: 'Удалить профиль?',
+      body: 'Профиль исчезнет из переключателя. Чаты и память останутся.',
+      confirmLabel: 'Удалить',
+      onConfirm: () => {
+        setConfirmState(null);
+        performDeleteProfile(profileId);
+      },
+    });
+  }
+
+  async function performDeleteProfile(profileId) {
+    try {
+      await deleteProfile(profileId);
+      await refreshProfiles();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  const activeProfile =
+    profileStore.profiles.find(item => item.id === profileStore.active_id) ?? null;
   const disabled = loading || initializing;
   const recent = messages.slice(-4);
 
@@ -294,19 +362,26 @@ export default function App() {
 
       <section className="split">
         <MemoryMap
+          activeProfile={activeProfile}
           candidates={candidates}
           chats={chats}
           disabled={disabled}
           longTerm={longTerm}
           messageCount={messages.length}
+          onActivateProfile={handleActivateProfile}
           onAddEntry={handleAddEntry}
           onApprove={handleApprove}
           onClearHistory={requestClearHistory}
           onCompleteWorking={handleCompleteWorking}
+          onCreateFromPreset={handleCreateProfileFromPreset}
           onDeleteEntry={handleDeleteEntry}
           onReject={handleReject}
+          onRequestDeleteProfile={requestDeleteProfile}
           onResetWorking={handleResetWorking}
           onSaveWorking={handleSaveWorking}
+          onUpdateProfile={handleUpdateProfile}
+          presets={presets}
+          profiles={profileStore.profiles}
           recent={recent}
           working={working}
         />
