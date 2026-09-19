@@ -8,6 +8,11 @@ CandidateStatus = Literal["pending", "approved", "rejected"]
 
 LONG_TERM_CATEGORIES = ("profile", "decisions", "knowledge")
 
+PROFILE_TONES = ("formal", "friendly", "neutral")
+PROFILE_LENGTHS = ("short", "medium", "detailed")
+PROFILE_STRUCTURES = ("prose", "bullets", "markdown")
+DEFAULT_ACTIVE_PRESET_KEY = "business"
+
 
 @dataclass(frozen=True)
 class TokenUsage:
@@ -23,6 +28,8 @@ class UsageConfig:
     output_price_per_million: float = 1.20
     long_term_max_per_category: int = 50
     long_term_max_item_chars: int = 500
+    profile_max_constraints: int = 20
+    profile_max_item_chars: int = 300
 
 
 @dataclass(frozen=True)
@@ -32,6 +39,7 @@ class MemoryInfo:
     working_tokens: int
     history_tokens: int
     candidate_tokens: int
+    profile_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -133,6 +141,91 @@ class LongTermMemory:
 
 
 @dataclass
+class UserProfile:
+    id: str
+    title: str = ""
+    name: str = ""
+    role: str = ""
+    language: str = "ru"
+    tone: str = "neutral"
+    length: str = "medium"
+    structure: str = "prose"
+    constraints: list[str] = field(default_factory=list)
+
+    @property
+    def is_empty(self) -> bool:
+        return (
+            not self.name.strip()
+            and not self.role.strip()
+            and self.tone == "neutral"
+            and self.length == "medium"
+            and self.structure == "prose"
+            and not self.constraints
+        )
+
+
+@dataclass
+class ProfileStore:
+    active_id: str = ""
+    profiles: list[UserProfile] = field(default_factory=list)
+
+    def find(self, profile_id: str) -> UserProfile | None:
+        for profile in self.profiles:
+            if profile.id == profile_id:
+                return profile
+        return None
+
+    def active(self) -> UserProfile | None:
+        return self.find(self.active_id)
+
+
+@dataclass(frozen=True)
+class ProfilePreset:
+    key: str
+    label: str
+    tone: str
+    length: str
+    structure: str
+    constraints: tuple[str, ...]
+
+
+PROFILE_PRESETS = (
+    ProfilePreset(
+        "neutral",
+        "Нейтральный (без персонализации)",
+        "neutral",
+        "medium",
+        "prose",
+        (),
+    ),
+    ProfilePreset(
+        "business",
+        "Деловой",
+        "formal",
+        "medium",
+        "markdown",
+        ("без эмодзи", "без воды"),
+    ),
+    ProfilePreset(
+        "concise",
+        "Коротко и по делу",
+        "neutral",
+        "short",
+        "bullets",
+        ("без вступлений и итогов", "не больше трёх пунктов"),
+    ),
+    ProfilePreset(
+        "mentor",
+        "Наставник",
+        "friendly",
+        "detailed",
+        "markdown",
+        ("объясняй термины простыми словами", "приводи пример"),
+    ),
+)
+
+
+@dataclass
 class MemoryCandidate:
     id: str
     text: str
@@ -199,3 +292,11 @@ class ContextLimitExceeded(RuntimeError):
         )
         self.estimated_tokens = estimated_tokens
         self.context_limit = context_limit
+
+
+class ProfileNotFound(RuntimeError):
+    pass
+
+
+class ProfileConflict(ValueError):
+    pass
