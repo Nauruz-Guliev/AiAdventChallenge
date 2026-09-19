@@ -1,11 +1,13 @@
 import json
 import re
 
+from app.application.profiles import build_profile_block, build_profile_trace
 from app.domain.models import (
     LONG_TERM_CATEGORIES,
     Chat,
     ChatMessage,
     LongTermMemory,
+    UserProfile,
     WorkingMemory,
 )
 
@@ -63,7 +65,9 @@ def build_working_block(working: WorkingMemory) -> ChatMessage | None:
     )
 
 
-def build_memory_trace(chat: Chat, long_term: LongTermMemory) -> dict:
+def build_memory_trace(
+    chat: Chat, long_term: LongTermMemory, profile: UserProfile | None = None
+) -> dict:
     long_term_used: dict[str, list[str]] = {}
     if build_long_term_block(long_term) is not None:
         for category in LONG_TERM_CATEGORIES:
@@ -80,15 +84,22 @@ def build_memory_trace(chat: Chat, long_term: LongTermMemory) -> dict:
         }
     return {
         "history_count": len(chat.messages) + 1,
+        "profile": build_profile_trace(profile),
         "working": working_used,
         "long_term": long_term_used,
     }
 
 
 def build_prompt(
-    chat: Chat, long_term: LongTermMemory, system_prompt: str
+    chat: Chat,
+    long_term: LongTermMemory,
+    system_prompt: str,
+    profile: UserProfile | None = None,
 ) -> list[ChatMessage]:
     messages = [ChatMessage(role="system", content=system_prompt)]
+    profile_block = build_profile_block(profile)
+    if profile_block is not None:
+        messages.append(profile_block)
     long_term_block = build_long_term_block(long_term)
     if long_term_block is not None:
         messages.append(long_term_block)
