@@ -74,12 +74,23 @@ export default function MemoryMap({
     <aside className="map" aria-label="Память ассистента">
       <div className="map-head">
         <h2>Разрез памяти</h2>
-        <span>Сверху — то, что живёт один чат. Снизу — то, что остаётся навсегда.</span>
+        <span>
+          Три слоя хранятся отдельно: сверху — то, что живёт один чат, снизу —
+          то, что остаётся навсегда.
+        </span>
       </div>
 
       <section className="layer layer--short">
         <div className="layer-head">
-          <h3>Краткосрочная</h3>
+          <div className="layer-title">
+            <h3>
+              Краткосрочная
+              <span className="badge badge--auto mono">авто</span>
+            </h3>
+            <span className="layer-sub">
+              Текущий диалог — попадает сам, живёт один чат
+            </span>
+          </div>
           <span className="meta mono">{messageCount} сообщ.</span>
         </div>
         <div className="layer-body">
@@ -112,7 +123,15 @@ export default function MemoryMap({
         }`}
       >
         <div className="layer-head">
-          <h3>Рабочая</h3>
+          <div className="layer-title">
+            <h3>
+              Рабочая
+              <span className="badge badge--manual mono">вручную</span>
+            </h3>
+            <span className="layer-sub">
+              Данные текущей задачи — заполняете вручную
+            </span>
+          </div>
           <span className="meta mono">
             {working?.status === 'done' ? 'завершена' : 'активна'}
           </span>
@@ -188,7 +207,15 @@ export default function MemoryMap({
 
       <section className="layer layer--long">
         <div className="layer-head">
-          <h3>Долговременная</h3>
+          <div className="layer-title">
+            <h3>
+              Долговременная
+              <span className="badge badge--explicit mono">явно</span>
+            </h3>
+            <span className="layer-sub">
+              Профиль · решения · знания — сохраняете явно
+            </span>
+          </div>
           <span className="meta mono">{total} записей</span>
         </div>
         <div className="layer-body">

@@ -20,7 +20,10 @@ export default function CandidateTray({ candidates, disabled, onApprove, onRejec
   return (
     <section className="threshold" aria-label="Кандидаты в память">
       <div className="threshold-head">
-        <h3>На пороге</h3>
+        <div className="layer-title">
+          <h3>На пороге</h3>
+          <span className="layer-sub">Кандидаты в долговременную — решение за вами</span>
+        </div>
         <span className="mono">
           {candidates.length ? `${candidates.length} к решению` : 'пока пусто'}
         </span>
