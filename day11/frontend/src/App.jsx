@@ -16,17 +16,9 @@ import {
   saveWorkingMemory,
   sendMessage,
 } from './api.js';
-import AgentFlow from './components/AgentFlow.jsx';
-import CandidatesPanel from './components/CandidatesPanel.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
-import ChatSidebar from './components/ChatSidebar.jsx';
-import MemoryPanel from './components/MemoryPanel.jsx';
-
-const initialStages = [
-  { name: 'UI', status: 'completed' },
-  { name: 'Agent', status: 'pending' },
-  { name: 'DeepSeek API', status: 'pending' },
-];
+import MemoryMap from './components/MemoryMap.jsx';
+import SessionStrip from './components/SessionStrip.jsx';
 
 export default function App() {
   const [chats, setChats] = useState([]);
@@ -37,17 +29,14 @@ export default function App() {
   const [candidates, setCandidates] = useState([]);
   const [message, setMessage] = useState('');
   const [result, setResult] = useState(null);
-  const [stages, setStages] = useState(initialStages);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
-  const [dialogUsage, setDialogUsage] = useState(null);
   const [overflow, setOverflow] = useState('');
 
   function applyDetail(chat) {
     setMessages(chat.messages ?? []);
     setWorking(chat.working_memory ?? null);
-    setDialogUsage(chat.dialog_usage ?? null);
   }
 
   async function refreshMemory() {
@@ -87,7 +76,6 @@ export default function App() {
     setResult(null);
     setError('');
     setOverflow('');
-    setStages(initialStages);
     applyDetail(chat);
   }
 
@@ -110,9 +98,7 @@ export default function App() {
       setMessages([]);
       setWorking(null);
       setResult(null);
-      setDialogUsage(null);
       setOverflow('');
-      setStages(initialStages);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -140,26 +126,15 @@ export default function App() {
     setLoading(true);
     setError('');
     setResult(null);
-    setStages([
-      { name: 'UI', status: 'completed' },
-      { name: 'Agent', status: 'active' },
-      { name: 'DeepSeek API', status: 'pending' },
-    ]);
     setMessages(current => [...current, { role: 'user', content: text }]);
 
     try {
       const response = await sendMessage(selectedChatId, text);
       setMessages(current => [
         ...current,
-        {
-          role: 'assistant',
-          content: response.answer,
-          memory: response.usage?.memory ?? null,
-        },
+        { role: 'assistant', content: response.answer },
       ]);
       setResult(response);
-      setStages(response.stages);
-      setDialogUsage(response.usage);
       setChats(await listChats());
       applyDetail(await getChat(selectedChatId));
       await refreshMemory();
@@ -263,68 +238,65 @@ export default function App() {
   }
 
   const disabled = loading || initializing;
+  const recent = messages.slice(-4);
 
   return (
-    <main className="page-shell">
-      <header className="hero">
-        <div className="eyebrow"><span className="pulse-dot" /> DAY 11 / ASSISTANT MEMORY</div>
-        <h1>Три слоя памяти.<br /><em>Один ассистент.</em></h1>
-        <p className="hero-copy">
-          Краткосрочная — история диалога. Рабочая — карточка текущей задачи.
-          Долговременная — профиль, решения, знания навсегда. Вы решаете,
-          что и куда сохраняется.
-        </p>
+    <main className="app">
+      <header className="masthead">
+        <div>
+          <h1>Память ассистента</h1>
+          <p>
+            Три раздельных слоя: диалог, карточка текущей задачи и то, что вы
+            решили помнить всегда.
+          </p>
+        </div>
+        <ul className="legend">
+          <li><span className="swatch mist" /> Краткосрочная</li>
+          <li><span className="swatch amber" /> Рабочая</li>
+          <li><span className="swatch deep" /> Долговременная</li>
+        </ul>
       </header>
 
-      <section className="workspace">
-        <ChatSidebar
+      <section className="split">
+        <MemoryMap
+          candidates={candidates}
           chats={chats}
-          disabled={disabled}
-          onCreate={handleCreateChat}
-          onDelete={handleDeleteChat}
-          onSelect={handleSelectChat}
-          selectedChatId={selectedChatId}
-        />
-        <ChatPanel
-          error={error}
-          loading={disabled}
-          message={message}
-          messages={messages}
-          onChange={setMessage}
-          onNewChat={handleCreateChat}
-          onSubmit={handleSubmit}
-          overflow={overflow}
-          result={result}
-        />
-        <MemoryPanel
           disabled={disabled}
           longTerm={longTerm}
           messageCount={messages.length}
           onAddEntry={handleAddEntry}
+          onApprove={handleApprove}
           onClearHistory={handleClearHistory}
           onCompleteWorking={handleCompleteWorking}
           onDeleteEntry={handleDeleteEntry}
+          onReject={handleReject}
           onResetWorking={handleResetWorking}
           onSaveWorking={handleSaveWorking}
+          recent={recent}
           working={working}
         />
+        <div className="col-dialog">
+          <SessionStrip
+            chats={chats}
+            disabled={disabled}
+            onCreate={handleCreateChat}
+            onDelete={handleDeleteChat}
+            onSelect={handleSelectChat}
+            selectedChatId={selectedChatId}
+          />
+          <ChatPanel
+            error={error}
+            loading={disabled}
+            message={message}
+            messages={messages}
+            onChange={setMessage}
+            onNewChat={handleCreateChat}
+            onSubmit={handleSubmit}
+            overflow={overflow}
+            result={result}
+          />
+        </div>
       </section>
-
-      <CandidatesPanel
-        candidates={candidates}
-        disabled={disabled}
-        onApprove={handleApprove}
-        onReject={handleReject}
-      />
-
-      <section className="flow-row">
-        <AgentFlow loading={disabled} stages={stages} />
-      </section>
-
-      <footer className="page-footer">
-        <span>FASTAPI + REACT</span>
-        <span>THREE-LAYER MEMORY</span>
-      </footer>
     </main>
   );
 }

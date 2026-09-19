@@ -1,16 +1,6 @@
 import { useEffect, useRef } from 'react';
 import MarkdownMessage from './MarkdownMessage.jsx';
 
-function MemoryChip({ memory }) {
-  if (!memory) return null;
-  return (
-    <div className="context-chip">
-      память: долг. {memory.long_term_tokens} · рабоч. {memory.working_tokens} · истор. {memory.history_tokens}
-      {memory.candidate_tokens ? ` · кандидаты ${memory.candidate_tokens}` : ''}
-    </div>
-  );
-}
-
 export default function ChatPanel({
   error,
   loading,
@@ -22,6 +12,13 @@ export default function ChatPanel({
   overflow,
   result,
 }) {
+  const conversationRef = useRef(null);
+
+  useEffect(() => {
+    const element = conversationRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [messages, loading]);
+
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -30,55 +27,53 @@ export default function ChatPanel({
   }
 
   const blocked = loading || Boolean(overflow);
-  const conversationRef = useRef(null);
-
-  useEffect(() => {
-    const element = conversationRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
-  }, [messages, loading]);
+  const memory = result?.usage?.memory ?? null;
 
   return (
-    <section className="chat-panel">
-      <div className="panel-kicker">CONVERSATION</div>
-      <div className="chat-heading-row">
-        <h2>Спроси агента</h2>
-        <span className="model-chip">deepseek-chat</span>
+    <section className="chat">
+      <div className="chat-head">
+        <h2>Диалог</h2>
+        <span className="model mono">{result?.model ?? 'deepseek-chat'}</span>
       </div>
 
-      <div
-        className={`conversation ${messages.length || error || overflow ? 'has-response' : ''}`}
-        ref={conversationRef}
-      >
+      <div className="conversation" ref={conversationRef}>
         {!messages.length && !error && !overflow && !loading && (
           <div className="empty-state">
-            <span className="empty-icon">✦</span>
-            <p>Агент готов. История этого чата<br />сохранится после перезапуска.</p>
+            <strong>Агент готов</strong>
+            Напишите сообщение. История останется в этом чате, а то, что решите
+            запомнить, — навсегда.
           </div>
         )}
         {messages.map((item, index) => (
           <div
-            className={`message-group ${item.role === 'user' ? 'user-group' : 'agent-group'}`}
+            className={`turn ${item.role === 'user' ? 'turn--user' : 'turn--agent'}`}
             key={`${item.role}-${index}`}
           >
-            <div className={`message ${item.role === 'user' ? 'user-message' : 'agent-message markdown'}`}>
+            <div className={`bubble ${item.role === 'user' ? '' : 'markdown'}`}>
               {item.role === 'user'
                 ? item.content
                 : <MarkdownMessage content={item.content} />}
             </div>
-            {item.role === 'assistant' && <MemoryChip memory={item.memory} />}
           </div>
         ))}
         {loading && (
-          <div className="message agent-message loading-message">
-            <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+          <div className="turn turn--agent">
+            <div className="bubble loading">
+              <span className="dot" /><span className="dot" /><span className="dot" />
+            </div>
           </div>
         )}
-        {error && <div className="error-card"><strong>Запрос не завершён</strong><span>{error}</span></div>}
+        {error && (
+          <div className="note note--error">
+            <strong>Запрос не завершён</strong>
+            {error}
+          </div>
+        )}
         {overflow && (
-          <div className="error-card overflow-card">
-            <strong>Лимит контекста превышен</strong>
-            <span>{overflow}</span>
-            <button className="overflow-new-chat" onClick={onNewChat} type="button">
+          <div className="note note--error">
+            <strong>Контекст переполнен</strong>
+            {overflow}
+            <button className="btn" onClick={onNewChat} type="button">
               Начать новый чат
             </button>
           </div>
@@ -87,8 +82,14 @@ export default function ChatPanel({
 
       {result && !loading && (
         <div className="result-meta">
-          <span><b>MODEL</b> {result.model}</span>
-          <span><b>TIME</b> {result.duration_ms} ms</span>
+          <span className="mono"><b>модель</b> {result.model}</span>
+          <span className="mono"><b>время</b> {(result.duration_ms / 1000).toFixed(1)} с</span>
+          {memory && (
+            <span className="mono">
+              <b>память</b> долг. {memory.long_term_tokens} / рабоч.{' '}
+              {memory.working_tokens} / истор. {memory.history_tokens}
+            </span>
+          )}
         </div>
       )}
 
@@ -98,15 +99,15 @@ export default function ChatPanel({
           disabled={blocked}
           onChange={event => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Напиши сообщение... (или «запомни: ...»)"
+          placeholder="Сообщение. Команда «запомни: ...» сохраняет сразу."
           rows="2"
           value={message}
         />
-        <button disabled={blocked || !message.trim()} type="submit">
-          {loading ? 'Думает...' : 'Отправить'} <span>↗</span>
+        <button className="btn" disabled={blocked || !message.trim()} type="submit">
+          {loading ? 'Думает…' : 'Отправить'}
         </button>
       </form>
-      <p className="composer-hint">Enter — отправить&nbsp;&nbsp;·&nbsp;&nbsp;Shift + Enter — новая строка</p>
+      <p className="hint mono">Enter — отправить, Shift + Enter — новая строка</p>
     </section>
   );
 }
