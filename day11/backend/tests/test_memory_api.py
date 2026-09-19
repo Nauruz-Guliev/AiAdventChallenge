@@ -191,7 +191,7 @@ def test_agent_errors_mapped_to_status_codes(client):
     cases = [
         (ChatNotFound("x"), 404),
         (ContextLimitExceeded(9000, 8000), 413),
-        (InvalidUserMessage("blank"), 422),
+        (InvalidUserMessage("blank"), 400),
     ]
     for error, status in cases:
         app.dependency_overrides[get_agent] = lambda e=error: ErrorAgent(e)

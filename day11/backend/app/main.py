@@ -23,7 +23,7 @@ app.include_router(router)
 
 @app.exception_handler(InvalidUserMessage)
 async def invalid_message_handler(request: Request, error: InvalidUserMessage):
-    return JSONResponse(status_code=422, content={"detail": str(error)})
+    return JSONResponse(status_code=400, content={"detail": str(error)})
 
 
 @app.exception_handler(ChatNotFound)

@@ -207,12 +207,14 @@ async def delete_long_term_entry(
     repository: Annotated[ChatRepository, Depends(get_repository)],
 ) -> Response:
     if category not in ("profile", "decisions", "knowledge"):
-        raise HTTPException(status_code=404, detail="Unknown memory category")
+        raise HTTPException(
+            status_code=404, detail="Неизвестная категория памяти"
+        )
     try:
         await repository.delete_long_term_entry(category, entry_id)
     except LongTermEntryNotFound as error:
         raise HTTPException(
-            status_code=404, detail="Memory entry not found"
+            status_code=404, detail="Запись памяти не найдена"
         ) from error
     return Response(status_code=204)
 
@@ -240,11 +242,11 @@ async def approve_candidate(
         entry = await repository.approve_candidate(candidate_id)
     except CandidateNotFound as error:
         raise HTTPException(
-            status_code=404, detail="Candidate not found"
+            status_code=404, detail="Кандидат не найден"
         ) from error
     except CandidateConflict as error:
         raise HTTPException(
-            status_code=409, detail="Candidate already resolved or duplicated"
+            status_code=409, detail="Кандидат уже обработан или дублируется"
         ) from error
     return LongTermEntryResponse(**vars(entry))
 
@@ -261,11 +263,11 @@ async def reject_candidate(
         candidate = await repository.reject_candidate(candidate_id)
     except CandidateNotFound as error:
         raise HTTPException(
-            status_code=404, detail="Candidate not found"
+            status_code=404, detail="Кандидат не найден"
         ) from error
     except CandidateConflict as error:
         raise HTTPException(
-            status_code=409, detail="Candidate already resolved"
+            status_code=409, detail="Кандидат уже обработан"
         ) from error
     return CandidateResponse(**vars(candidate))
 
@@ -276,7 +278,9 @@ async def clear_rejected_candidates(
     status: str = Query(default="rejected"),
 ) -> dict:
     if status != "rejected":
-        raise HTTPException(status_code=400, detail="Only rejected can be cleared")
+        raise HTTPException(
+            status_code=400, detail="Очищать можно только отклонённых кандидатов"
+        )
     removed = await repository.clear_rejected_candidates()
     return {"removed": removed}
 
