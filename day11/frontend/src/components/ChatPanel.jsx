@@ -35,7 +35,7 @@ function UsedMemory({ used }) {
         {longTermParts.length > 0 && (
           <div>
             <span className="trace-label trace-label--long mono">долговременная</span>
-            {longTermParts.join(' · ')}
+            {longTermParts.join('; ')}
           </div>
         )}
       </div>

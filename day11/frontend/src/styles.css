@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 :root {
   color-scheme: dark;
   --bg: #0e0f11;
@@ -144,12 +142,13 @@ h1, h2, h3, p { margin-top: 0; }
 .btn {
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 7px 12px;
   background: transparent; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 500;
-  transition: background .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease;
+  transition: background .16s ease, border-color .16s ease, color .16s ease, transform .08s ease;
 }
 .btn:hover:not(:disabled) { background: var(--surface-3); border-color: rgba(255, 255, 255, .22); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: .38; cursor: not-allowed; }
 .btn--commit { border-color: transparent; background: var(--gold); color: #241a06; font-weight: 600; }
-.btn--commit:hover:not(:disabled) { background: #ffd470; box-shadow: 0 4px 14px rgba(245, 196, 81, .18); }
+.btn--commit:hover:not(:disabled) { background: #ffd470; }
 .btn--ghost { border-color: transparent; color: var(--text-mute); padding: 7px 6px; }
 .btn--ghost:hover:not(:disabled) { background: transparent; color: var(--text); }
 
@@ -278,9 +277,10 @@ h1, h2, h3, p { margin-top: 0; }
 }
 .composer .btn {
   background: var(--text); color: var(--bg); border-color: transparent; font-weight: 600;
-  padding: 11px 17px; transition: background .16s ease, box-shadow .16s ease;
+  padding: 11px 17px; transition: background .16s ease, transform .08s ease;
 }
-.composer .btn:hover:not(:disabled) { background: #fff; box-shadow: 0 4px 16px rgba(237, 238, 240, .16); }
+.composer .btn:hover:not(:disabled) { background: #fff; }
+.composer .btn:active:not(:disabled) { transform: translateY(1px); }
 .composer .btn:disabled { background: var(--surface-3); color: var(--text-mute); }
 .hint { padding: 0 20px 14px; margin: 0; color: var(--text-mute); }
 

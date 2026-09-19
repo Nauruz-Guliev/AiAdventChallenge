@@ -213,7 +213,7 @@ export default function MemoryMap({
               <span className="badge badge--explicit mono">явно</span>
             </h3>
             <span className="layer-sub">
-              Профиль · решения · знания — сохраняете явно
+              Профиль, решения, знания — сохраняете явно
             </span>
           </div>
           <span className="meta mono">{total} записей</span>
