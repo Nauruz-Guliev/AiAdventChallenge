@@ -27,6 +27,7 @@ class MemoryInfoResponse(BaseModel):
     working_tokens: int
     history_tokens: int
     candidate_tokens: int
+    profile_tokens: int = 0
 
 
 class UsageResponse(BaseModel):
@@ -50,8 +51,20 @@ class UsedWorkingMemoryResponse(BaseModel):
     decisions: list[str]
 
 
+class UsedProfileResponse(BaseModel):
+    title: str
+    name: str
+    role: str
+    language: str
+    tone: str
+    length: str
+    structure: str
+    constraints: list[str]
+
+
 class UsedMemoryResponse(BaseModel):
     history_count: int
+    profile: UsedProfileResponse | None = None
     working: UsedWorkingMemoryResponse | None = None
     long_term: dict[str, list[str]] = {}
 
@@ -153,3 +166,55 @@ class ChatDetailResponse(ChatSummaryResponse):
     messages: list[ChatMessageResponse]
     working_memory: WorkingMemoryResponse
     dialog_usage: DialogUsageResponse
+
+
+class ProfileResponse(BaseModel):
+    id: str
+    title: str
+    name: str
+    role: str
+    language: str
+    tone: Literal["formal", "friendly", "neutral"]
+    length: Literal["short", "medium", "detailed"]
+    structure: Literal["prose", "bullets", "markdown"]
+    constraints: list[str]
+
+
+class ProfileStoreResponse(BaseModel):
+    active_id: str
+    profiles: list[ProfileResponse]
+
+
+class ProfileCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=60)
+    name: str = ""
+    role: str = ""
+    language: str = "ru"
+    tone: Literal["formal", "friendly", "neutral"] = "neutral"
+    length: Literal["short", "medium", "detailed"] = "medium"
+    structure: Literal["prose", "bullets", "markdown"] = "prose"
+    constraints: list[str] = []
+
+
+class ProfileUpdateRequest(BaseModel):
+    title: str | None = None
+    name: str | None = None
+    role: str | None = None
+    language: str | None = None
+    tone: Literal["formal", "friendly", "neutral"] | None = None
+    length: Literal["short", "medium", "detailed"] | None = None
+    structure: Literal["prose", "bullets", "markdown"] | None = None
+    constraints: list[str] | None = None
+
+
+class ProfilePresetResponse(BaseModel):
+    key: str
+    label: str
+    tone: str
+    length: str
+    structure: str
+    constraints: list[str]
+
+
+class ProfileFromPresetRequest(BaseModel):
+    key: str

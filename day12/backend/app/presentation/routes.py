@@ -1,13 +1,17 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.application.agent import SYSTEM_PROMPT, Agent
 from app.application.ports.chat_repository import ChatRepository
+from app.application.ports.profile_repository import ProfileRepository
 from app.application.ports.token_counter import TokenCounter
+from app.application.profiles import normalize_profile_fields
 from app.application.usage import build_dialog_usage
 from app.domain.models import (
     LONG_TERM_CATEGORIES,
+    PROFILE_PRESETS,
     CandidateConflict,
     CandidateNotFound,
     Chat,
@@ -17,12 +21,16 @@ from app.domain.models import (
     LongTermEntry,
     LongTermEntryNotFound,
     LongTermMemory,
+    ProfileConflict,
+    ProfileNotFound,
     UsageConfig,
     UsageReport,
+    UserProfile,
     WorkingMemory,
 )
 from app.presentation.dependencies import (
     get_agent,
+    get_profile_repository,
     get_repository,
     get_token_counter,
     get_usage_config,
@@ -40,10 +48,17 @@ from app.presentation.schemas import (
     LongTermRequest,
     LongTermResponse,
     MemoryInfoResponse,
+    ProfileCreateRequest,
+    ProfileFromPresetRequest,
+    ProfilePresetResponse,
+    ProfileResponse,
+    ProfileStoreResponse,
+    ProfileUpdateRequest,
     StageResponse,
     TokenUsageResponse,
     UsageResponse,
     UsedMemoryResponse,
+    UsedProfileResponse,
     UsedWorkingMemoryResponse,
     WorkingMemoryRequest,
     WorkingMemoryResponse,
@@ -222,6 +237,135 @@ async def delete_long_term_entry(
     return Response(status_code=204)
 
 
+@router.get("/api/profiles/presets", response_model=list[ProfilePresetResponse])
+async def list_profile_presets() -> list[ProfilePresetResponse]:
+    return [
+        ProfilePresetResponse(
+            key=preset.key,
+            label=preset.label,
+            tone=preset.tone,
+            length=preset.length,
+            structure=preset.structure,
+            constraints=list(preset.constraints),
+        )
+        for preset in PROFILE_PRESETS
+    ]
+
+
+@router.get("/api/profiles", response_model=ProfileStoreResponse)
+async def get_profiles(
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+) -> ProfileStoreResponse:
+    store = await profiles.get_store()
+    return ProfileStoreResponse(
+        active_id=store.active_id,
+        profiles=[_profile_response(item) for item in store.profiles],
+    )
+
+
+@router.get("/api/profile", response_model=ProfileResponse)
+async def get_active_profile(
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+) -> ProfileResponse:
+    profile = await profiles.get_active()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Активный профиль не найден")
+    return _profile_response(profile)
+
+
+@router.post("/api/profiles", response_model=ProfileResponse, status_code=201)
+async def create_profile(
+    request: ProfileCreateRequest,
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+    config: Annotated[UsageConfig, Depends(get_usage_config)],
+) -> ProfileResponse:
+    fields = normalize_profile_fields(request.model_dump())
+    _validate_profile_fields(fields, config)
+    profile = UserProfile(id=str(uuid.uuid4()), **fields)
+    return _profile_response(await profiles.create(profile))
+
+
+@router.post(
+    "/api/profiles/from-preset", response_model=ProfileResponse, status_code=201
+)
+async def create_profile_from_preset(
+    request: ProfileFromPresetRequest,
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+) -> ProfileResponse:
+    preset = next(
+        (item for item in PROFILE_PRESETS if item.key == request.key), None
+    )
+    if preset is None:
+        raise HTTPException(status_code=404, detail="Пресет не найден")
+    profile = UserProfile(
+        id=str(uuid.uuid4()),
+        title=preset.label,
+        tone=preset.tone,
+        length=preset.length,
+        structure=preset.structure,
+        constraints=list(preset.constraints),
+    )
+    return _profile_response(await profiles.create(profile))
+
+
+@router.put("/api/profiles/{profile_id}", response_model=ProfileResponse)
+async def update_profile(
+    profile_id: str,
+    request: ProfileUpdateRequest,
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+    config: Annotated[UsageConfig, Depends(get_usage_config)],
+) -> ProfileResponse:
+    fields = normalize_profile_fields(
+        {
+            key: value
+            for key, value in request.model_dump().items()
+            if value is not None
+        }
+    )
+    _validate_profile_fields(fields, config)
+    try:
+        profile = await profiles.update(profile_id, fields)
+    except ProfileNotFound as error:
+        raise HTTPException(
+            status_code=404, detail="Профиль не найден"
+        ) from error
+    return _profile_response(profile)
+
+
+@router.delete("/api/profiles/{profile_id}", status_code=204)
+async def delete_profile(
+    profile_id: str,
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+) -> Response:
+    try:
+        await profiles.delete(profile_id)
+    except ProfileNotFound as error:
+        raise HTTPException(
+            status_code=404, detail="Профиль не найден"
+        ) from error
+    except ProfileConflict as error:
+        raise HTTPException(
+            status_code=400, detail="Нельзя удалить последний профиль"
+        ) from error
+    return Response(status_code=204)
+
+
+@router.post(
+    "/api/profiles/{profile_id}/activate", response_model=ProfileResponse
+)
+async def activate_profile(
+    profile_id: str,
+    profiles: Annotated[ProfileRepository, Depends(get_profile_repository)],
+) -> ProfileResponse:
+    try:
+        profile = await profiles.activate(profile_id)
+    except ProfileNotFound as error:
+        raise HTTPException(
+            status_code=404, detail="Профиль не найден"
+        ) from error
+    return _profile_response(profile)
+
+
 @router.get("/api/candidates", response_model=list[CandidateResponse])
 async def list_candidates(
     repository: Annotated[ChatRepository, Depends(get_repository)],
@@ -322,11 +466,31 @@ def _used_response(used: dict | None) -> UsedMemoryResponse | None:
     if not used:
         return None
     working = used.get("working")
+    profile = used.get("profile")
     return UsedMemoryResponse(
         history_count=used.get("history_count", 0),
+        profile=UsedProfileResponse(**profile) if profile else None,
         working=UsedWorkingMemoryResponse(**working) if working else None,
         long_term=used.get("long_term", {}),
     )
+
+
+def _profile_response(profile: UserProfile) -> ProfileResponse:
+    return ProfileResponse(**vars(profile))
+
+
+def _validate_profile_fields(fields: dict, config: UsageConfig) -> None:
+    constraints = fields.get("constraints")
+    if constraints is None:
+        return
+    if len(constraints) > config.profile_max_constraints:
+        raise HTTPException(
+            status_code=400, detail="Слишком много ограничений профиля"
+        )
+    if any(len(item) > config.profile_max_item_chars for item in constraints):
+        raise HTTPException(
+            status_code=400, detail="Ограничение профиля слишком длинное"
+        )
 
 
 def _working_dict(working: WorkingMemory) -> dict:
