@@ -13,8 +13,10 @@ from app.application.memory import (
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.llm_gateway import LLMGateway
 from app.application.ports.profile_repository import ProfileRepository
+from app.application.ports.task_repository import TaskRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.profiles import build_profile_block
+from app.application.task_engine import PLAN_FORMAT_HINT, build_task_block, parse_plan
 from app.application.usage import build_dialog_usage, exchange_cost_usd
 from app.domain.models import (
     AgentResult,
@@ -28,6 +30,7 @@ from app.domain.models import (
     UsageReport,
     UserProfile,
 )
+from app.domain.task_state import InvalidTransitionError, Stage, TaskState
 
 
 SYSTEM_PROMPT = (
@@ -49,6 +52,7 @@ class Agent:
         model: str = "deepseek-chat",
         candidates_enabled: bool = True,
         profiles: ProfileRepository | None = None,
+        task_repository: TaskRepository | None = None,
     ):
         self._gateway = gateway
         self._repository = repository
@@ -57,6 +61,7 @@ class Agent:
         self._model = model
         self._candidates_enabled = candidates_enabled
         self._profiles = profiles
+        self._task_repository = task_repository
 
     @staticmethod
     def _validate_message(user_text: str) -> str:
@@ -98,8 +103,19 @@ class Agent:
                 pass
             long_term = await self._repository.get_long_term()
 
+        state: TaskState | None = None
+        if self._task_repository is not None and command_text is None:
+            state = await self._task_repository.get()
+            if state is None or state.stage == Stage.DONE:
+                state = TaskState.start(message)
+
         new_message = ChatMessage(role="user", content=message)
         prompt = build_prompt(chat, long_term, SYSTEM_PROMPT, profile=profile)
+        if state is not None:
+            prompt = [
+                *prompt,
+                ChatMessage(role="system", content=build_task_block(state)),
+            ]
         call_messages = [*prompt, new_message]
         used = build_memory_trace(chat, long_term, profile)
         request_tokens = self._counter.count_messages([new_message])
@@ -113,6 +129,8 @@ class Agent:
         started_at = perf_counter()
         response = await self._gateway.complete(call_messages)
         answer = response.text.strip()
+        if state is not None:
+            state = await self._advance_task(state, message, answer)
         updated_chat = await self._repository.append_exchange(
             chat_id, message, answer, response.usage, used=used
         )
@@ -176,4 +194,34 @@ class Agent:
                 ),
             ),
             used=used,
+            task=state.to_dict() if state is not None else None,
         )
+
+    async def _advance_task(
+        self, state: TaskState, message: str, answer: str
+    ) -> TaskState:
+        try:
+            if state.stage == Stage.PLANNING:
+                steps = parse_plan(answer)
+                if steps is None:
+                    retry = await self._gateway.complete(
+                        [
+                            ChatMessage(
+                                role="system", content=build_task_block(state)
+                            ),
+                            ChatMessage(role="user", content=message),
+                            ChatMessage(role="assistant", content=answer),
+                            ChatMessage(role="user", content=PLAN_FORMAT_HINT),
+                        ]
+                    )
+                    steps = parse_plan(retry.text)
+                if steps is not None:
+                    state = state.accept_plan(steps)
+            elif state.stage == Stage.EXECUTION:
+                state = state.advance_step()
+            elif state.stage == Stage.VALIDATION:
+                state = state.finish()
+        except (InvalidTransitionError, ValueError):
+            return state
+        await self._task_repository.save(state)
+        return state

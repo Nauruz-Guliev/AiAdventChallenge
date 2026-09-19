@@ -97,6 +97,7 @@ class AgentResult:
     stages: list[AgentStage]
     usage: UsageReport
     used: dict | None = None
+    task: dict | None = None
 
 
 @dataclass(frozen=True)
