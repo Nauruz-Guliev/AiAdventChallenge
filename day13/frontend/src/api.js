@@ -124,3 +124,15 @@ export function deleteProfile(profileId) {
 export function activateProfile(profileId) {
   return request(`/api/profiles/${profileId}/activate`, { method: 'POST' });
 }
+
+export function getTaskState() {
+  return request('/api/task/state');
+}
+
+export function pauseTask() {
+  return request('/api/task/pause', { method: 'POST' });
+}
+
+export function resumeTask() {
+  return request('/api/task/resume', { method: 'POST' });
+}

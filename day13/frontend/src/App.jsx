@@ -14,11 +14,14 @@ import {
   getLongTerm,
   getProfilePresets,
   getProfiles,
+  getTaskState,
   listCandidates,
   listChats,
+  pauseTask,
   rejectCandidate,
   replaceLongTerm,
   resetWorkingMemory,
+  resumeTask,
   saveWorkingMemory,
   sendMessage,
   updateProfile,
@@ -27,6 +30,7 @@ import ChatPanel from './components/ChatPanel.jsx';
 import ConfirmDialog from './components/ConfirmDialog.jsx';
 import MemoryMap from './components/MemoryMap.jsx';
 import SessionStrip from './components/SessionStrip.jsx';
+import TaskStatePanel from './components/TaskStatePanel.jsx';
 import { LENGTH_LABELS, STRUCTURE_LABELS, TONE_LABELS_FULL } from './profile-labels.js';
 
 export default function App() {
@@ -45,6 +49,7 @@ export default function App() {
   const [confirmState, setConfirmState] = useState(null);
   const [profileStore, setProfileStore] = useState({ active_id: '', profiles: [] });
   const [presets, setPresets] = useState([]);
+  const [taskState, setTaskState] = useState(null);
 
   function applyDetail(chat) {
     setMessages(chat.messages ?? []);
@@ -79,6 +84,7 @@ export default function App() {
         await loadChat(availableChats[0].id);
         await refreshMemory();
         await refreshProfiles();
+        setTaskState(await getTaskState());
       } catch (requestError) {
         if (!cancelled) setError(requestError.message);
       } finally {
@@ -169,6 +175,7 @@ export default function App() {
         { role: 'assistant', content: response.answer, used: response.used ?? null },
       ]);
       setResult(response);
+      setTaskState(response.task ?? (await getTaskState()));
       setChats(await listChats());
       await refreshMemory();
       return response;
@@ -354,6 +361,22 @@ export default function App() {
     }
   }
 
+  async function handlePauseTask() {
+    try {
+      setTaskState(await pauseTask());
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleResumeTask() {
+    try {
+      setTaskState(await resumeTask());
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   const activeProfile =
     profileStore.profiles.find(item => item.id === profileStore.active_id) ?? null;
   const profileOff = Boolean(
@@ -382,10 +405,11 @@ export default function App() {
     <main className="app">
       <header className="masthead">
         <div>
-          <h1>Персонализация ассистента</h1>
+          <h1>Состояние задачи</h1>
           <p>
-            Профиль задаёт стиль, объём, формат и ограничения и подключается к
-            каждому запросу. Память дня 11 живёт отдельно и свёрнута ниже.
+            Агент ведёт задачу как конечный автомат: этап, шаг и ожидаемое
+            действие видны на панели. Пауза на любом этапе и продолжение — без
+            повторных объяснений.
           </p>
         </div>
         {activeProfile && (
@@ -430,6 +454,12 @@ export default function App() {
           working={working}
         />
         <div className="col-dialog">
+          <TaskStatePanel
+            disabled={disabled}
+            onPause={handlePauseTask}
+            onResume={handleResumeTask}
+            state={taskState}
+          />
           <SessionStrip
             chats={chats}
             disabled={disabled}
