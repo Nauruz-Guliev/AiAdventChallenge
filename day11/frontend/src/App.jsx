@@ -1,20 +1,26 @@
 import { useEffect, useState } from 'react';
 import {
-  createBranch,
-  runCompare,
+  approveCandidate,
+  clearHistory,
+  completeWorkingMemory,
   createChat,
-  deleteBranch,
   deleteChat,
+  deleteLongTermEntry,
   getChat,
+  getLongTerm,
+  listCandidates,
   listChats,
+  rejectCandidate,
+  replaceLongTerm,
+  resetWorkingMemory,
+  saveWorkingMemory,
   sendMessage,
-  setActiveBranch,
-  updateFacts,
 } from './api.js';
 import AgentFlow from './components/AgentFlow.jsx';
+import CandidatesPanel from './components/CandidatesPanel.jsx';
 import ChatPanel from './components/ChatPanel.jsx';
 import ChatSidebar from './components/ChatSidebar.jsx';
-import ComparePanel from './components/ComparePanel.jsx';
+import MemoryPanel from './components/MemoryPanel.jsx';
 
 const initialStages = [
   { name: 'UI', status: 'completed' },
@@ -22,14 +28,13 @@ const initialStages = [
   { name: 'DeepSeek API', status: 'pending' },
 ];
 
-const SIMULATION_FILLER =
-  'Опиши очень подробно, как устроен контекст большого диалога, почему история пересылается целиком и как это влияет на токены и стоимость запросов. ';
-const SIMULATION_PARTS = 12;
-
 export default function App() {
   const [chats, setChats] = useState([]);
   const [selectedChatId, setSelectedChatId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [working, setWorking] = useState(null);
+  const [longTerm, setLongTerm] = useState(null);
+  const [candidates, setCandidates] = useState([]);
   const [message, setMessage] = useState('');
   const [result, setResult] = useState(null);
   const [stages, setStages] = useState(initialStages);
@@ -38,43 +43,31 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [dialogUsage, setDialogUsage] = useState(null);
   const [overflow, setOverflow] = useState('');
-  const [simulating, setSimulating] = useState(false);
-  const [mode, setMode] = useState(
-    () => localStorage.getItem('day10-mode') ?? 'sliding'
-  );
-  const [branches, setBranches] = useState([]);
-  const [activeBranchId, setActiveBranchId] = useState(null);
-  const [facts, setFacts] = useState({});
-  const [comparing, setComparing] = useState(false);
-  const [compareRows, setCompareRows] = useState(null);
-  const [compareError, setCompareError] = useState('');
 
   function applyDetail(chat) {
-    if (chat.mode) {
-      setMode(chat.mode);
-      localStorage.setItem('day10-mode', chat.mode);
-    }
-    const chatBranches = chat.branches ?? [];
-    setBranches(chatBranches);
-    setActiveBranchId(chat.active_branch_id ?? null);
-    const active = chatBranches.find(b => b.id === chat.active_branch_id);
-    setFacts(active?.facts ?? {});
+    setMessages(chat.messages ?? []);
+    setWorking(chat.working_memory ?? null);
+    setDialogUsage(chat.dialog_usage ?? null);
+  }
+
+  async function refreshMemory() {
+    setLongTerm(await getLongTerm());
+    setCandidates(await listCandidates('pending'));
   }
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadInitialChat() {
+    async function boot() {
       try {
         let availableChats = await listChats();
         if (!availableChats.length) {
-          const newChat = await createChat();
-          availableChats = [newChat];
+          availableChats = [await createChat()];
         }
-
         if (cancelled) return;
         setChats(availableChats);
-        await loadChat(availableChats[0].id, cancelled);
+        await loadChat(availableChats[0].id);
+        await refreshMemory();
       } catch (requestError) {
         if (!cancelled) setError(requestError.message);
       } finally {
@@ -82,91 +75,20 @@ export default function App() {
       }
     }
 
-    loadInitialChat();
-    async function handleCompare() {
-    setComparing(true);
-    setCompareError('');
-    setCompareRows(null);
-    try {
-      const results = await runCompare();
-      setCompareRows(results);
-      setChats(await listChats());
-    } catch (requestError) {
-      setCompareError(requestError.message);
-    } finally {
-      setComparing(false);
-    }
-  }
-
-  async function handleFork(messageIndex) {
-    if (!selectedChatId) return;
-    try {
-      const detail = await createBranch(
-        selectedChatId,
-        messageIndex + 1,
-        `ветка ${branches.length + 1}`
-      );
-      applyDetail(detail);
-      setMessages(detail.messages);
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }
-
-  async function handleSwitchBranch(branchId) {
-    if (!selectedChatId) return;
-    try {
-      const detail = await setActiveBranch(selectedChatId, branchId);
-      applyDetail(detail);
-      setMessages(detail.messages);
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }
-
-  async function handleDeleteBranch(branchId) {
-    if (!selectedChatId || !window.confirm('Удалить эту ветку со всеми сообщениями?')) return;
-    try {
-      const detail = await deleteBranch(selectedChatId, branchId);
-      applyDetail(detail);
-      setMessages(detail.messages);
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }
-
-  async function handleFactsChange(nextFacts) {
-    if (!selectedChatId) return;
-    setFacts(nextFacts);
-    try {
-      applyDetail(await updateFacts(selectedChatId, nextFacts));
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }
-
-  return () => {
+    boot();
+    return () => {
       cancelled = true;
     };
   }, []);
 
-  async function loadChat(chatId, cancelled = false) {
+  async function loadChat(chatId) {
     const chat = await getChat(chatId);
-    if (cancelled) return;
     setSelectedChatId(chat.id);
-    setMessages(chat.messages);
     setResult(null);
     setError('');
+    setOverflow('');
     setStages(initialStages);
-    setDialogUsage(chat.dialog_usage);
-    setOverflow('');
     applyDetail(chat);
-  }
-
-  function handleModeChange(nextMode) {
-    setMode(nextMode);
-    localStorage.setItem('day10-mode', nextMode);
-    setOverflow('');
   }
 
   async function handleSelectChat(chatId) {
@@ -180,45 +102,35 @@ export default function App() {
   }
 
   async function handleCreateChat() {
-    if (loading || simulating) return;
-    setError('');
+    if (loading) return;
     try {
       const newChat = await createChat();
       setChats(current => [newChat, ...current]);
       setSelectedChatId(newChat.id);
       setMessages([]);
+      setWorking(null);
       setResult(null);
-      setStages(initialStages);
       setDialogUsage(null);
       setOverflow('');
+      setStages(initialStages);
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
   async function handleDeleteChat(chatId) {
-    if (loading || !window.confirm('Удалить этот чат и всю его историю?')) return;
-
-    setError('');
+    if (loading || !window.confirm('Удалить чат? Долговременная память сохранится.')) return;
     try {
       await deleteChat(chatId);
-      const remainingChats = await listChats();
-      if (remainingChats.length) {
-        setChats(remainingChats);
-        if (chatId === selectedChatId) {
-          await loadChat(remainingChats[0].id);
-        }
+      const remaining = await listChats();
+      if (remaining.length) {
+        setChats(remaining);
+        if (chatId === selectedChatId) await loadChat(remaining[0].id);
         return;
       }
-
       const newChat = await createChat();
       setChats([newChat]);
-      setSelectedChatId(newChat.id);
-      setMessages([]);
-      setResult(null);
-      setStages(initialStages);
-      setDialogUsage(null);
-      setOverflow('');
+      await loadChat(newChat.id);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -233,24 +145,16 @@ export default function App() {
       { name: 'Agent', status: 'active' },
       { name: 'DeepSeek API', status: 'pending' },
     ]);
-
     setMessages(current => [...current, { role: 'user', content: text }]);
 
     try {
-      const response = await sendMessage(selectedChatId, text, mode);
+      const response = await sendMessage(selectedChatId, text);
       setMessages(current => [
         ...current,
         {
           role: 'assistant',
           content: response.answer,
-          usage: {
-            request_tokens: response.usage.request_tokens,
-            history_tokens: response.usage.history_tokens,
-            prompt_tokens: response.usage.prompt_tokens_api,
-            completion_tokens: response.usage.completion_tokens_api,
-            total_tokens: response.usage.total_tokens_api,
-          },
-          context: response.usage?.context ?? null,
+          memory: response.usage?.memory ?? null,
         },
       ]);
       setResult(response);
@@ -258,6 +162,7 @@ export default function App() {
       setDialogUsage(response.usage);
       setChats(await listChats());
       applyDetail(await getChat(selectedChatId));
+      await refreshMemory();
       return response;
     } catch (requestError) {
       setMessages(current => current.slice(0, -1));
@@ -266,10 +171,6 @@ export default function App() {
       } else {
         setError(requestError.message);
       }
-      setStages(currentStages => currentStages.map(stage => ({
-        ...stage,
-        status: stage.name === 'DeepSeek API' ? 'error' : stage.status,
-      })));
       return null;
     } finally {
       setLoading(false);
@@ -278,147 +179,151 @@ export default function App() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage || !selectedChatId || loading || simulating || overflow) return;
-
+    const trimmed = message.trim();
+    if (!trimmed || !selectedChatId || loading || overflow) return;
     setMessage('');
-    await sendToChat(trimmedMessage);
+    await sendToChat(trimmed);
   }
 
-  async function handleSimulate() {
-    if (!selectedChatId || loading || simulating || overflow) return;
-
-    setSimulating(true);
+  async function handleSaveWorking(nextWorking) {
     try {
-      for (let part = 1; part <= SIMULATION_PARTS; part += 1) {
-        const response = await sendToChat(`Симуляция, часть ${part}. ${SIMULATION_FILLER.repeat(18)}`);
-        if (!response) break;
-      }
-    } finally {
-      setSimulating(false);
-    }
-  }
-
-  async function handleCompare() {
-    setComparing(true);
-    setCompareError('');
-    setCompareRows(null);
-    try {
-      const results = await runCompare();
-      setCompareRows(results);
-      setChats(await listChats());
-    } catch (requestError) {
-      setCompareError(requestError.message);
-    } finally {
-      setComparing(false);
-    }
-  }
-
-  async function handleFork(messageIndex) {
-    if (!selectedChatId) return;
-    try {
-      const detail = await createBranch(
-        selectedChatId,
-        messageIndex + 1,
-        `ветка ${branches.length + 1}`
-      );
-      applyDetail(detail);
-      setMessages(detail.messages);
+      applyDetail(await saveWorkingMemory(selectedChatId, nextWorking));
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
-  async function handleSwitchBranch(branchId) {
-    if (!selectedChatId) return;
+  async function handleCompleteWorking() {
     try {
-      const detail = await setActiveBranch(selectedChatId, branchId);
-      applyDetail(detail);
-      setMessages(detail.messages);
+      applyDetail(await completeWorkingMemory(selectedChatId));
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
-  async function handleDeleteBranch(branchId) {
-    if (!selectedChatId || !window.confirm('Удалить эту ветку со всеми сообщениями?')) return;
+  async function handleResetWorking() {
     try {
-      const detail = await deleteBranch(selectedChatId, branchId);
-      applyDetail(detail);
-      setMessages(detail.messages);
+      applyDetail(await resetWorkingMemory(selectedChatId));
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
-  async function handleFactsChange(nextFacts) {
-    if (!selectedChatId) return;
-    setFacts(nextFacts);
+  async function handleClearHistory() {
+    if (!window.confirm('Очистить историю диалога? Рабочая и долговременная память останутся.')) return;
     try {
-      applyDetail(await updateFacts(selectedChatId, nextFacts));
+      applyDetail(await clearHistory(selectedChatId));
     } catch (requestError) {
       setError(requestError.message);
     }
   }
+
+  async function handleAddEntry({ category, text }) {
+    try {
+      const next = {
+        profile: longTerm?.profile ?? [],
+        decisions: longTerm?.decisions ?? [],
+        knowledge: longTerm?.knowledge ?? [],
+      };
+      next[category] = [
+        ...next[category],
+        { id: crypto.randomUUID(), text, source_chat_id: selectedChatId, created_at: new Date().toISOString() },
+      ];
+      setLongTerm(await replaceLongTerm(next));
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleDeleteEntry(category, entryId) {
+    try {
+      await deleteLongTermEntry(category, entryId);
+      await refreshMemory();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleApprove(candidateId) {
+    try {
+      await approveCandidate(candidateId);
+      await refreshMemory();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function handleReject(candidateId) {
+    try {
+      await rejectCandidate(candidateId);
+      await refreshMemory();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  const disabled = loading || initializing;
 
   return (
     <main className="page-shell">
       <header className="hero">
-        <div className="eyebrow"><span className="pulse-dot" /> DAY 10 / CONTEXT STRATEGIES</div>
-        <h1>Диалог, который<br /><em>не тонет в истории.</em></h1>
+        <div className="eyebrow"><span className="pulse-dot" /> DAY 11 / ASSISTANT MEMORY</div>
+        <h1>Три слоя памяти.<br /><em>Один ассистент.</em></h1>
         <p className="hero-copy">
-          Четыре стратегии памяти: полная история, скользящее окно,
-          KV-facts и ветвление. Прогони один ТЗ-сценарий на всех —
-          смотри, кто что теряет.
+          Краткосрочная — история диалога. Рабочая — карточка текущей задачи.
+          Долговременная — профиль, решения, знания навсегда. Вы решаете,
+          что и куда сохраняется.
         </p>
       </header>
 
-      <section className="workspace" aria-label="Token-aware agent workspace">
+      <section className="workspace">
         <ChatSidebar
           chats={chats}
-          disabled={loading || initializing || simulating}
+          disabled={disabled}
           onCreate={handleCreateChat}
           onDelete={handleDeleteChat}
           onSelect={handleSelectChat}
           selectedChatId={selectedChatId}
         />
         <ChatPanel
-          activeBranchId={activeBranchId}
-          branches={branches}
-          dialogUsage={dialogUsage}
-          facts={facts}
-          mode={mode}
           error={error}
-          loading={loading || initializing}
+          loading={disabled}
           message={message}
           messages={messages}
           onChange={setMessage}
-          onFactsChange={handleFactsChange}
-          onFork={handleFork}
-          onModeChange={handleModeChange}
-          onDeleteBranch={handleDeleteBranch}
           onNewChat={handleCreateChat}
-          onSimulate={handleSimulate}
           onSubmit={handleSubmit}
-          onSwitchBranch={handleSwitchBranch}
           overflow={overflow}
           result={result}
-          simulating={simulating}
         />
-        <AgentFlow loading={loading} stages={stages} />
+        <MemoryPanel
+          disabled={disabled}
+          longTerm={longTerm}
+          messageCount={messages.length}
+          onAddEntry={handleAddEntry}
+          onClearHistory={handleClearHistory}
+          onCompleteWorking={handleCompleteWorking}
+          onDeleteEntry={handleDeleteEntry}
+          onResetWorking={handleResetWorking}
+          onSaveWorking={handleSaveWorking}
+          working={working}
+        />
       </section>
 
-      <ComparePanel
-        comparing={comparing || loading}
-        error={compareError}
-        onOpenChat={handleSelectChat}
-        onStart={handleCompare}
-        rows={compareRows}
+      <CandidatesPanel
+        candidates={candidates}
+        disabled={disabled}
+        onApprove={handleApprove}
+        onReject={handleReject}
       />
+
+      <section className="flow-row">
+        <AgentFlow loading={disabled} stages={stages} />
+      </section>
 
       <footer className="page-footer">
         <span>FASTAPI + REACT</span>
-        <span>TOKEN BUDGET</span>
+        <span>THREE-LAYER MEMORY</span>
       </footer>
     </main>
   );

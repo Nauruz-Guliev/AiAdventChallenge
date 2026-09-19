@@ -1,62 +1,26 @@
 import { useEffect, useRef } from 'react';
-import FactsPanel from './FactsPanel.jsx';
 import MarkdownMessage from './MarkdownMessage.jsx';
-import ModeSelector, { MODE_LABELS } from './ModeSelector.jsx';
-import UsagePanel from './UsagePanel.jsx';
 
-function ContextChip({ context }) {
-  const sent = context.sent_messages;
-  const total = context.total_messages;
-  let text;
-  if (context.mode === 'sliding') text = `окно: ${sent} из ${total}`;
-  else if (context.mode === 'facts') {
-    const extract = context.fact_update_tokens
-      ? ` · экстракция ${context.fact_update_tokens} токенов`
-      : '';
-    text = `факты: ${context.facts_count} + ${sent} сообщений${extract}`;
-  } else if (context.mode === 'branching') text = `ветка: ${total} сообщений`;
-  else text = `полный контекст: ${total}`;
-  return <div className="context-chip">{text}</div>;
-}
-
-function UsageLine({ usage }) {
-  if (!usage) return null;
-  if (usage.request_tokens != null) {
-    return (
-      <div className="usage-line">
-        запрос {usage.request_tokens} · история ≈{usage.history_tokens} (оценка) · ответ {usage.completion_tokens} · всего {usage.total_tokens} токенов
-      </div>
-    );
-  }
+function MemoryChip({ memory }) {
+  if (!memory) return null;
   return (
-    <div className="usage-line">
-      промпт {usage.prompt_tokens} · ответ {usage.completion_tokens} · всего {usage.total_tokens} токенов (API)
+    <div className="context-chip">
+      память: долг. {memory.long_term_tokens} · рабоч. {memory.working_tokens} · истор. {memory.history_tokens}
+      {memory.candidate_tokens ? ` · кандидаты ${memory.candidate_tokens}` : ''}
     </div>
   );
 }
 
 export default function ChatPanel({
-  activeBranchId,
-  branches,
-  dialogUsage,
-  facts,
-  mode,
   error,
   loading,
   message,
   messages,
   onChange,
   onNewChat,
-  onSimulate,
-  onFactsChange,
-  onFork,
-  onModeChange,
   onSubmit,
-  onDeleteBranch,
-  onSwitchBranch,
   overflow,
   result,
-  simulating,
 }) {
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -65,7 +29,7 @@ export default function ChatPanel({
     }
   }
 
-  const blocked = loading || simulating || Boolean(overflow);
+  const blocked = loading || Boolean(overflow);
   const conversationRef = useRef(null);
 
   useEffect(() => {
@@ -78,40 +42,8 @@ export default function ChatPanel({
       <div className="panel-kicker">CONVERSATION</div>
       <div className="chat-heading-row">
         <h2>Спроси агента</h2>
-        <span className={`mode-chip mode-${mode}`}>{MODE_LABELS[mode] ?? mode}</span>
         <span className="model-chip">deepseek-chat</span>
       </div>
-
-      <UsagePanel
-        disabled={loading || simulating}
-        simulating={simulating}
-        usage={dialogUsage}
-        onSimulate={onSimulate}
-      />
-
-      {mode === 'branching' && branches.length > 0 && (
-        <div className="branch-tabs">
-          {branches.map(branch => (
-            <span className={branch.id === activeBranchId ? 'tab active' : 'tab'} key={branch.id}>
-              <button disabled={blocked} onClick={() => onSwitchBranch(branch.id)} type="button">
-                {branch.name}
-                {branch.fork_at != null ? ` @${branch.fork_at}` : ''}
-              </button>
-              {branches.length > 1 && (
-                <button
-                  aria-label={`Удалить ветку ${branch.name}`}
-                  className="tab-close"
-                  disabled={blocked}
-                  onClick={() => onDeleteBranch(branch.id)}
-                  type="button"
-                >
-                  ✕
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
 
       <div
         className={`conversation ${messages.length || error || overflow ? 'has-response' : ''}`}
@@ -133,13 +65,7 @@ export default function ChatPanel({
                 ? item.content
                 : <MarkdownMessage content={item.content} />}
             </div>
-            {item.role === 'assistant' && <UsageLine usage={item.usage} />}
-            {item.role === 'assistant' && item.context && <ContextChip context={item.context} />}
-            {item.role === 'assistant' && mode === 'branching' && (
-              <button className="fork-button" disabled={blocked} onClick={() => onFork(index)} type="button">
-                🌿 Ветвиться отсюда
-              </button>
-            )}
+            {item.role === 'assistant' && <MemoryChip memory={item.memory} />}
           </div>
         ))}
         {loading && (
@@ -172,7 +98,7 @@ export default function ChatPanel({
           disabled={blocked}
           onChange={event => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={overflow ? 'Лимит — смените режим на «Окно»/«Факты» или начните новый чат' : 'Напиши сообщение...'}
+          placeholder="Напиши сообщение... (или «запомни: ...»)"
           rows="2"
           value={message}
         />
@@ -180,10 +106,6 @@ export default function ChatPanel({
           {loading ? 'Думает...' : 'Отправить'} <span>↗</span>
         </button>
       </form>
-      <ModeSelector disabled={loading || simulating} mode={mode} onChange={onModeChange} />
-      {mode === 'facts' && (
-        <FactsPanel disabled={loading || simulating} facts={facts ?? {}} onChange={onFactsChange} />
-      )}
       <p className="composer-hint">Enter — отправить&nbsp;&nbsp;·&nbsp;&nbsp;Shift + Enter — новая строка</p>
     </section>
   );
