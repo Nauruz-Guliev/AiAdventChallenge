@@ -235,6 +235,7 @@ class JsonMemoryRepository:
                 raise CandidateConflict(candidate_id)
             _set_candidate_status(store, candidate_id, "rejected")
             self._write_candidates(store)
+            candidate.status = "rejected"
             return candidate
 
     async def clear_rejected_candidates(self) -> int:

@@ -190,6 +190,28 @@ def test_approve_candidate_choose_where_and_what(client, tmp_path):
     ).status_code == 400
 
 
+def test_reject_returns_rejected_status(client, tmp_path):
+    http, repository = client
+    chat_id = http.post("/api/chats").json()["id"]
+    (tmp_path / "candidates.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "candidates": [
+                    {"id": "c3", "text": "x", "category": "knowledge", "source_chat_id": chat_id, "status": "pending", "created_at": "t"}
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = http.post("/api/candidates/c3/reject")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+
+
 def test_send_message_returns_memory_usage(client):
     http, _ = client
     chat_id = http.post("/api/chats").json()["id"]

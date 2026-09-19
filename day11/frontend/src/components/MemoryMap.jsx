@@ -231,9 +231,9 @@ export default function MemoryMap({
             <button
               className="btn"
               disabled={disabled || !newEntry.text.trim()}
-              onClick={() => {
-                onAddEntry(newEntry);
-                setNewEntry(current => ({ ...current, text: '' }));
+              onClick={async () => {
+                const saved = await onAddEntry(newEntry);
+                if (saved) setNewEntry(current => ({ ...current, text: '' }));
               }}
               type="button"
             >

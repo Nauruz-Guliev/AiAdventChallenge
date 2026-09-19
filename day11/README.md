@@ -21,7 +21,8 @@
 ## Политика записи
 
 - После ответа модель предлагает кандидатов («похоже на долговременное») —
-  они попадают в блок «💾 Запомнить навсегда?». Вы подтверждаете ✅ или отклоняете ✕.
+  они попадают в блок «На пороге». Там можно **поправить текст и выбрать
+  категорию**, затем «Запомнить» или «Не надо».
 - Ручная команда `запомни: <текст>` пишет в долговременную **сразу**, минуя гейт.
 - Рабочую карточку вы заполняете вручную — модель её не трогает.
 
@@ -29,31 +30,41 @@
 
 Промпт собирается из трёх слоёв: блоки `## Долговременная память` и
 `## Рабочая память` подписываются заголовками, история диалога добавляется
-сырыми сообщениями (без заголовка). Пустой слой не добавляется. Чип под
-ответом показывает токены по слоям.
+сырыми сообщениями (без заголовка). Пустой слой не добавляется. Мета-строка
+под ответом показывает токены по слоям, а раскрывающийся пункт «Что учтено в
+ответе» — какие реплики, поля рабочей карточки и записи долговременной попали
+именно в этот ответ.
 
 ## Ручной ритуал
 
-1. Чат А: «кстати, я аллергик — арахис нельзя» → блок «Запомнить навсегда?» → ✅ (Знания).
+1. Чат А: «кстати, я аллергик — арахис нельзя» → блок «На пороге» → выберите «Знания» → «Запомнить».
 2. **Новый чат Б**: «что ты обо мне знаешь?» → отвечает из долговременной. Чат Б
    истории А не видел — это и есть доказательство разделения и глобальности.
 3. Рабочая: заполните карточку, цель «бюджет 500» → сохраните → измените на
    «бюджет 900» → спросите «какой бюджет?» → 900 (перезапись, не append).
-4. Удалите аллергию из долговременной (🗑) → новый чат В снова не знает.
+4. Удалите аллергию из долговременной (значок × у записи) → новый чат В снова не знает.
 5. Краткосрочная: «Очистить историю» → диалог забыт, долговременная помнится.
 6. `запомни: я предпочитаю тёмную тему` → сразу в долговременной, без кандидата.
 
 ## Запуск
 
-```bash
-cd day11/backend
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
+```powershell
+# backend (Windows)
+cd day11\backend
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
 # .env: DEEPSEEK_API_KEY=... (см. .env.example)
-uvicorn app.main:app --reload
-
-cd ../frontend && npm install && npm run dev  # http://localhost:5173
+.venv\Scripts\python -m uvicorn app.main:app --reload
 ```
+
+```powershell
+# frontend — во втором терминале
+cd day11\frontend
+npm install
+npm run dev   # http://localhost:5173
+```
+
+На macOS/Linux активируйте venv иначе: `python3 -m venv .venv && . .venv/bin/activate`.
 
 Если `day10` держит порт 8000/5173 — сначала останови его.
 
@@ -63,8 +74,8 @@ cd ../frontend && npm install && npm run dev  # http://localhost:5173
 - `DELETE /api/chats/{id}/messages` — очистить краткосрочную историю;
 - `GET|PUT /api/chats/{id}/working-memory` · `POST .../complete` · `POST .../reset`;
 - `GET|PUT /api/long-term` · `DELETE /api/long-term/{category}/{entry_id}`;
-- `GET /api/candidates?status=pending` · `POST /api/candidates/{id}/approve` ·
-  `POST .../reject` · `DELETE /api/candidates?status=rejected`.
+- `GET /api/candidates?status=pending` · `POST /api/candidates/{id}/approve`
+  `{text?, category?}` · `POST .../reject` · `DELETE /api/candidates?status=rejected`.
 
 ## Честные ограничения
 
@@ -75,7 +86,7 @@ cd ../frontend && npm install && npm run dev  # http://localhost:5173
   релевантности, растёт до капа `LONG_TERM_MAX_PER_CATEGORY`.
 - Конфликт долговременной и краткосрочной не разрешается автоматически —
   побеждает то, что позже в промпте.
-- Жизненный цикл рабочей памяти ручной (кнопка «Завершить задачу»).
+- Жизненный цикл рабочей памяти ручной (кнопка «Завершить»).
 
 ## Тесты
 
@@ -90,4 +101,6 @@ cd day11/backend && .venv\Scripts\python.exe -m pytest -q
   ответ → поиск кандидатов;
 - `app/infrastructure/json_memory_repository.py` — три раздельных хранилища;
 - `app/domain/models.py` — `WorkingMemory`, `LongTermMemory`, `MemoryCandidate`;
-- `frontend/src/components/MemoryPanel.jsx`, `CandidatesPanel.jsx`.
+- `frontend/src/components/MemoryMap.jsx` — «Разрез памяти» (слои, порог, ящики);
+- `frontend/src/components/CandidateTray.jsx` — кандидаты (правка текста и категории);
+- `frontend/src/components/ChatPanel.jsx` — диалог, метаданные и разбор «Что учтено».

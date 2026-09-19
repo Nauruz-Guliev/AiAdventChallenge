@@ -124,7 +124,7 @@ export default function App() {
 
   async function sendToChat(text) {
     const used = {
-      historyCount: messages.length,
+      historyCount: messages.length + 1,
       working: working
         ? {
             goal: working.goal,
@@ -221,8 +221,10 @@ export default function App() {
         { id: crypto.randomUUID(), text, source_chat_id: selectedChatId, created_at: new Date().toISOString() },
       ];
       setLongTerm(await replaceLongTerm(next));
+      return true;
     } catch (requestError) {
       setError(requestError.message);
+      return false;
     }
   }
 

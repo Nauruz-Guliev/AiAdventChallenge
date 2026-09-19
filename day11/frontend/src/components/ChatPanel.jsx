@@ -24,7 +24,7 @@ function UsedMemory({ used }) {
       <div className="trace-body">
         <div>
           <span className="trace-label mono">краткосрочная</span>
-          история: {used.historyCount} сообщ.
+          диалог в контексте: {used.historyCount} сообщ.
         </div>
         {workingParts.length > 0 && (
           <div>
