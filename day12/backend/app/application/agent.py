@@ -12,7 +12,9 @@ from app.application.memory import (
 )
 from app.application.ports.chat_repository import ChatRepository
 from app.application.ports.llm_gateway import LLMGateway
+from app.application.ports.profile_repository import ProfileRepository
 from app.application.ports.token_counter import TokenCounter
+from app.application.profiles import build_profile_block
 from app.application.usage import build_dialog_usage, exchange_cost_usd
 from app.domain.models import (
     AgentResult,
@@ -24,6 +26,7 @@ from app.domain.models import (
     MemoryInfo,
     UsageConfig,
     UsageReport,
+    UserProfile,
 )
 
 
@@ -45,6 +48,7 @@ class Agent:
         config: UsageConfig,
         model: str = "deepseek-chat",
         candidates_enabled: bool = True,
+        profiles: ProfileRepository | None = None,
     ):
         self._gateway = gateway
         self._repository = repository
@@ -52,6 +56,7 @@ class Agent:
         self._config = config
         self._model = model
         self._candidates_enabled = candidates_enabled
+        self._profiles = profiles
 
     @staticmethod
     def _validate_message(user_text: str) -> str:
@@ -70,6 +75,10 @@ class Agent:
         message = self._validate_message(user_text)
         chat = await self._repository.get_chat(chat_id)
         long_term = await self._repository.get_long_term()
+
+        profile: UserProfile | None = None
+        if self._profiles is not None:
+            profile = await self._profiles.get_active()
 
         command_text = parse_memory_command(message)
         command_tokens = 0
@@ -90,9 +99,9 @@ class Agent:
             long_term = await self._repository.get_long_term()
 
         new_message = ChatMessage(role="user", content=message)
-        prompt = build_prompt(chat, long_term, SYSTEM_PROMPT)
+        prompt = build_prompt(chat, long_term, SYSTEM_PROMPT, profile=profile)
         call_messages = [*prompt, new_message]
-        used = build_memory_trace(chat, long_term)
+        used = build_memory_trace(chat, long_term, profile)
         request_tokens = self._counter.count_messages([new_message])
         sent_history_tokens = self._counter.count_messages(call_messages) - request_tokens
         if sent_history_tokens + request_tokens > self._config.context_limit_tokens:
@@ -159,6 +168,11 @@ class Agent:
                     ),
                     history_tokens=self._counter.count_messages(updated_chat.messages),
                     candidate_tokens=candidate_tokens + command_tokens,
+                    profile_tokens=(
+                        self._counter.count_messages([build_profile_block(profile)])
+                        if build_profile_block(profile)
+                        else 0
+                    ),
                 ),
             ),
             used=used,
