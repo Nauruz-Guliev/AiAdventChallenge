@@ -260,6 +260,12 @@ export default function App() {
         </ul>
       </header>
 
+      <div className="spine" aria-hidden="true">
+        <span className="spine-seg spine-seg--short" />
+        <span className="spine-seg spine-seg--work" />
+        <span className="spine-seg spine-seg--long" />
+      </div>
+
       <section className="split">
         <MemoryMap
           candidates={candidates}

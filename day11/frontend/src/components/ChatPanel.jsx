@@ -81,6 +81,11 @@ export default function ChatPanel({
       <div className="conversation" ref={conversationRef}>
         {!messages.length && !error && !overflow && !loading && (
           <div className="empty-state">
+            <span className="empty-marks" aria-hidden="true">
+              <i className="empty-mark empty-mark--short" />
+              <i className="empty-mark empty-mark--work" />
+              <i className="empty-mark empty-mark--long" />
+            </span>
             <strong>Агент готов</strong>
             Напишите сообщение. История останется в этом чате, а то, что решите
             запомнить, — навсегда.
@@ -101,8 +106,10 @@ export default function ChatPanel({
         ))}
         {loading && (
           <div className="turn turn--agent">
-            <div className="bubble loading">
-              <span className="dot" /><span className="dot" /><span className="dot" />
+            <div className="bubble bubble--skeleton" role="status" aria-label="Ассистент готовит ответ">
+              <span className="skeleton-line" style={{ width: '72%' }} />
+              <span className="skeleton-line" style={{ width: '94%' }} />
+              <span className="skeleton-line" style={{ width: '58%' }} />
             </div>
           </div>
         )}
