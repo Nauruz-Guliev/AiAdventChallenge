@@ -98,11 +98,12 @@ export default function ChatPanel({
         {!messages.length && !error && !overflow && !loading && (
           <div className="empty-state">
             <span className="empty-signature mono">
-              профиль подключается к каждому ответу
+              планирование → выполнение → проверка → готово
             </span>
-            <strong>Отвечу в вашем стиле</strong>
-            Задайте вопрос: активный профиль задаст тон и формат, а память дня 11
-            сохранит факты.
+            <strong>Опишите задачу — агент разберёт её на шаги</strong>
+            Первое сообщение создаст задачу: агент составит план и будет
+            выполнять его по шагам. Этап, шаг и ожидаемое действие появятся на
+            панели сверху.
           </div>
         )}
         {messages.map((item, index) => (
@@ -164,7 +165,7 @@ export default function ChatPanel({
           disabled={blocked}
           onChange={event => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Сообщение. Команда «запомни: ...» сохраняет сразу."
+          placeholder="Опишите задачу. «продолжай» — двигаться дальше."
           rows="2"
           value={message}
         />

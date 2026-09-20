@@ -31,7 +31,6 @@ import ConfirmDialog from './components/ConfirmDialog.jsx';
 import MemoryMap from './components/MemoryMap.jsx';
 import SessionStrip from './components/SessionStrip.jsx';
 import TaskStatePanel from './components/TaskStatePanel.jsx';
-import { LENGTH_LABELS, STRUCTURE_LABELS, TONE_LABELS_FULL } from './profile-labels.js';
 
 export default function App() {
   const [chats, setChats] = useState([]);
@@ -379,25 +378,6 @@ export default function App() {
 
   const activeProfile =
     profileStore.profiles.find(item => item.id === profileStore.active_id) ?? null;
-  const profileOff = Boolean(
-    activeProfile &&
-      activeProfile.tone === 'neutral' &&
-      activeProfile.length === 'medium' &&
-      activeProfile.structure === 'prose' &&
-      !(activeProfile.constraints ?? []).length &&
-      !activeProfile.name &&
-      !activeProfile.role,
-  );
-  const profileSignature = activeProfile
-    ? [
-        TONE_LABELS_FULL[activeProfile.tone],
-        LENGTH_LABELS[activeProfile.length],
-        STRUCTURE_LABELS[activeProfile.structure],
-        ...(activeProfile.constraints ?? []),
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : '';
   const disabled = loading || initializing;
   const recent = messages.slice(-4);
 
@@ -407,25 +387,21 @@ export default function App() {
         <div>
           <h1>Состояние задачи</h1>
           <p>
-            Агент ведёт задачу как конечный автомат: этап, шаг и ожидаемое
-            действие видны на панели. Пауза на любом этапе и продолжение — без
-            повторных объяснений.
+            Каждая задача проходит конечный автомат: планирование → выполнение →
+            проверка → готово. Пауза — на любом этапе, продолжение — с того же
+            шага, без повторных объяснений.
           </p>
         </div>
-        {activeProfile && (
-          <div className="signature" aria-label="Активный профиль">
-            <span className="signature-label mono">профиль</span>
-            <span className="signature-title">
-              {activeProfile.title || 'Без названия'}
-            </span>
-            <span className="signature-meta mono">
-              {profileOff ? 'персонализация выключена' : profileSignature}
-            </span>
-          </div>
-        )}
       </header>
 
       <div className="spine" aria-hidden="true" />
+
+      <TaskStatePanel
+        disabled={disabled}
+        onPause={handlePauseTask}
+        onResume={handleResumeTask}
+        state={taskState}
+      />
 
       <section className="split">
         <MemoryMap
@@ -454,12 +430,6 @@ export default function App() {
           working={working}
         />
         <div className="col-dialog">
-          <TaskStatePanel
-            disabled={disabled}
-            onPause={handlePauseTask}
-            onResume={handleResumeTask}
-            state={taskState}
-          />
           <SessionStrip
             chats={chats}
             disabled={disabled}

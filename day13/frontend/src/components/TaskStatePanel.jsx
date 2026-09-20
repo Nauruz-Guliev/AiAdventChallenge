@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+
 const STAGES = [
   { key: 'planning', label: 'планирование' },
   { key: 'execution', label: 'выполнение' },
@@ -19,14 +21,19 @@ export default function TaskStatePanel({ state, disabled, onPause, onResume }) {
     <section className={`task${state.paused ? ' task--paused' : ''}`}>
       <div className="task-head">
         <div className="task-heading">
-          <span className="task-label mono">состояние задачи</span>
+          <span className="task-label mono">задача</span>
           <h2>{state.task || 'Без названия'}</h2>
         </div>
         <div className="task-controls">
           {state.paused ? (
             <>
               <span className="task-paused mono">на паузе</span>
-              <button className="btn" disabled={disabled} onClick={onResume} type="button">
+              <button
+                className="btn btn--commit"
+                disabled={disabled}
+                onClick={onResume}
+                type="button"
+              >
                 ▶ Продолжить
               </button>
             </>
@@ -45,19 +52,29 @@ export default function TaskStatePanel({ state, disabled, onPause, onResume }) {
 
       <ol className="task-steps">
         {STAGES.map((stage, index) => (
-          <li className={`task-stage ${stageClass(index, activeIndex)}`} key={stage.key}>
-            <span className="task-dot" aria-hidden="true" />
-            <span className="task-stage-label">{stage.label}</span>
-          </li>
+          <Fragment key={stage.key}>
+            {index > 0 && <li className="task-arrow" aria-hidden="true" />}
+            <li className={`task-stage ${stageClass(index, activeIndex)}`}>
+              <span className="task-dot" aria-hidden="true">
+                {index < activeIndex ? '✓' : ''}
+              </span>
+              <span className="task-stage-label">{stage.label}</span>
+            </li>
+          </Fragment>
         ))}
       </ol>
 
       <div className="task-meta">
-        <span className="mono">
+        <span className="mono task-count">
           шаг {state.step}/{state.total_steps}
         </span>
-        {state.step_label && <span className="task-step-label">{state.step_label}</span>}
-        <span className="task-expected">{state.expected_action}</span>
+        {state.step_label && (
+          <span className="task-step-label">{state.step_label}</span>
+        )}
+        <span className="task-expected">
+          <span className="task-expected-arrow" aria-hidden="true">→</span>
+          {state.expected_action}
+        </span>
       </div>
     </section>
   );
