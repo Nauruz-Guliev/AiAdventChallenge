@@ -105,6 +105,9 @@ async def test_first_message_starts_planning_and_accepts_the_plan():
     assert tasks.state.steps == ("Собрать данные", "Написать текст")
     assert result.task["stage"] == "execution"
     assert result.task["step"] == 1
+    assert result.answer.startswith("План работы")
+    assert "1. Собрать данные" in result.answer
+    assert "```" not in result.answer
 
 
 async def test_plan_failure_is_retried_once_and_accepted():

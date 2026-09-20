@@ -18,8 +18,14 @@ from app.domain.models import (
     WorkingMemory,
 )
 from app.infrastructure.json_memory_repository import JsonMemoryRepository
+from app.infrastructure.json_task_repository import JsonTaskRepository
 from app.main import app
-from app.presentation.dependencies import get_agent, get_repository, get_usage_config
+from app.presentation.dependencies import (
+    get_agent,
+    get_repository,
+    get_task_repository,
+    get_usage_config,
+)
 
 
 def report():
@@ -64,6 +70,9 @@ def client(tmp_path):
     )
     app.dependency_overrides[get_repository] = lambda: repository
     app.dependency_overrides[get_agent] = lambda: FakeAgent()
+    app.dependency_overrides[get_task_repository] = lambda: JsonTaskRepository(
+        state_path=tmp_path / "task_state.json"
+    )
     app.dependency_overrides[get_usage_config] = lambda: UsageConfig()
     with TestClient(app) as test_client:
         yield test_client, repository

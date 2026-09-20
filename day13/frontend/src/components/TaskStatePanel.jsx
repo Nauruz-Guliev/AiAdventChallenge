@@ -14,40 +14,48 @@ function stageClass(index, activeIndex) {
 }
 
 export default function TaskStatePanel({ state, disabled, onPause, onResume }) {
-  if (!state?.active) return null;
-  const activeIndex = state.stage_index ?? 0;
+  if (!state) return null;
+
+  const active = Boolean(state.active);
+  const paused = active && Boolean(state.paused);
+  const finished = state.stage === 'done';
+  const activeIndex = active ? state.stage_index ?? 0 : -1;
 
   return (
-    <section className={`task${state.paused ? ' task--paused' : ''}`}>
+    <section className={`task${paused ? ' task--paused' : ''}`}>
       <div className="task-head">
         <div className="task-heading">
           <span className="task-label mono">задача</span>
-          <h2>{state.task || 'Без названия'}</h2>
+          <h2>
+            {active ? state.task || 'Без названия' : 'Задача ещё не задана'}
+          </h2>
         </div>
-        <div className="task-controls">
-          {state.paused ? (
-            <>
-              <span className="task-paused mono">на паузе</span>
+        {active && (
+          <div className="task-controls">
+            {paused ? (
+              <>
+                <span className="task-paused mono">на паузе</span>
+                <button
+                  className="btn btn--commit"
+                  disabled={disabled}
+                  onClick={onResume}
+                  type="button"
+                >
+                  ▶ Продолжить
+                </button>
+              </>
+            ) : (
               <button
-                className="btn btn--commit"
-                disabled={disabled}
-                onClick={onResume}
+                className="btn"
+                disabled={disabled || finished}
+                onClick={onPause}
                 type="button"
               >
-                ▶ Продолжить
+                ⏸ Пауза
               </button>
-            </>
-          ) : (
-            <button
-              className="btn"
-              disabled={disabled || state.stage === 'done'}
-              onClick={onPause}
-              type="button"
-            >
-              ⏸ Пауза
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       <ol className="task-steps">
@@ -65,9 +73,11 @@ export default function TaskStatePanel({ state, disabled, onPause, onResume }) {
       </ol>
 
       <div className="task-meta">
-        <span className="mono task-count">
-          шаг {state.step}/{state.total_steps}
-        </span>
+        {active && state.total_steps > 0 && (
+          <span className="mono task-count">
+            шаг {state.step}/{state.total_steps}
+          </span>
+        )}
         {state.step_label && (
           <span className="task-step-label">{state.step_label}</span>
         )}

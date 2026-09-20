@@ -16,7 +16,12 @@ from app.application.ports.profile_repository import ProfileRepository
 from app.application.ports.task_repository import TaskRepository
 from app.application.ports.token_counter import TokenCounter
 from app.application.profiles import build_profile_block
-from app.application.task_engine import PLAN_FORMAT_HINT, build_task_block, parse_plan
+from app.application.task_engine import (
+    PLAN_FORMAT_HINT,
+    build_task_block,
+    parse_plan,
+    render_plan,
+)
 from app.application.usage import build_dialog_usage, exchange_cost_usd
 from app.domain.models import (
     AgentResult,
@@ -130,7 +135,10 @@ class Agent:
         response = await self._gateway.complete(call_messages)
         answer = response.text.strip()
         if state is not None:
+            previous_stage = state.stage
             state = await self._advance_task(state, message, answer)
+            if previous_stage == Stage.PLANNING and state.steps and state.stage != Stage.PLANNING:
+                answer = render_plan(state.steps)
         updated_chat = await self._repository.append_exchange(
             chat_id, message, answer, response.usage, used=used
         )

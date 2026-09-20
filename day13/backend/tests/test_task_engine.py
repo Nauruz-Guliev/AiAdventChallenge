@@ -18,6 +18,18 @@ def test_parse_bare_json_array():
     assert parse_plan('["раз", "два"]') == ("раз", "два")
 
 
+def test_parse_numbered_and_bullet_lists_as_fallback():
+    assert parse_plan("1. Первый шаг\n2. Второй шаг\n3. Третий шаг") == (
+        "Первый шаг",
+        "Второй шаг",
+        "Третий шаг",
+    )
+    assert parse_plan("- Собрать данные\n* Написать текст") == (
+        "Собрать данные",
+        "Написать текст",
+    )
+
+
 def test_parse_returns_none_for_invalid_input():
     assert parse_plan("просто текст без плана") is None
     assert parse_plan("```json\n{not json}\n```") is None

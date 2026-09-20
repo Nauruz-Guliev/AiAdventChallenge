@@ -4,11 +4,13 @@ from fastapi.testclient import TestClient
 from app.domain.models import UsageConfig
 from app.infrastructure.json_memory_repository import JsonMemoryRepository
 from app.infrastructure.json_profile_repository import JsonProfileRepository
+from app.infrastructure.json_task_repository import JsonTaskRepository
 from app.main import app
 from app.presentation.dependencies import (
     get_agent,
     get_profile_repository,
     get_repository,
+    get_task_repository,
     get_usage_config,
 )
 
@@ -29,6 +31,9 @@ def client(tmp_path):
     app.dependency_overrides[get_repository] = lambda: memory
     app.dependency_overrides[get_profile_repository] = lambda: profiles
     app.dependency_overrides[get_agent] = lambda: FakeAgent()
+    app.dependency_overrides[get_task_repository] = lambda: JsonTaskRepository(
+        state_path=tmp_path / "task_state.json"
+    )
     app.dependency_overrides[get_usage_config] = lambda: UsageConfig()
     with TestClient(app) as test_client:
         yield test_client

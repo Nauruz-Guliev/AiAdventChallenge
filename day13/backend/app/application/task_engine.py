@@ -12,6 +12,7 @@ PLAN_FORMAT_HINT = (
 )
 
 _FENCED = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
+_LIST_ITEM = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+(.+?)\s*$")
 
 
 def parse_plan(text: str) -> tuple[str, ...] | None:
@@ -29,7 +30,15 @@ def parse_plan(text: str) -> tuple[str, ...] | None:
         )
         if steps:
             return steps
-    return None
+    return _numbered_steps(text) or None
+
+
+def _numbered_steps(text: str) -> tuple[str, ...]:
+    return tuple(
+        match.group(1)
+        for line in text.splitlines()
+        if (match := _LIST_ITEM.match(line))
+    )
 
 
 def _plan_candidates(text: str):
@@ -38,6 +47,14 @@ def _plan_candidates(text: str):
         yield block
     if not fenced:
         yield text.strip()
+
+
+def render_plan(steps: tuple[str, ...] | list[str]) -> str:
+    items = list(steps)
+    lines = "\n".join(
+        f"{index}. {step}" for index, step in enumerate(items, 1)
+    )
+    return f"План работы ({len(items)} шагов):\n{lines}"
 
 
 def build_task_block(state: TaskState) -> str:
