@@ -109,8 +109,8 @@ docstring (MCP строит `inputSchema`); результат — `dict`.
   "mcp": {
     "weather": {
       "type": "local",
-      "command": ["uv", "run", "--no-project", "--directory", "day17",
-                  "--with", "mcp>=2,<3", "server.py"],
+      "command": ["uv", "run", "--no-project", "--with", "mcp>=2,<3", "server.py"],
+      "cwd": "day17",
       "enabled": true,
       "timeout": 60000
     }

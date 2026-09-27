@@ -263,8 +263,9 @@ mcp = MCPServer(<span class="s">"weather"</span>)
   <span class="s">"mcp"</span>: {
     <span class="s">"weather"</span>: {
       <span class="s">"type"</span>: <span class="s">"local"</span>,
-      <span class="s">"command"</span>: [<span class="s">"uv"</span>, <span class="s">"run"</span>, <span class="s">"--no-project"</span>, <span class="s">"--directory"</span>, <span class="s">"day17"</span>,
+      <span class="s">"command"</span>: [<span class="s">"uv"</span>, <span class="s">"run"</span>, <span class="s">"--no-project"</span>,
                   <span class="s">"--with"</span>, <span class="s">"mcp&gt;=2,&lt;3"</span>, <span class="s">"server.py"</span>],
+      <span class="s">"cwd"</span>: <span class="s">"day17"</span>,
       <span class="s">"enabled"</span>: <span class="k">true</span>,
       <span class="s">"timeout"</span>: 60000
     }
