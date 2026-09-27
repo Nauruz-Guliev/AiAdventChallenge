@@ -7,40 +7,9 @@ import urllib.request
 from dataclasses import dataclass
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
-FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-TIMEOUT_SECONDS = 10
+WTTR_URL = "https://wttr.in"
+TIMEOUT_SECONDS = 20
 USER_AGENT = "advent-mcp-weather/1.0"
-
-WMO_DESCRIPTIONS = {
-    0: "Ясно",
-    1: "Преимущественно ясно",
-    2: "Переменная облачность",
-    3: "Пасмурно",
-    45: "Туман",
-    48: "Изморозь",
-    51: "Слабая морось",
-    53: "Морось",
-    55: "Сильная морось",
-    56: "Слабая ледяная морось",
-    57: "Ледяная морось",
-    61: "Небольшой дождь",
-    63: "Дождь",
-    65: "Сильный дождь",
-    66: "Слабый ледяной дождь",
-    67: "Ледяной дождь",
-    71: "Небольшой снег",
-    73: "Снег",
-    75: "Сильный снег",
-    77: "Снежная крупа",
-    80: "Небольшие ливни",
-    81: "Ливни",
-    82: "Сильные ливни",
-    85: "Небольшой снегопад",
-    86: "Сильный снегопад",
-    95: "Гроза",
-    96: "Гроза с градом",
-    99: "Сильная гроза с градом",
-}
 
 
 class WeatherError(Exception):
@@ -54,12 +23,9 @@ class Geocode:
     longitude: float
 
 
-def describe_weather(code: int) -> str:
-    return WMO_DESCRIPTIONS.get(code, f"Код погоды {code}")
-
-
 def _get_json(url: str, params: dict) -> dict:
-    full_url = f"{url}?{urllib.parse.urlencode(params)}"
+    query = urllib.parse.urlencode(params)
+    full_url = f"{url}?{query}" if query else url
     request = urllib.request.Request(full_url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
@@ -87,67 +53,64 @@ def geocode(city: str) -> Geocode:
     )
 
 
-def current_weather(latitude: float, longitude: float) -> dict:
-    data = _get_json(
-        FORECAST_URL,
-        {
-            "latitude": latitude,
-            "longitude": longitude,
-            "current": (
-                "temperature_2m,apparent_temperature,"
-                "relative_humidity_2m,wind_speed_10m,weather_code"
-            ),
-            "timezone": "auto",
-        },
+def _describe(entry: dict) -> str:
+    for key in ("lang_ru", "weatherDesc"):
+        values = entry.get(key) or []
+        if values:
+            value = (values[0].get("value") or "").strip()
+            if value:
+                return value
+    return "нет данных"
+
+
+def _fetch_wttr(latitude: float, longitude: float) -> dict:
+    return _get_json(
+        f"{WTTR_URL}/{latitude},{longitude}", {"format": "j1", "lang": "ru"}
     )
-    current = data.get("current")
-    if not current:
+
+
+def current_weather(latitude: float, longitude: float) -> dict:
+    data = _fetch_wttr(latitude, longitude)
+    conditions = data.get("current_condition") or []
+    if not conditions:
         raise WeatherError("API не вернул текущую погоду")
+    current = conditions[0]
     return {
-        "temperature_c": current.get("temperature_2m"),
-        "feels_like_c": current.get("apparent_temperature"),
-        "humidity_percent": current.get("relative_humidity_2m"),
-        "wind_kmh": current.get("wind_speed_10m"),
-        "weather": describe_weather(int(current.get("weather_code", -1))),
+        "temperature_c": float(current["temp_C"]),
+        "feels_like_c": float(current["FeelsLikeC"]),
+        "humidity_percent": int(current["humidity"]),
+        "wind_kmh": float(current["windspeedKmph"]),
+        "weather": _describe(current),
     }
 
 
+def _day_description(hourly: list[dict]) -> str:
+    for entry in hourly:
+        if entry.get("time") == "1200":
+            return _describe(entry)
+    if hourly:
+        return _describe(hourly[0])
+    return "нет данных"
+
+
 def daily_forecast(latitude: float, longitude: float, days: int) -> list[dict]:
-    data = _get_json(
-        FORECAST_URL,
-        {
-            "latitude": latitude,
-            "longitude": longitude,
-            "daily": (
-                "temperature_2m_max,temperature_2m_min,"
-                "precipitation_probability_max,weather_code"
-            ),
-            "forecast_days": days,
-            "timezone": "auto",
-        },
-    )
-    daily = data.get("daily") or {}
-    dates = daily.get("time") or []
-    if not dates:
+    data = _fetch_wttr(latitude, longitude)
+    weather_days = data.get("weather") or []
+    if not weather_days:
         raise WeatherError("API не вернул прогноз")
-    highs = daily.get("temperature_2m_max") or []
-    lows = daily.get("temperature_2m_min") or []
-    precipitation = daily.get("precipitation_probability_max") or []
-    codes = daily.get("weather_code") or []
     forecast = []
-    for index, day in enumerate(dates):
-        code = codes[index] if index < len(codes) else None
+    for day in weather_days[:days]:
+        hourly = day.get("hourly") or []
+        precipitation = max(
+            (int(entry.get("chanceofrain") or 0) for entry in hourly), default=0
+        )
         forecast.append(
             {
-                "date": day,
-                "temp_max_c": highs[index] if index < len(highs) else None,
-                "temp_min_c": lows[index] if index < len(lows) else None,
-                "precipitation_probability": (
-                    precipitation[index] if index < len(precipitation) else None
-                ),
-                "weather": (
-                    describe_weather(int(code)) if code is not None else "нет данных"
-                ),
+                "date": day["date"],
+                "temp_max_c": float(day["maxtempC"]),
+                "temp_min_c": float(day["mintempC"]),
+                "precipitation_probability": precipitation,
+                "weather": _day_description(hourly),
             }
         )
     return forecast

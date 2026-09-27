@@ -1,18 +1,33 @@
+import asyncio
+import sys
+from pathlib import Path
+
 import pytest
+from mcp import Client, StdioServerParameters
 
 import server
 import weather_api
-from weather_api import WeatherError, describe_weather
+from weather_api import WeatherError
+
+SERVER_SCRIPT = Path(__file__).with_name("server.py")
 
 
-def test_describe_weather_known_codes():
-    assert describe_weather(0) == "Ясно"
-    assert describe_weather(3) == "Пасмурно"
-    assert describe_weather(95) == "Гроза"
+def server_params():
+    return StdioServerParameters(command=sys.executable, args=[str(SERVER_SCRIPT)])
 
 
-def test_describe_weather_unknown_code():
-    assert "123" in describe_weather(123)
+async def list_tools():
+    async with Client(server_params()) as client:
+        return (await client.list_tools()).tools
+
+
+def test_describe_prefers_russian():
+    entry = {"lang_ru": [{"value": "  Ясно "}], "weatherDesc": [{"value": "Sunny"}]}
+    assert weather_api._describe(entry) == "Ясно"
+
+
+def test_describe_falls_back_to_english():
+    assert weather_api._describe({"weatherDesc": [{"value": "Sunny"}]}) == "Sunny"
 
 
 def test_geocode_returns_coordinates(monkeypatch):
@@ -49,21 +64,25 @@ def test_current_weather_shape(monkeypatch):
         weather_api,
         "_get_json",
         lambda url, params: {
-            "current": {
-                "temperature_2m": -3.2,
-                "apparent_temperature": -7.0,
-                "relative_humidity_2m": 85,
-                "wind_speed_10m": 12.4,
-                "weather_code": 3,
-            }
+            "current_condition": [
+                {
+                    "temp_C": "13",
+                    "FeelsLikeC": "11",
+                    "humidity": "67",
+                    "windspeedKmph": "8",
+                    "weatherCode": "122",
+                    "weatherDesc": [{"value": "Overcast"}],
+                    "lang_ru": [{"value": "Пасмурно"}],
+                }
+            ]
         },
     )
     result = weather_api.current_weather(55.75, 37.62)
     assert result == {
-        "temperature_c": -3.2,
-        "feels_like_c": -7.0,
-        "humidity_percent": 85,
-        "wind_kmh": 12.4,
+        "temperature_c": 13.0,
+        "feels_like_c": 11.0,
+        "humidity_percent": 67,
+        "wind_kmh": 8.0,
         "weather": "Пасмурно",
     }
 
@@ -79,28 +98,36 @@ def test_daily_forecast_shape(monkeypatch):
         weather_api,
         "_get_json",
         lambda url, params: {
-            "daily": {
-                "time": ["2026-09-27", "2026-09-28"],
-                "temperature_2m_max": [4.1, 5.0],
-                "temperature_2m_min": [-1.0, 0.0],
-                "precipitation_probability_max": [20, 10],
-                "weather_code": [2, 0],
-            }
+            "weather": [
+                {
+                    "date": "2026-09-27",
+                    "maxtempC": "17",
+                    "mintempC": "11",
+                    "hourly": [
+                        {"time": "0", "chanceofrain": "5",
+                         "weatherDesc": [{"value": "Cloudy"}]},
+                        {"time": "1200", "chanceofrain": "20",
+                         "lang_ru": [{"value": "Переменная облачность"}],
+                         "weatherDesc": [{"value": "Partly cloudy"}]},
+                        {"time": "1500", "chanceofrain": "10"},
+                    ],
+                }
+            ]
         },
     )
-    result = weather_api.daily_forecast(55.75, 37.62, 2)
-    assert len(result) == 2
+    result = weather_api.daily_forecast(55.75, 37.62, 1)
+    assert len(result) == 1
     assert result[0] == {
         "date": "2026-09-27",
-        "temp_max_c": 4.1,
-        "temp_min_c": -1.0,
+        "temp_max_c": 17.0,
+        "temp_min_c": 11.0,
         "precipitation_probability": 20,
         "weather": "Переменная облачность",
     }
 
 
 def test_daily_forecast_missing_data(monkeypatch):
-    monkeypatch.setattr(weather_api, "_get_json", lambda url, params: {"daily": {}})
+    monkeypatch.setattr(weather_api, "_get_json", lambda url, params: {"weather": []})
     with pytest.raises(WeatherError):
         weather_api.daily_forecast(55.75, 37.62, 3)
 
@@ -115,16 +142,16 @@ def test_get_weather_uses_api(monkeypatch):
         server.weather_api,
         "current_weather",
         lambda lat, lon: {
-            "temperature_c": -3.2,
-            "feels_like_c": -7.0,
-            "humidity_percent": 85,
-            "wind_kmh": 12.4,
+            "temperature_c": 13.0,
+            "feels_like_c": 11.0,
+            "humidity_percent": 67,
+            "wind_kmh": 8.0,
             "weather": "Пасмурно",
         },
     )
     result = server.get_weather("Москва")
     assert result["city"] == "Москва"
-    assert result["temperature_c"] == -3.2
+    assert result["temperature_c"] == 13.0
     assert result["weather"] == "Пасмурно"
 
 
@@ -150,8 +177,8 @@ def test_get_forecast_clamps_days(monkeypatch):
     monkeypatch.setattr(server.weather_api, "geocode", fake_geocode)
     monkeypatch.setattr(server.weather_api, "daily_forecast", fake_forecast)
     result = server.get_forecast("Москва", 99)
-    assert captured["days"] == 7
-    assert len(result["days"]) == 7
+    assert captured["days"] == 3
+    assert len(result["days"]) == 3
 
 
 def test_invalid_city_raises_value_error(monkeypatch):
@@ -161,3 +188,24 @@ def test_invalid_city_raises_value_error(monkeypatch):
     monkeypatch.setattr(server.weather_api, "geocode", fake_geocode)
     with pytest.raises(ValueError):
         server.get_weather("Xyz")
+
+
+def test_stdio_lists_two_tools():
+    tools = asyncio.run(list_tools())
+    assert sorted(tool.name for tool in tools) == ["get_forecast", "get_weather"]
+
+
+def test_get_weather_schema():
+    tools = asyncio.run(list_tools())
+    tool = next(t for t in tools if t.name == "get_weather")
+    assert tool.description
+    assert tool.input_schema["required"] == ["city"]
+    assert tool.input_schema["properties"]["city"]["type"] == "string"
+
+
+def test_get_forecast_schema_default_days():
+    tools = asyncio.run(list_tools())
+    tool = next(t for t in tools if t.name == "get_forecast")
+    schema = tool.input_schema
+    assert schema["required"] == ["city"]
+    assert schema["properties"]["days"]["default"] == 3

@@ -5,7 +5,7 @@ import weather_api
 mcp = MCPServer("weather")
 
 MIN_FORECAST_DAYS = 1
-MAX_FORECAST_DAYS = 7
+MAX_FORECAST_DAYS = 3
 
 
 @mcp.tool()
@@ -34,7 +34,7 @@ def get_forecast(city: str, days: int = 3) -> dict:
 
     Args:
         city: Название города, например "Москва".
-        days: Число дней прогноза от 1 до 7. По умолчанию 3.
+        days: Число дней прогноза от 1 до 3. По умолчанию 3.
     """
     days = max(MIN_FORECAST_DAYS, min(MAX_FORECAST_DAYS, days))
     try:
