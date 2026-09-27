@@ -404,17 +404,31 @@ SERVER_SCRIPT = Path(__file__).with_name(<span class="s">"server.py"</span>)
       </div>
       <p class="filelabel">Запуск клиента</p>
       <pre><code>&amp; ".venv\Scripts\python.exe" client.py
-<span class="c"># → MCP вернул инструментов: 3</span>
-<span class="c">#   - add: Add two numbers.</span>
-<span class="c">#       input_schema: {'type': 'object', 'properties': {...}, 'required': ['a','b']}</span>
-<span class="c">#   - echo: Return the given text unchanged.</span>
-<span class="c">#   - today: Return today's date in ISO format (YYYY-MM-DD).</span></code></pre>
+<span class="c"># ============================================================</span>
+<span class="c">#   MCP: подключение и список инструментов</span>
+<span class="c">#   транспорт: stdio</span>
+<span class="c"># ============================================================</span>
+<span class="c">#</span>
+<span class="c"># [OK] Соединение установлено. Инструментов: 3</span>
+<span class="c">#</span>
+<span class="c"># [1] add</span>
+<span class="c">#     Описание: Add two numbers.</span>
+<span class="c">#     Аргументы:</span>
+<span class="c">#       - a: integer (обязательный)</span>
+<span class="c">#       - b: integer (обязательный)</span>
+<span class="c">#</span>
+<span class="c"># [3] today</span>
+<span class="c">#     Описание: Return today's date in ISO format (YYYY-MM-DD).</span>
+<span class="c">#     Аргументы: нет</span></code></pre>
+      <p>Полезные флаги: <code class="inline">--schema</code> покажет полную
+        JSON-схему аргументов, <code class="inline">--plain</code> отключит цвета
+        (если терминал не поддерживает ANSI).</p>
       <p class="filelabel">Вызов инструмента (учебно, за рамками минимума)</p>
       <pre><code>&amp; ".venv\Scripts\python.exe" client.py --call-add 2 3
-<span class="c"># → add(2, 3) = {'result': 5}</span></code></pre>
+<span class="c"># → Вызов add(2, 3) -&gt; 5</span></code></pre>
       <p class="filelabel">Тесты</p>
       <pre><code>&amp; ".venv\Scripts\python.exe" -m pytest -q
-<span class="c"># → 3 passed</span></code></pre>
+<span class="c"># → 4 passed</span></code></pre>
     </section>
 
     <!-- 8 -->
