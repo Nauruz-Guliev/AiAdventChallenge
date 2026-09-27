@@ -21,7 +21,7 @@ MCP (Model Context Protocol) — стандарт, по которому LLM-п�
 ```
 day16/
   server.py       # MCP-сервер: инструменты add, echo, today
-  client.py       # клиент: stdio-подключение + list_tools (+ опц. вызов)
+  client.py       # клиент: stdio-подключение + list_tools + интерактивный режим
   test_mcp.py     # автопроверка: соединение и список инструментов
   lesson.html     # подробный урок (браузер)
   LESSON.md       # конспект урока (markdown)
@@ -43,13 +43,16 @@ python -m venv .venv
 # подключиться и вывести список инструментов
 & ".venv\Scripts\python.exe" client.py
 
+# интерактивный режим: вызывать инструменты в одной живой сессии
+& ".venv\Scripts\python.exe" client.py -i
+
 # с полной JSON-схемой аргументов
 & ".venv\Scripts\python.exe" client.py --schema
 
 # без цветов (если терминал не поддерживает ANSI)
 & ".venv\Scripts\python.exe" client.py --plain
 
-# дополнительно вызвать инструмент add
+# разово вызвать инструмент add
 & ".venv\Scripts\python.exe" client.py --call-add 2 3
 ```
 
@@ -77,9 +80,39 @@ python -m venv .venv
 [3] today
     Описание: Return today's date in ISO format (YYYY-MM-DD).
     Аргументы: нет
+
+Подсказка: запусти с -i для интерактивного режима.
 ```
 
-С флагом `--call-add` в конце печатается `Вызов add(2, 3) -> 5`.
+## Интерактивный режим
+
+`-i` открывает **одно** соединение и не закрывает его: список инструментов
+печатается один раз, дальше их можно вызывать подряд. Аргументы — позиционно,
+по порядку из схемы; результат печатается как JSON, который MCP отдаёт наружу
+(`content` + `structuredContent`).
+
+```
+mcp> add 2 3
+Результат (как MCP отдаёт):
+{
+  "content": [ { "type": "text", "text": "5" } ],
+  "structuredContent": { "result": 5 },
+  "isError": false,
+  "resultType": "complete"
+}
+
+mcp> echo "два слова"
+Результат (как MCP отдаёт):
+{ ... "structuredContent": { "result": "два слова" } ... }
+
+mcp> today
+mcp> help add        # справка и схема по конкретному инструменту
+mcp> tools           # показать список инструментов заново
+mcp> quit            # выход (или Ctrl+C)
+```
+
+При неверных аргументах печатается понятная подсказка с форматом:
+`Ошибка аргументов: аргумент 'a': ожидалось integer, получено 'x'`.
 
 ## Проверка
 
@@ -87,8 +120,9 @@ python -m venv .venv
 & ".venv\Scripts\python.exe" -m pytest -q
 ```
 
-Ожидаемо: `4 passed`. Тест сам поднимает сервер как подпроцесс, выполняет
-handshake, проверяет список инструментов и формат вывода.
+Ожидаемо: `10 passed`. Тесты поднимают сервер как подпроцесс, выполняют
+handshake, проверяют список инструментов, формат вывода и разбор аргументов
+(`parse_input`, `bind_positional`, `format_result`).
 
 ## Транспорт
 

@@ -420,15 +420,28 @@ SERVER_SCRIPT = Path(__file__).with_name(<span class="s">"server.py"</span>)
 <span class="c"># [3] today</span>
 <span class="c">#     Описание: Return today's date in ISO format (YYYY-MM-DD).</span>
 <span class="c">#     Аргументы: нет</span></code></pre>
-      <p>Полезные флаги: <code class="inline">--schema</code> покажет полную
-        JSON-схему аргументов, <code class="inline">--plain</code> отключит цвета
-        (если терминал не поддерживает ANSI).</p>
-      <p class="filelabel">Вызов инструмента (учебно, за рамками минимума)</p>
-      <pre><code>&amp; ".venv\Scripts\python.exe" client.py --call-add 2 3
-<span class="c"># → Вызов add(2, 3) -&gt; 5</span></code></pre>
+      <p>Полезные флаги: <code class="inline">-i</code>/<code class="inline">--interactive</code>
+        — живая сессия (вызывать инструменты подряд), <code class="inline">--schema</code>
+        покажет полную JSON-схему аргументов, <code class="inline">--plain</code>
+        отключит цвета (если терминал не поддерживает ANSI).</p>
+      <p class="filelabel">Интерактивно: одно соединение, вызовы подряд</p>
+      <pre><code>&amp; ".venv\Scripts\python.exe" client.py -i
+<span class="c"># mcp&gt; add 2 3</span>
+<span class="c"># Результат (как MCP отдаёт):</span>
+<span class="c"># {</span>
+<span class="c">#   "content": [ { "type": "text", "text": "5" } ],</span>
+<span class="c">#   "structuredContent": { "result": 5 },</span>
+<span class="c">#   "isError": false</span>
+<span class="c"># }</span>
+<span class="c"># mcp&gt; echo "два слова"</span>
+<span class="c"># mcp&gt; today</span>
+<span class="c"># mcp&gt; quit</span></code></pre>
+      <p>Результат печатается как JSON «как MCP отдаёт» (<code class="inline">content</code>
+        + <code class="inline">structuredContent</code>) — это ровно тот ответ,
+        что уходит по проводу. Аргументы — позиционно, по схеме.</p>
       <p class="filelabel">Тесты</p>
       <pre><code>&amp; ".venv\Scripts\python.exe" -m pytest -q
-<span class="c"># → 4 passed</span></code></pre>
+<span class="c"># → 10 passed</span></code></pre>
     </section>
 
     <!-- 8 -->

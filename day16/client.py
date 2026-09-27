@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -116,9 +117,170 @@ def format_tools(tools, color: bool = True, show_schema: bool = False) -> str:
     return "\n".join(lines)
 
 
+def parse_input(line: str) -> tuple[str, list[str]]:
+    parts = shlex.split(line)
+    if not parts:
+        return "", []
+    return parts[0], parts[1:]
+
+
+def coerce_arg(name: str, spec: dict, raw: str):
+    type_name = spec.get("type")
+    try:
+        if type_name == "integer":
+            return int(raw)
+        if type_name == "number":
+            return float(raw)
+        if type_name == "boolean":
+            low = raw.strip().lower()
+            if low in ("true", "1", "yes", "y", "да", "д"):
+                return True
+            if low in ("false", "0", "no", "n", "нет", "н"):
+                return False
+            raise ValueError
+        if type_name in ("array", "object"):
+            return json.loads(raw)
+        return raw
+    except ValueError:
+        raise ValueError(
+            f"аргумент {name!r}: ожидалось {type_name or 'значение'}, "
+            f"получено {raw!r}"
+        )
+
+
+def bind_positional(schema: dict, args: list[str]) -> dict:
+    properties = schema.get("properties", {})
+    names = list(properties.keys())
+    required = schema.get("required", [])
+    minimum = len([name for name in names if name in required])
+    if len(args) < minimum or len(args) > len(names):
+        expected = ", ".join(names) or "нет аргументов"
+        raise ValueError(
+            f"ожидалось аргументов {minimum}..{len(names)} ({expected}), "
+            f"получено {len(args)}"
+        )
+    return {
+        name: coerce_arg(name, properties[name], raw)
+        for name, raw in zip(names, args)
+    }
+
+
+def tool_signature(tool) -> str:
+    properties = tool.input_schema.get("properties", {})
+    required = set(tool.input_schema.get("required", []))
+    parts = []
+    for name, spec in properties.items():
+        optional = "" if name in required else "?"
+        parts.append(f"{name}{optional}:{spec.get('type', 'any')}")
+    return tool.name + (" " + " ".join(parts) if parts else "")
+
+
+def format_help(tools) -> str:
+    lines = [
+        "Команды:",
+        "  <инструмент> <аргументы...>   вызвать инструмент (позиционно)",
+        "  help [инструмент]             справка (по всем или по одному)",
+        "  tools                         показать список инструментов",
+        "  quit                          выйти",
+        "",
+        "Инструменты:",
+    ]
+    for tool in tools:
+        lines.append(f"  {tool_signature(tool)}")
+        if tool.description:
+            lines.append(f"      {tool.description}")
+    return "\n".join(lines)
+
+
+def format_result(result) -> str:
+    if hasattr(result, "model_dump"):
+        payload = result.model_dump(by_alias=True, exclude_none=True)
+    else:
+        payload = result
+    return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+async def interactive() -> None:
+    color = supports_color()
+    paint = _style(color)
+
+    async with Client(server_params()) as client:
+        tools = (await client.list_tools()).tools
+        by_name = {tool.name: tool for tool in tools}
+
+        print(format_tools(tools, color=color))
+        print("Подключено. Введи имя инструмента, help или quit.")
+        print("")
+
+        while True:
+            try:
+                line = input(paint("cyan", "mcp> "))
+            except (EOFError, KeyboardInterrupt):
+                print("")
+                break
+
+            command, args = parse_input(line)
+            if not command:
+                continue
+            if command in ("quit", "exit", "q"):
+                break
+            if command == "help":
+                if args and args[0] in by_name:
+                    tool = by_name[args[0]]
+                    print(f"{tool_signature(tool)}")
+                    print(f"    {tool.description or '(нет описания)'}")
+                    schema = json.dumps(
+                        tool.input_schema, indent=2, ensure_ascii=False
+                    )
+                    print("    Схема:")
+                    print("\n".join(f"      {row}" for row in schema.splitlines()))
+                else:
+                    print(format_help(tools))
+                continue
+            if command == "tools":
+                print(format_tools(tools, color=color))
+                continue
+
+            tool = by_name.get(command)
+            if tool is None:
+                print(
+                    paint(
+                        "yellow",
+                        f"Нет инструмента {command!r}. Доступны: "
+                        f"{', '.join(by_name)}",
+                    )
+                )
+                continue
+
+            try:
+                arguments = bind_positional(tool.input_schema, args)
+            except ValueError as exc:
+                print(paint("yellow", f"Ошибка аргументов: {exc}"))
+                print(f"  формат: {tool_signature(tool)}")
+                continue
+
+            try:
+                result = await client.call_tool(command, arguments)
+            except Exception as exc:  # noqa: BLE001 - показать любую ошибку вызова
+                print(paint("yellow", f"Ошибка вызова: {exc}"))
+                continue
+
+            label = "Ошибка" if getattr(result, "is_error", False) else "Результат"
+            tone = "yellow" if getattr(result, "is_error", False) else "green"
+            print(paint(tone, f"{label} (как MCP отдаёт):"))
+            print(format_result(result))
+            print("")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Подключается к MCP-серверу и выводит список инструментов."
+    )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="Интерактивный режим: вызывать инструменты в одной сессии.",
     )
     parser.add_argument(
         "--call-add",
@@ -142,19 +304,22 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.interactive:
+        asyncio.run(interactive())
+        return
+
     color = not args.plain and supports_color()
     paint = _style(color)
 
     tools = asyncio.run(fetch_tools())
     print(format_tools(tools, color=color, show_schema=args.schema))
+    print(paint("dim", "Подсказка: запусти с -i для интерактивного режима."))
 
     if args.call_add:
         a, b = args.call_add
         result = asyncio.run(call_add(a, b))
-        value = result.structured_content
-        if isinstance(value, dict) and "result" in value:
-            value = value["result"]
-        print(paint("yellow", f"Вызов add({a}, {b}) -> {value}"))
+        print(paint("yellow", f"Вызов: add(a={a}, b={b})"))
+        print(format_result(result))
 
 
 if __name__ == "__main__":
