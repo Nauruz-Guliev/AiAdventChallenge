@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MCP — подробный урок (День 16)</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0f11; --surface: #15171a; --surface2: #1b1e22;
+    --line: rgba(255,255,255,.09); --line2: rgba(255,255,255,.16);
+    --text: #edeef0; --dim: #9ba1a6; --mute: #6b7176;
+    --accent: #8fe3c0; --accent2: #7dd3fc; --gold: #f5c451; --red: #f08a8a;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.65; font-size: 16px;
+  }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .layout { display: flex; max-width: 1180px; margin: 0 auto; padding: 0 18px; gap: 34px; }
+  nav.toc {
+    position: sticky; top: 0; align-self: flex-start;
+    width: 268px; flex: 0 0 268px; max-height: 100vh; overflow-y: auto;
+    padding: 28px 0 40px; font-size: 13.5px;
+  }
+  nav.toc h2 { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--mute); margin: 0 0 10px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: t; }
+  nav.toc li { counter-increment: t; margin: 2px 0; }
+  nav.toc li a { display: block; color: var(--dim); padding: 3px 8px; border-radius: 6px; border-left: 2px solid transparent; }
+  nav.toc li a::before { content: counter(t) ". "; color: var(--mute); }
+  nav.toc li a:hover { color: var(--text); background: var(--surface); border-left-color: var(--accent); text-decoration: none; }
+  main { flex: 1 1 auto; min-width: 0; padding: 30px 0 90px; }
+
+  header.hero {
+    border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px;
+    background: linear-gradient(180deg, #17191d, #131518);
+    margin-bottom: 34px;
+  }
+  header.hero .kicker { color: var(--accent); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 8px; }
+  header.hero h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.15; letter-spacing: -.02em; }
+  header.hero p { margin: 0; color: var(--dim); max-width: 70ch; }
+  header.hero .meta { margin-top: 14px; font-size: 13px; color: var(--mute); }
+
+  section { margin: 0 0 40px; scroll-margin-top: 20px; }
+  h2.sec { font-size: 23px; letter-spacing: -.01em; margin: 0 0 6px; padding-top: 8px; }
+  h2.sec .n { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  h3 { font-size: 17px; margin: 26px 0 8px; }
+  p { color: #d7dadd; }
+  .lead { color: var(--dim); }
+  ul, ol { color: #d7dadd; }
+  li { margin: 4px 0; }
+
+  code.inline {
+    font-family: Consolas, 'Cascadia Mono', monospace; font-size: .89em;
+    background: #0b0c0e; border: 1px solid var(--line); border-radius: 6px;
+    padding: 1px 6px; color: #cfe9df;
+  }
+  pre {
+    background: #0b0c0e; border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; overflow-x: auto; margin: 12px 0;
+    font-family: Consolas, 'Cascadia Mono', monospace; font-size: 13px; line-height: 1.55;
+  }
+  pre code { color: #dcece6; }
+  pre .c { color: #6b7176; }
+  pre .s { color: #f0c98a; }
+  pre .k { color: #9ad0ff; }
+  pre .f { color: #8fe3c0; }
+  .filelabel { font-size: 12px; color: var(--mute); font-family: Consolas, monospace; margin: 14px 0 -4px; }
+
+  .callout { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px;
+    background: var(--surface); padding: 12px 16px; margin: 16px 0; }
+  .callout .t { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--accent); }
+  .callout.warn { border-left-color: var(--gold); }
+  .callout.warn .t { color: var(--gold); }
+  .callout.err { border-left-color: var(--red); }
+  .callout.err .t { color: var(--red); }
+  .callout p { margin: 6px 0 0; color: var(--dim); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+  td code { font-family: Consolas, monospace; font-size: 12.5px; color: #cfe9df; }
+
+  .diagram { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; margin: 18px 0; }
+  .box { flex: 1 1 180px; border: 1px solid var(--line2); border-radius: 12px; padding: 12px 14px; background: var(--surface); }
+  .box h4 { margin: 0 0 4px; font-size: 14px; color: var(--accent); }
+  .box p { margin: 0; font-size: 13px; color: var(--dim); }
+  .arrow { align-self: center; color: var(--mute); font-size: 20px; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding: 8px 0 8px 40px; border-bottom: 1px solid var(--line); }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 8px; width: 26px; height: 26px;
+    border-radius: 50%; background: #11181a; border: 1px solid var(--line2); color: var(--accent);
+    display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { nav.toc { display: none; } .grid2 { grid-template-columns: 1fr; } }
+  .kbd { font-family: Consolas, monospace; font-size: 12.5px; background: #0b0c0e; border: 1px solid var(--line2);
+    border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line2); color: var(--dim); }
+  .pill.ok { color: var(--accent); border-color: rgba(143,227,192,.4); }
+  .pill.no { color: var(--red); border-color: rgba(240,138,138,.4); }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 18px; color: var(--mute); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="toc">
+    <h2>Оглавление</h2>
+    <ol>
+      <li><a href="#s1">Зачем нужен MCP</a></li>
+      <li><a href="#s2">Три роли: host, client, server</a></li>
+      <li><a href="#s3">Три примитива сервера</a></li>
+      <li><a href="#s4">Транспорты</a></li>
+      <li><a href="#s5">Что происходит на проводе</a></li>
+      <li><a href="#s6">Разбор нашего кода</a></li>
+      <li><a href="#s7">Как запустить и проверить</a></li>
+      <li><a href="#s8">MCP Inspector</a></li>
+      <li><a href="#s9">Как подключить к реальному host</a></li>
+      <li><a href="#s10">Пишем свои инструменты/ресурсы/промпты</a></li>
+      <li><a href="#s11">Ошибки и диагностика</a></li>
+      <li><a href="#s12">v1 против v2</a></li>
+      <li><a href="#s13">Частые вопросы</a></li>
+      <li><a href="#s14">Словарь</a></li>
+      <li><a href="#s15">Упражнения</a></li>
+      <li><a href="#s16">Что дальше</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <p class="kicker">День 16 · Model Context Protocol</p>
+      <h1>MCP: подробный урок</h1>
+      <p>Как устроен Model Context Protocol, почему он появился, как работает наш
+         пример (сервер + клиент по stdio) и как настроить MCP самому — от нуля до
+         конфига в реальном приложении.</p>
+      <div class="meta">Проект: AI Advent Challenge · пример: <code class="inline">day16/</code> · SDK: MCP Python v2</div>
+    </header>
+
+    <!-- 1 -->
+    <section id="s1">
+      <h2 class="sec"><span class="n">1</span>Зачем нужен MCP</h2>
+      <p class="lead">Проблема, которую решает протокол.</p>
+      <p>У тебя есть LLM-приложение: чат, IDE, агент. Ты хочешь дать ему доступ к
+        разным вещам — файлам, базе данных, Jira, календарю, поиску. Казалось бы,
+        что сложного: просто напиши код, который это умеет.</p>
+      <p>Сложность появляется, когда таких интеграций много, а приложений —
+        тоже много. Без общего стандарта каждая пара «приложение × сервис» — это
+        свой самодельный протокол: свой формат «вот список моих функций», свой
+        формат вызова, своя обработка ошибок. Получается <strong>N интеграций
+        &times; M приложений</strong> комбинаций, и каждую надо поддерживать.</p>
+      <div class="callout">
+        <div class="t">Идея MCP</div>
+        <p>Один общий протокол. <strong>Сервер</strong> один раз описывает свои
+          возможности по стандарту — и любое <strong>клиентское</strong>
+          приложение, понимающее протокол, может ими пользоваться. Число
+          интеграций падает с N&times;M до N+M.</p>
+      </div>
+      <p>Аналогия — <strong>USB-C</strong>: раньше у каждого устройства был свой
+        разъём, теперь есть общий стандарт, и любое устройство совместимо с любым
+        компьютером. MCP — это «USB-C для инструментов LLM».</p>
+      <p>Что важно понять: MCP — это <strong>не</strong> «плагин для ChatGPT» и не
+        магия. Это <em>протокол обмена сообщениями</em> (как HTTP для сайтов),
+        поверх которого сервер отдаёт инструменты, а клиент их вызывает.</p>
+    </section>
+
+    <!-- 2 -->
+    <section id="s2">
+      <h2 class="sec"><span class="n">2</span>Три роли: host, client, server</h2>
+      <p class="lead">Разделяй эти слова — дальше они встречаются постоянно.</p>
+      <div class="diagram">
+        <div class="box"><h4>host</h4><p>LLM-приложение целиком: чат, IDE, агент. То, с чем говорит пользователь.</p></div>
+        <div class="arrow">&rarr;</div>
+        <div class="box"><h4>client</h4><p>Часть host, которая говорит по MCP. На каждый сервер — свой клиент внутри host.</p></div>
+        <div class="arrow">&harr;</div>
+        <div class="box"><h4>server</h4><p>То, что пишешь ты. Отдаёт инструменты и данные. С моделью напрямую не общается.</p></div>
+      </div>
+      <p>В нашем примере роль <strong>host</strong> играет <code class="inline">client.py</code>
+        (минимальное приложение), а <strong>server</strong> — <code class="inline">server.py</code>.
+        В реальной жизни host — это Claude Desktop, Cursor, VS Code и т.п.</p>
+      <div class="callout">
+        <div class="t">Ключевая мысль</div>
+        <p>Сервер <strong>никогда не вызывает модель</strong>. Он просто умеет
+          выполнять инструменты. Решение «какой инструмент вызвать» принимает
+          модель внутри host, а host через client отправляет серверу запрос.</p>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="s3">
+      <h2 class="sec"><span class="n">3</span>Три примитива сервера</h2>
+      <p class="lead">Сервер может отдавать ровно три вида вещей. Отличие — кто решает их использовать.</p>
+      <table>
+        <thead><tr><th>Примитив</th><th>Кто управляет</th><th>Что это</th><th>HTTP-аналогия</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tools</strong></td><td>модель</td><td>функция, которую модель вызывает для действия</td><td><code>POST</code></td></tr>
+          <tr><td><strong>Resources</strong></td><td>приложение</td><td>данные, которые host кладёт модели в контекст</td><td><code>GET</code></td></tr>
+          <tr><td><strong>Prompts</strong></td><td>пользователь</td><td>переиспользуемый шаблон сообщений</td><td>сохранённый запрос</td></tr>
+        </tbody>
+      </table>
+      <p>Смысл разделения — в колонке «кто управляет»:</p>
+      <ul>
+        <li><strong>Tool</strong> запускается, потому что так решила <em>модель</em>.</li>
+        <li><strong>Resource</strong> подключается, потому что так решило <em>приложение</em> («модели нужно содержимое этого файла»).</li>
+        <li><strong>Prompt</strong> запускается, потому что его выбрал <em>пользователь</em> (как пункт меню или slash-команда).</li>
+      </ul>
+      <p>День 16 — про <strong>tools</strong>. Инструмент = имя + описание + входная
+        JSON-схема. Модель видит описание и схему, и по ним решает, вызывать ли
+        инструмент и с какими аргументами.</p>
+    </section>
+
+    <!-- 4 -->
+    <section id="s4">
+      <h2 class="sec"><span class="n">4</span>Транспорты: как байты идут между сторонами</h2>
+      <p class="lead">Сервер и клиент могут быть в одном процессе, в разных процессах или на разных машинах.</p>
+      <table>
+        <thead><tr><th>Транспорт</th><th>Как работает</th><th>Когда использовать</th></tr></thead>
+        <tbody>
+          <tr><td><code>stdio</code></td><td>клиент запускает сервер как подпроцесс и пишет JSON-RPC ему в <code>stdin</code>, читает из <code>stdout</code></td><td>локально, дефолт. <span class="pill ok">наш случай</span></td></tr>
+          <tr><td><code>streamable-http</code></td><td>сервер слушает порт, клиент ходит по URL <code>/mcp</code></td><td>деплой, удалённый сервер</td></tr>
+          <tr><td><code>sse</code></td><td>старый HTTP-транспорт</td><td>только для старых клиентов <span class="pill no">новое не строят</span></td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <div class="t">Важно</div>
+        <p>Транспорт <strong>не меняет, что сервер умеет</strong>. Один и тот же
+          сервер можно запустить и по stdio, и по HTTP — меняется только способ
+          доставки сообщений. Поэтому «подключить MCP» = выбрать транспорт и
+          команду запуска.</p>
+      </div>
+      <p>Почему для локального примера удобен stdio: не нужны порты, файрвол,
+        внешние сервисы. Клиент стартует сервер как обычный процесс и общается с
+        ним потоком байтов.</p>
+    </section>
+
+    <!-- 5 -->
+    <section id="s5">
+      <h2 class="sec"><span class="n">5</span>Что происходит на проводе</h2>
+      <p class="lead">Под капотом — JSON-RPC 2.0. Полезно увидеть хотя бы раз.</p>
+      <p>MCP — это <strong>JSON-RPC 2.0</strong>: клиент шлёт запрос с методом и
+        параметрами, сервер отвечает результатом или ошибкой. Знание этих
+        методов делает «магию» SDK понятной.</p>
+      <p class="filelabel">1) Рукопожатие — клиент → сервер (initialize)</p>
+      <pre><code>{"jsonrpc":"2.0","id":1,"method":"initialize",
+ "params":{
+   "protocolVersion":"2026-07-28",
+   "capabilities":{},
+   "clientInfo":{"name":"client.py","version":"0.1.0"}
+ }}</code></pre>
+      <p class="filelabel">Сервер → клиент: чем он умеет отвечать (capabilities)</p>
+      <pre><code>{"jsonrpc":"2.0","id":1,"result":{
+   "protocolVersion":"2026-07-28",
+   "capabilities":{
+     "tools":{"listChanged":true},
+     "resources":{"subscribe":true,"listChanged":true},
+     "prompts":{"listChanged":true}
+   },
+   "serverInfo":{"name":"advent-demo","version":"..."}
+ }}</code></pre>
+      <p class="filelabel">2) Список инструментов — клиент вызывает tools/list</p>
+      <pre><code>{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}</code></pre>
+      <p class="filelabel">Сервер отвечает массивом инструментов</p>
+      <pre><code>{"jsonrpc":"2.0","id":2,"result":{"tools":[
+   {"name":"add","description":"Add two numbers.",
+    "inputSchema":{"type":"object",
+      "properties":{"a":{"type":"integer"},"b":{"type":"integer"}},
+      "required":["a","b"]}},
+   {"name":"echo","description":"Return the given text unchanged.",
+    "inputSchema":{"type":"object",
+      "properties":{"text":{"type":"string"}},"required":["text"]}},
+   {"name":"today","description":"Return today's date in ISO format (YYYY-MM-DD).",
+    "inputSchema":{"type":"object","properties":{}}}
+]}}</code></pre>
+      <p class="filelabel">3) Вызов инструмента — клиент вызывает tools/call</p>
+      <pre><code>{"jsonrpc":"2.0","id":3,"method":"tools/call",
+ "params":{"name":"add","arguments":{"a":2,"b":3}}}
+
+<span class="c">// ответ:</span>
+{"jsonrpc":"2.0","id":3,"result":{
+   "content":[{"type":"text","text":"5"}],
+   "structuredContent":{"result":5}
+ }}</code></pre>
+      <p>В коде SDK всё это спрятано. Вот соответствие:</p>
+      <table>
+        <thead><tr><th>В коде SDK</th><th>JSON-RPC метод</th><th>Что делает</th></tr></thead>
+        <tbody>
+          <tr><td><code>async with Client(...)</code></td><td><code>initialize</code></td><td>устанавливает соединение и делает рукопожатие</td></tr>
+          <tr><td><code>await client.list_tools()</code></td><td><code>tools/list</code></td><td>получает список инструментов</td></tr>
+          <tr><td><code>await client.call_tool(name, args)</code></td><td><code>tools/call</code></td><td>выполняет инструмент</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <div class="t">Деталь v2</div>
+        <p>На «проводе» поле называется <code class="inline">inputSchema</code>
+          (camelCase), а в Python-объекте к нему обращаются как
+          <code class="inline">tool.input_schema</code> (snake_case). То же с
+          <code class="inline">output_schema</code>. Не путай имя по протоколу и
+          имя атрибута в Python — именно на этом спотыкается большинство.</p>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="s6">
+      <h2 class="sec"><span class="n">6</span>Разбор нашего кода</h2>
+
+      <h3>server.py — объявляем инструменты</h3>
+      <pre><code><span class="k">from</span> datetime <span class="k">import</span> date
+<span class="k">from</span> mcp.server <span class="k">import</span> MCPServer
+
+mcp = MCPServer(<span class="s">"advent-demo"</span>)          <span class="c"># создаём сервер</span>
+
+<span class="k">@mcp.tool()</span>                             <span class="c"># декоратор регистрирует инструмент</span>
+<span class="k">def</span> <span class="f">add</span>(a: int, b: int) -> int:
+    <span class="s">"""Add two numbers."""</span>              <span class="c"># docstring = описание для модели</span>
+    <span class="k">return</span> a + b                        <span class="c"># type hints = входная схема</span>
+
+<span class="k">@mcp.tool()</span>
+<span class="k">def</span> <span class="f">echo</span>(text: str) -> str:
+    <span class="s">"""Return the given text unchanged."""</span>
+    <span class="k">return</span> text
+
+<span class="k">@mcp.tool()</span>
+<span class="k">def</span> <span class="f">today</span>() -> str:
+    <span class="s">"""Return today's date in ISO format (YYYY-MM-DD)."""</span>
+    <span class="k">return</span> date.today().isoformat()
+
+<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
+    mcp.run()                           <span class="c"># без аргумента — транспорт stdio</span></code></pre>
+      <p>Заметь, чего мы <strong>не писали</strong>: ни JSON-схемы, ни парсинга
+        запросов, ни обработки протокола, ни объявления capabilities. Всё выводится
+        из самой функции:</p>
+      <ul>
+        <li><strong>имя</strong> — из имени функции (<code class="inline">add</code>);</li>
+        <li><strong>описание</strong> — из docstring («Add two numbers.»);</li>
+        <li><strong>схема аргументов</strong> — из аннотаций типов (<code class="inline">int</code> &rarr; <code class="inline">{"type":"integer"}</code>).</li>
+      </ul>
+      <div class="callout">
+        <div class="t">Почему <code>if __name__ == "__main__"</code></div>
+        <p>Всё, что загружает сервер (тесты, <code class="inline">mcp dev</code>,
+          <code class="inline">mcp run</code>), сначала <em>импортирует</em> этот
+          файл. Guard не даёт импорту превратиться в запущенный сервер.</p>
+      </div>
+
+      <h3>client.py — подключаемся и спрашиваем список</h3>
+      <pre><code><span class="k">import</span> sys
+<span class="k">from</span> pathlib <span class="k">import</span> Path
+<span class="k">from</span> mcp <span class="k">import</span> Client, StdioServerParameters
+
+SERVER_SCRIPT = Path(__file__).with_name(<span class="s">"server.py"</span>)
+
+<span class="k">def</span> <span class="f">server_params</span>() -> StdioServerParameters:
+    <span class="k">return</span> StdioServerParameters(
+        command=sys.executable,            <span class="c"># тот же Python, что и у venv</span>
+        args=[str(SERVER_SCRIPT)],         <span class="c"># путь к server.py</span>
+    )
+
+<span class="k">async def</span> <span class="f">fetch_tools</span>() -> list:
+    <span class="k">async with</span> Client(server_params()) <span class="k">as</span> client:   <span class="c"># вход = запуск подпроцесса</span>
+        result = <span class="k">await</span> client.list_tools()          <span class="c"># tools/list</span>
+        <span class="k">return</span> result.tools
+
+<span class="k">async def</span> <span class="f">call_add</span>(a: int, b: int):
+    <span class="k">async with</span> Client(server_params()) <span class="k">as</span> client:
+        <span class="k">return</span> <span class="k">await</span> client.call_tool(<span class="s">"add"</span>, {<span class="s">"a"</span>: a, <span class="s">"b"</span>: b})</code></pre>
+      <div class="callout warn">
+        <div class="t">Тонкость</div>
+        <p>Конструирование <code class="inline">Client(...)</code> <strong>ещё не
+          подключается</strong> — оно лишь выбирает транспорт. Соединение
+          открывается на входе в <code class="inline">async with</code>, а выход
+          из блока выключает подпроцесс. Попытка обратиться к соединению до входа
+          даст ошибку <code class="inline">Client must be used within an async context manager</code>.</p>
+      </div>
+      <div class="callout">
+        <div class="t">Тонкость Windows</div>
+        <p>Используем <code class="inline">sys.executable</code>, а не строку
+          <code class="inline">"python"</code>. На Windows <code class="inline">python</code>
+          может оказаться системным интерпретатором без наших пакетов. <code class="inline">sys.executable</code>
+          — это абсолютный путь к тому самому python из venv.</p>
+      </div>
+
+      <h3>test_mcp.py — честная проверка</h3>
+      <pre><code><span class="k">def</span> <span class="f">test_connection_returns_three_tools</span>():
+    tools = asyncio.run(fetch_tools())                 <span class="c"># реальное подключение</span>
+    <span class="k">assert</span> sorted(t.name <span class="k">for</span> t <span class="k">in</span> tools) == [<span class="s">"add"</span>, <span class="s">"echo"</span>, <span class="s">"today"</span>]</code></pre>
+      <p>Тест не мокает транспорт: он честно поднимает сервер подпроцессом. Так
+        проверяются оба требования задания — «соединение устанавливается» и «список
+        корректно возвращается».</p>
+    </section>
+
+    <!-- 7 -->
+    <section id="s7">
+      <h2 class="sec"><span class="n">7</span>Как запустить и проверить</h2>
+      <p class="filelabel">Установка (один раз)</p>
+      <pre><code>python -m venv .venv
+&amp; ".venv\Scripts\python.exe" -m pip install -r requirements.txt</code></pre>
+      <div class="callout warn">
+        <div class="t">Если pip ругается на SSL</div>
+        <p>В этой среде индексы PyPI ставятся с флагом
+          <code class="inline">--trusted-host pypi.org --trusted-host files.pythonhosted.org</code>.
+          Это обходной путь для корпоративного TLS, а не нормальная практика.</p>
+      </div>
+      <p class="filelabel">Запуск клиента</p>
+      <pre><code>&amp; ".venv\Scripts\python.exe" client.py
+<span class="c"># → MCP вернул инструментов: 3</span>
+<span class="c">#   - add: Add two numbers.</span>
+<span class="c">#       input_schema: {'type': 'object', 'properties': {...}, 'required': ['a','b']}</span>
+<span class="c">#   - echo: Return the given text unchanged.</span>
+<span class="c">#   - today: Return today's date in ISO format (YYYY-MM-DD).</span></code></pre>
+      <p class="filelabel">Вызов инструмента (учебно, за рамками минимума)</p>
+      <pre><code>&amp; ".venv\Scripts\python.exe" client.py --call-add 2 3
+<span class="c"># → add(2, 3) = {'result': 5}</span></code></pre>
+      <p class="filelabel">Тесты</p>
+      <pre><code>&amp; ".venv\Scripts\python.exe" -m pytest -q
+<span class="c"># → 3 passed</span></code></pre>
+    </section>
+
+    <!-- 8 -->
+    <section id="s8">
+      <h2 class="sec"><span class="n">8</span>MCP Inspector — посмотреть глазами</h2>
+      <p>Inspector — графический отладчик серверов. Он делает ровно то, что делает
+        реальный host: запускает твой файл подпроцессом и подключается по stdio,
+        показывая вкладки Tools / Resources / Prompts.</p>
+      <pre><code>&amp; ".venv\Scripts\python.exe" -m pip install "mcp[cli]"
+&amp; ".venv\Scripts\python.exe" -m mcp dev server.py</code></pre>
+      <p>Inspector — это Node.js-приложение, поэтому нужен <span class="kbd">npx</span>
+        в <code class="inline">PATH</code>. На вкладке <strong>Tools</strong> ты
+        увидишь нашу форму: обязательные поля <code class="inline">a</code> и
+        <code class="inline">b</code> — Inspector построил их из type hints.</p>
+      <div class="callout">
+        <div class="t">Зачем это тебе</div>
+        <p>Когда пишешь свой сервер, Inspector — самый быстрый способ убедиться,
+          что инструменты и схемы выглядят так, как ты ожидаешь, ещё до
+          подключения к настоящему host.</p>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section id="s9">
+      <h2 class="sec"><span class="n">9</span>Как подключить к реальному host</h2>
+      <p>Чтобы твой сервер подхватил настоящий host (Claude Desktop, Cursor,
+        VS Code), host нужно научить <strong>команде запуска сервера</strong>.
+        Это делается в его config-файле. Общий принцип у всех одинаковый:</p>
+      <p class="filelabel">Форма записи: имя сервера + команда + аргументы (+ env)</p>
+      <pre><code>{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"advent-demo"</span>: {
+      <span class="s">"command"</span>: <span class="s">"C:\\path\\to\\day16\\.venv\\Scripts\\python.exe"</span>,
+      <span class="s">"args"</span>: [<span class="s">"C:\\path\\to\\day16\\server.py"</span>]
+    }
+  }
+}</code></pre>
+      <div class="callout err">
+        <div class="t">Подпроцесс не наследует твоё окружение</div>
+        <p>Клиент запускает сервер с минимальным allow-list переменных
+          (<code class="inline">HOME</code>, <code class="inline">PATH</code> и
+          т.п.), чтобы ничего секретного не утекло. Если серверу нужен ключ —
+          передай его явно через <code class="inline">env</code>.</p>
+      </div>
+      <pre><code>{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"advent-demo"</span>: {
+      <span class="s">"command"</span>: <span class="s">"python"</span>,
+      <span class="s">"args"</span>: [<span class="s">"server.py"</span>],
+      <span class="s">"env"</span>: { <span class="s">"MY_API_KEY"</span>: <span class="s">"..."</span> }
+    }
+  }
+}</code></pre>
+      <p>Конкретные имена файлов конфигурации зависят от host'а — их документация
+        скажет точный путь. Но структура одна: <strong>command + args + (опц.)
+        env</strong>. Никаких «регистраций» и «плагин-маркетплейсов» — просто
+        команда, которой host запускает твой файл.</p>
+      <div class="callout">
+        <div class="t">Совет</div>
+        <p>Если подключаешь по HTTP вместо stdio, укажи URL
+          (<code class="inline">http://127.0.0.1:8000/mcp</code>) вместо команды —
+          host сам поймёт транспорт по типу значения. Но начинать всегда проще со
+          stdio.</p>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section id="s10">
+      <h2 class="sec"><span class="n">10</span>Пишем свои инструменты, ресурсы, промпты</h2>
+      <p>Один декоратор на примитив. Имя, описание и схема берутся из функции.</p>
+
+      <h3>Инструмент с описанием и ограничениями</h3>
+      <pre><code><span class="k">from</span> typing <span class="k">import</span> Annotated, Literal
+<span class="k">from</span> pydantic <span class="k">import</span> Field
+
+<span class="k">@mcp.tool()</span>
+<span class="k">def</span> <span class="f">search</span>(
+    query: Annotated[str, Field(description=<span class="s">"Что искать."</span>)],
+    limit: Annotated[int, Field(ge=1, le=50, description=<span class="s">"Максимум результатов."</span>)] = 10,
+    genre: Literal[<span class="s">"fiction"</span>, <span class="s">"poetry"</span>] | <span class="k">None</span> = <span class="k">None</span>,
+) -> str:
+    <span class="s">"""Найти записи по запросу."""</span>
+    <span class="k">return</span> <span class="s">f"Нашёл для {query!r} (до {limit})"</span></code></pre>
+      <p><code class="inline">Field(description=...)</code> добавляет описание
+        аргумента, <code class="inline">ge/le</code> — числовые границы,
+        <code class="inline">Literal</code> — перечисление. Если клиент пришлёт
+        <code class="inline">limit=999</code>, SDK вернёт ошибку <em>до</em>
+        вызова функции — самоисправляющиеся агенты бесплатно.</p>
+
+      <h3>Принимать сложный объект</h3>
+      <pre><code><span class="k">from</span> pydantic <span class="k">import</span> BaseModel, Field
+
+<span class="k">class</span> <span class="f">Book</span>(BaseModel):
+    title: str
+    year: int = Field(ge=1450)
+
+<span class="k">@mcp.tool()</span>
+<span class="k">def</span> <span class="f">add_book</span>(book: Book) -> str:
+    <span class="s">"""Добавить книгу в каталог."""</span>
+    <span class="k">return</span> <span class="s">f"Добавлено: {book.title} ({book.year})"</span></code></pre>
+      <p>Схема <code class="inline">Book</code> вложится во входную схему
+        инструмента, модель заполнит JSON-объект, а функция получит уже
+        валидированный <code class="inline">Book</code>.</p>
+
+      <h3>Resource — данные для контекста</h3>
+      <pre><code><span class="k">@mcp.resource</span>(<span class="s">"greeting://{name}"</span>)
+<span class="k">def</span> <span class="f">greeting</span>(name: str) -> str:
+    <span class="s">"""Поздороваться по имени."""</span>
+    <span class="k">return</span> <span class="s">f"Привет, {name}!"</span></code></pre>
+      <p><code class="inline">{name}</code> делает это <em>шаблоном</em> ресурса:
+        отдельного ресурса нет, пока не подставят имя.</p>
+
+      <h3>Prompt — шаблон сообщений</h3>
+      <pre><code><span class="k">@mcp.prompt()</span>
+<span class="k">def</span> <span class="f">summarize</span>(text: str) -> str:
+    <span class="s">"""Сжать текст до одного предложения."""</span>
+    <span class="k">return</span> <span class="s">f"Сожми в одно предложение:\n\n{text}"</span></code></pre>
+      <p>Возвращаемая строка становится сообщением пользователя. Вот и весь
+        prompt — функция, которая строит сообщения.</p>
+
+      <h3>Асинхронный инструмент для I/O</h3>
+      <p>Если инструмент ходит в сеть или читает файл — объяви его
+        <code class="inline">async def</code> и используй <code class="inline">await</code>.
+        Обычный <code class="inline">def</code> тоже работает: SDK выполнит его в
+        отдельном потоке, чтобы не блокировать сервер.</p>
+    </section>
+
+    <!-- 11 -->
+    <section id="s11">
+      <h2 class="sec"><span class="n">11</span>Ошибки и диагностика</h2>
+      <table>
+        <thead><tr><th>Симптом</th><th>Причина</th><th>Что делать</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Протокол «ломается», ответы битые</td>
+            <td>Сервер печатает в <code>stdout</code></td>
+            <td>В stdio <code>stdout</code> — это провод. Для логов используй <code>logging</code> (идёт в stderr)</td>
+          </tr>
+          <tr>
+            <td>Сервер не находит API-ключ</td>
+            <td>Подпроцесс не наследует окружение</td>
+            <td>Передай переменные через <code>env=</code> в <code>StdioServerParameters</code> / конфиге host</td>
+          </tr>
+          <tr>
+            <td>Запустился «не тот» Python</td>
+            <td>В <code>PATH</code> системный python</td>
+            <td>Используй <code>sys.executable</code> или полный путь к python из venv</td>
+          </tr>
+          <tr>
+            <td><code>AttributeError: no attribute 'inputSchema'</code></td>
+            <td>В Python-объекте v2 поле зовётся <code>input_schema</code></td>
+            <td>Обращайся как <code>tool.input_schema</code> (camelCase — только на проводе)</td>
+          </tr>
+          <tr>
+            <td><code>RuntimeError: Client must be used within an async context manager</code></td>
+            <td>Обращение к соединению до входа в <code>async with</code></td>
+            <td>Все вызовы делай внутри блока <code>async with Client(...)</code></td>
+          </tr>
+          <tr>
+            <td>Путаница методов/классов</td>
+            <td>Смешаны SDK v1 и v2</td>
+            <td>См. следующий раздел</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 -->
+    <section id="s12">
+      <h2 class="sec"><span class="n">12</span>v1 против v2: как не запутаться</h2>
+      <p>В 2026 <code class="inline">pip install mcp</code> ставит <strong>v2</strong>.
+        У v1 был другой API. Если увидишь пример из интернета и он не работает —
+        скорее всего он для v1.</p>
+      <table>
+        <thead><tr><th>Что</th><th>v1 (старый)</th><th>v2 (наш)</th></tr></thead>
+        <tbody>
+          <tr><td>Сервер</td><td><code>from mcp.server.fastmcp import FastMCP</code></td><td><code>from mcp.server import MCPServer</code></td></tr>
+          <tr><td>Клиент</td><td><code>ClientSession</code> + <code>stdio_client</code></td><td><code>from mcp import Client</code></td></tr>
+          <tr><td>Запуск сервера</td><td><code>mcp.run(transport="stdio")</code></td><td><code>mcp.run()</code> (stdio по умолчанию)</td></tr>
+          <tr><td>Поле схемы (питон)</td><td><code>tool.inputSchema</code></td><td><code>tool.input_schema</code></td></tr>
+        </tbody>
+      </table>
+      <p>Мы зафиксировали версию в <code class="inline">requirements.txt</code>:
+        <code class="inline">mcp&gt;=2,&lt;3</code>. Так обновление SDK не сломает
+        пример неожиданно.</p>
+    </section>
+
+    <!-- 13 -->
+    <section id="s13">
+      <h2 class="sec"><span class="n">13</span>Частые вопросы</h2>
+      <h3>Нужен ли интернет?</h3>
+      <p>Нет. Наш пример полностью локальный: клиент и сервер — два процесса на
+        твоей машине, сеть не используется.</p>
+      <h3>Нужен ли LLM/API-ключ?</h3>
+      <p>Нет. День 16 — только про соединение и список инструментов. Вызов модели
+        появится, когда будем встраивать MCP в агента.</p>
+      <h3>Почему stdio, а не HTTP?</h3>
+      <p>Локальный сервер проще запускать как подпроцесс: нет портов, ничего не
+        надо освобождать, нечему мешать. HTTP выберем для деплоя.</p>
+      <h3>Это же просто вызов функции — зачем протокол?</h3>
+      <p>Смысл — в <em>совместимости</em>: сервер описывается один раз, и его
+        подхватит любой клиент. Плюс единые правила: capabilities, схемы,
+        валидация, ошибки.</p>
+      <h3>Можно ли вызвать инструмент без модели?</h3>
+      <p>Да — именно это делает наш <code class="inline">--call-add</code> и тест.
+        MCP не требует модели для вызова; модель нужна, чтобы решать, <em>какой</em>
+        инструмент вызвать.</p>
+    </section>
+
+    <!-- 14 -->
+    <section id="s14">
+      <h2 class="sec"><span class="n">14</span>Словарь</h2>
+      <table>
+        <thead><tr><th>Термин</th><th>Значение</th></tr></thead>
+        <tbody>
+          <tr><td><strong>MCP</strong></td><td>Model Context Protocol — стандарт доступа LLM к инструментам и данным</td></tr>
+          <tr><td><strong>host</strong></td><td>LLM-приложение (чат, IDE, агент)</td></tr>
+          <tr><td><strong>client</strong></td><td>MCP-часть host'а, говорит с сервером</td></tr>
+          <tr><td><strong>server</strong></td><td>Отдаёт инструменты/ресурсы/промпты</td></tr>
+          <tr><td><strong>tool</strong></td><td>Функция, которую вызывает модель</td></tr>
+          <tr><td><strong>resource</strong></td><td>Данные, которые приложение кладёт в контекст</td></tr>
+          <tr><td><strong>prompt</strong></td><td>Шаблон сообщений, который выбирает пользователь</td></tr>
+          <tr><td><strong>capabilities</strong></td><td>Объявление сервера, что он умеет (tools/resources/prompts)</td></tr>
+          <tr><td><strong>transport</strong></td><td>Способ доставки: stdio / streamable-http / sse</td></tr>
+          <tr><td><strong>inputSchema</strong></td><td>JSON-схема аргументов инструмента (на проводе — camelCase)</td></tr>
+          <tr><td><strong>JSON-RPC 2.0</strong></td><td>Формат сообщений запрос/ответ под MCP</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 15 -->
+    <section id="s15">
+      <h2 class="sec"><span class="n">15</span>Упражнения (чтобы закрепить)</h2>
+      <ol class="steps">
+        <li>Добавь инструмент <code class="inline">sub(a, b)</code>, который вычитает. Проверь, что в <code class="inline">client.py</code> он появился в списке, а тест всё ещё зелёный.</li>
+        <li>Добавь инструмент с необязательным аргументом (значение по умолчанию) и посмотри в выводе, как изменилась <code class="inline">input_schema</code> (появится <code class="inline">default</code>, уйдёт из <code class="inline">required</code>).</li>
+        <li>Добавь <code class="inline">@mcp.resource("greeting://{name}")</code> и запусти <code class="inline">mcp dev server.py</code> — найди ресурс во вкладке Resources.</li>
+        <li>Запусти свой сервер по HTTP: <code class="inline">mcp.run(transport="streamable-http", port=3001)</code> и подключись к нему URL-ом вместо <code class="inline">StdioServerParameters</code>.</li>
+        <li>Сломай что-нибудь намеренно: выведи <code class="inline">print("hi")</code> в начале <code class="inline">server.py</code> и посмотри, что произойдёт с stdio-соединением. (Подсказка: это про «stdout — провод».)</li>
+      </ol>
+    </section>
+
+    <!-- 16 -->
+    <section id="s16">
+      <h2 class="sec"><span class="n">16</span>Что дальше</h2>
+      <p>Мы научились <strong>получать</strong> список инструментов. Следующий шаг
+        для агента:</p>
+      <ol class="steps">
+        <li>Получить список инструментов от MCP.</li>
+        <li>Отдать его LLM как набор доступных функций (в терминах LLM tool-calling).</li>
+        <li>Когда модель выбрала инструмент — вызвать <code class="inline">tools/call</code> и вернуть результат модели.</li>
+        <li>Повторять, пока модель не закончит.</li>
+      </ol>
+      <p>Это уже интеграция MCP в агента, а не минимальный клиент — тема следующих
+        дней.</p>
+      <footer>
+        AI Advent Challenge · День 16 · файлы примера: <code class="inline">server.py</code>,
+        <code class="inline">client.py</code>, <code class="inline">test_mcp.py</code> ·
+        краткая версия конспектом — <code class="inline">LESSON.md</code>
+      </footer>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>
