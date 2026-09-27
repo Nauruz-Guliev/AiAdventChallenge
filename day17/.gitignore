@@ -2,3 +2,4 @@
 __pycache__/
 .pytest_cache/
 video-script.html
+opencode.override.json
