@@ -1,86 +1,60 @@
 # Day 17 — Первый инструмент MCP (конспект)
 
-## Что такое «инструмент MCP»
+День 16 дал протокол MCP: роли, транспорты, JSON-RPC, как поднять клиент и
+подключить сервер к host. День 17 — следующий шаг: настоящий инструмент вокруг
+**внешнего API**, который агент вызывает сам и использует его результат.
 
-Инструмент (tool) — это функция, которую MCP-сервер объявляет агенту. Агент
-видит её имя, описание и схему аргументов и может решить её вызвать. Ключевое:
-**один инструмент = имя + описание + входные параметры + результат**.
+## Что делаем
 
-## Три шага задания
+MCP-сервер погоды с двумя инструментами — `get_weather` и `get_forecast` —
+и подключение к агенту opencode.
 
-### 1. Регистрация инструмента
+## Инструмент: регистрация, параметры, результат
+
+Сервер — `MCPServer("weather")`; инструмент регистрируется `@mcp.tool()`.
+Параметры выводятся из сигнатуры и docstring, результат — возвращаемый `dict`.
 
 ```python
-from mcp.server import MCPServer
-
-mcp = MCPServer("weather")
-
 @mcp.tool()
 def get_weather(city: str) -> dict:
-    """Текущая погода в городе."""
-    ...
-```
-
-Декоратор `@mcp.tool()` регистрирует функцию. Имя инструмента — имя функции.
-Сервер запускается по stdio: `mcp.run()`.
-
-### 2. Описание входных параметров
-
-Параметры описываются **типизированной сигнатурой** и **docstring**. MCP сам
-строит из них JSON-схему (`inputSchema`):
-
-```python
-@mcp.tool()
-def get_forecast(city: str, days: int = 3) -> dict:
-    """Прогноз погоды.
+    """Текущая погода в городе.
 
     Args:
         city: Название города, например "Москва".
-        days: Число дней, 1..3. По умолчанию 3.
     """
+    place = weather_api.geocode(city)
+    current = weather_api.current_weather(place.latitude, place.longitude)
+    return {"city": place.name, **current}
 ```
 
-`city: str` → `{"type": "string"}`, `days: int = 3` →
-`{"type": "integer", "default": 3}`. `city` обязателен, `days` — нет.
-На проводе (в JSON) поле называется `inputSchema`, а в Python-объекте —
-`tool.input_schema`.
+- `city: str` → обязательный строковый аргумент;
+- `days: int = 3` → необязательный, по умолчанию 3 (ограничен 1..3);
+- ошибка `WeatherError` → `ValueError`, агент видит `isError` и сообщение;
+- результат-`dict` сериализуется в JSON и отдаётся агенту.
 
-### 3. Возврат результата
-
-Возвращаем `dict` — структурированные данные:
-
-```python
-return {
-    "city": place.name,
-    "temperature_c": 13.0,
-    "weather": "Пасмурно",
-    "latitude": place.latitude,
-    "longitude": place.longitude,
-    **current,
-}
+```json
+{"city": "Москва", "temperature_c": 13.0, "feels_like_c": 11.0,
+ "humidity_percent": 67, "wind_kmh": 8.0, "weather": "Пасмурно"}
 ```
 
-Ошибки превращаем в понятные: `WeatherError` → `ValueError`, SDK вернёт
-`isError: true` с текстом, агент это увидит.
-
-## Откуда данные
+## Источник данных
 
 ```
-город ──geocode──▶ (lat, lon) ──wttr.in──▶ текущая погода / прогноз
-        Open-Meteo                    wttr.in (format=j1, lang=ru)
+город ──geocode──▶ (lat, lon) ──wttr.in──▶ погода
+        Open-Meteo                    wttr.in (j1, lang=ru)
 ```
 
-- `weather_api.geocode(city)` — Open-Meteo geocoding, `language=ru`.
-- `weather_api.current_weather(lat, lon)` — wttr.in `current_condition[0]`.
-- `weather_api.daily_forecast(lat, lon, days)` — wttr.in `weather[]`.
-- `_describe(entry)` — русский текст из `lang_ru`, иначе из `weatherDesc`.
+- `weather_api.geocode(city)` — Open-Meteo geocoding, `language=ru`;
+- `current_weather` / `daily_forecast` — wttr.in по координатам;
+- `_describe(entry)` — русский текст из `lang_ru`;
+- HTTP через stdlib `urllib`; ошибки → `WeatherError`.
 
-Все HTTP-запросы — через stdlib `urllib` (ни одной лишней зависимости),
-таймаут 20 c, ошибки → `WeatherError`.
+Почему не Open-Meteo целиком: хост `api.open-meteo.com` (погода) на этой сети
+заблокирован, а геокодинг Open-Meteo и `wttr.in` — доступны.
 
-## Как opencode подключает инструмент
+## Подключение к opencode
 
-Проектный конфиг `opencode.json` в корне репозитория:
+Проектный конфиг в корне репозитория (`opencode.json`) — действует только здесь:
 
 ```jsonc
 {
@@ -88,7 +62,8 @@ return {
   "mcp": {
     "weather": {
       "type": "local",
-      "command": ["uv", "run", "--directory", "day17", "--with", "mcp>=2,<3", "server.py"],
+      "command": ["uv", "run", "--no-project", "--with", "mcp>=2,<3", "server.py"],
+      "cwd": "day17",
       "enabled": true,
       "timeout": 60000
     }
@@ -96,50 +71,28 @@ return {
 }
 ```
 
-- `type: "local"` — opencode запускает процесс и общается по **stdio**.
-- `command` — массив: команда + аргументы (uv сам ставит `mcp`).
-- Такой конфиг действует **только** для этого репозитория; глобальный не трогаем.
+- `type: "local"` — opencode сам запускает процесс и говорит по stdio;
+- `command` — массив «команда + аргументы» (`uv` подтянет `mcp`);
+- путь — относительный корня воркспейса (проект) или **абсолютный** (глобальный
+  конфиг), иначе сервер не найдёт `server.py` и упадёт;
+- конфиг читается один раз при старте → **перезапустить opencode**;
+- статус и команда: `opencode mcp list`.
 
-Под капотом opencode делает ровно то же, что клиент из дня 16:
-`initialize` → `tools/list` → `tools/call`. Имена инструментов получают префикс
-сервера: `weather_get_weather`, `weather_get_forecast`.
+## Как агент подхватывает инструмент
 
-### Транскрипт на проводе (упрощённо)
+1. opencode при старте запускает сервер и забирает описание инструментов.
+2. Модель видит **имя, описание и схему** (с префиксом сервера:
+   `weather_get_weather`).
+3. По запросу модель выбирает инструмент и аргументы:
+   `weather_get_weather({"city": "Москва"})`.
+4. Выполняет сервер (не модель): geocode → wttr.in.
+5. Результат возвращается модели → она формулирует ответ.
 
-Запрос списка (opencode → сервер):
-
-```json
-{"jsonrpc":"2.0","id":1,"method":"tools/list"}
 ```
-
-Ответ (сервер → opencode), сокращённо:
-
-```json
-{"jsonrpc":"2.0","id":1,"result":{"tools":[
-  {"name":"get_weather","description":"Текущая погода в городе.",
-   "inputSchema":{"type":"object",
-     "properties":{"city":{"type":"string"}},"required":["city"]}},
-  {"name":"get_forecast","description":"Прогноз погоды на несколько дней.",
-   "inputSchema":{"type":"object","properties":{
-     "city":{"type":"string"},"days":{"type":"integer","default":3}},
-     "required":["city"]}}
-]}}
-```
-
-Вызов (opencode → сервер):
-
-```json
-{"jsonrpc":"2.0","id":2,"method":"tools/call",
- "params":{"name":"get_weather","arguments":{"city":"Москва"}}}
-```
-
-Результат (сервер → opencode):
-
-```json
-{"jsonrpc":"2.0","id":2,"result":{
-  "content":[{"type":"text","text":"{\"city\":\"Москва\",\"temperature_c\":13.0,\"weather\":\"Пасмурно\", ...}"}],
-  "isError":false
-}}
+Пользователь:  Какая сейчас погода в Москве?
+LLM:           → weather_get_weather({"city": "Москва"})
+Сервер:        {"temperature_c": 13.0, "weather": "Пасмурно", ...}
+LLM:           В Москве сейчас 13 °C, пасмурно, ветер 8 км/ч.
 ```
 
 ## Проверка
@@ -150,14 +103,6 @@ return {
 
 ## Упражнения
 
-1. Добавь инструмент `get_weather_only_temp(city)` → только температура.
-2. Добавь параметр `units` (`metric`/`imperial`) в `get_weather`.
-3. Ограничь `days` через аннотацию `Literal[1,2,3]` и посмотри, как изменится схема.
-4. Сделай инструмент `compare(cities: list[str])` — сравни погоду в нескольких городах.
-
-## Ошибки, на которые наступали
-
-- `api.open-meteo.com` может быть заблокирован сетью → взяли wttr.in.
-- Относительный путь к exe в конфиге на Windows резолвится не всегда → тут
-  используем `uv` (в PATH), чтобы не зависеть от пути к venv.
-- `tool.input_schema` (Python) vs `inputSchema` (JSON) — легко перепутать.
+1. Инструмент `get_temperature(city)` — только температура.
+2. Параметр `units` (`metric`/`imperial`).
+3. Инструмент `compare(cities: list[str])` — сравнить города.
