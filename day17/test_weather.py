@@ -41,3 +41,64 @@ def test_geocode_propagates_network_error(monkeypatch):
     monkeypatch.setattr(weather_api, "_get_json", boom)
     with pytest.raises(WeatherError):
         weather_api.geocode("Москва")
+
+
+def test_current_weather_shape(monkeypatch):
+    monkeypatch.setattr(
+        weather_api,
+        "_get_json",
+        lambda url, params: {
+            "current": {
+                "temperature_2m": -3.2,
+                "apparent_temperature": -7.0,
+                "relative_humidity_2m": 85,
+                "wind_speed_10m": 12.4,
+                "weather_code": 3,
+            }
+        },
+    )
+    result = weather_api.current_weather(55.75, 37.62)
+    assert result == {
+        "temperature_c": -3.2,
+        "feels_like_c": -7.0,
+        "humidity_percent": 85,
+        "wind_kmh": 12.4,
+        "weather": "Пасмурно",
+    }
+
+
+def test_current_weather_missing_data(monkeypatch):
+    monkeypatch.setattr(weather_api, "_get_json", lambda url, params: {})
+    with pytest.raises(WeatherError):
+        weather_api.current_weather(55.75, 37.62)
+
+
+def test_daily_forecast_shape(monkeypatch):
+    monkeypatch.setattr(
+        weather_api,
+        "_get_json",
+        lambda url, params: {
+            "daily": {
+                "time": ["2026-09-27", "2026-09-28"],
+                "temperature_2m_max": [4.1, 5.0],
+                "temperature_2m_min": [-1.0, 0.0],
+                "precipitation_probability_max": [20, 10],
+                "weather_code": [2, 0],
+            }
+        },
+    )
+    result = weather_api.daily_forecast(55.75, 37.62, 2)
+    assert len(result) == 2
+    assert result[0] == {
+        "date": "2026-09-27",
+        "temp_max_c": 4.1,
+        "temp_min_c": -1.0,
+        "precipitation_probability": 20,
+        "weather": "Переменная облачность",
+    }
+
+
+def test_daily_forecast_missing_data(monkeypatch):
+    monkeypatch.setattr(weather_api, "_get_json", lambda url, params: {"daily": {}})
+    with pytest.raises(WeatherError):
+        weather_api.daily_forecast(55.75, 37.62, 3)

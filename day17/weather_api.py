@@ -85,3 +85,69 @@ def geocode(city: str) -> Geocode:
         latitude=float(first["latitude"]),
         longitude=float(first["longitude"]),
     )
+
+
+def current_weather(latitude: float, longitude: float) -> dict:
+    data = _get_json(
+        FORECAST_URL,
+        {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": (
+                "temperature_2m,apparent_temperature,"
+                "relative_humidity_2m,wind_speed_10m,weather_code"
+            ),
+            "timezone": "auto",
+        },
+    )
+    current = data.get("current")
+    if not current:
+        raise WeatherError("API не вернул текущую погоду")
+    return {
+        "temperature_c": current.get("temperature_2m"),
+        "feels_like_c": current.get("apparent_temperature"),
+        "humidity_percent": current.get("relative_humidity_2m"),
+        "wind_kmh": current.get("wind_speed_10m"),
+        "weather": describe_weather(int(current.get("weather_code", -1))),
+    }
+
+
+def daily_forecast(latitude: float, longitude: float, days: int) -> list[dict]:
+    data = _get_json(
+        FORECAST_URL,
+        {
+            "latitude": latitude,
+            "longitude": longitude,
+            "daily": (
+                "temperature_2m_max,temperature_2m_min,"
+                "precipitation_probability_max,weather_code"
+            ),
+            "forecast_days": days,
+            "timezone": "auto",
+        },
+    )
+    daily = data.get("daily") or {}
+    dates = daily.get("time") or []
+    if not dates:
+        raise WeatherError("API не вернул прогноз")
+    highs = daily.get("temperature_2m_max") or []
+    lows = daily.get("temperature_2m_min") or []
+    precipitation = daily.get("precipitation_probability_max") or []
+    codes = daily.get("weather_code") or []
+    forecast = []
+    for index, day in enumerate(dates):
+        code = codes[index] if index < len(codes) else None
+        forecast.append(
+            {
+                "date": day,
+                "temp_max_c": highs[index] if index < len(highs) else None,
+                "temp_min_c": lows[index] if index < len(lows) else None,
+                "precipitation_probability": (
+                    precipitation[index] if index < len(precipitation) else None
+                ),
+                "weather": (
+                    describe_weather(int(code)) if code is not None else "нет данных"
+                ),
+            }
+        )
+    return forecast
