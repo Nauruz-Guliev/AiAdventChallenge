@@ -1,0 +1,24 @@
+// Проектное подключение MCP-сервера погоды в opencode.
+// Скопируй этот файл в КОРЕНЬ репозитория под именем opencode.json (или
+// opencode.jsonc) и перезапусти opencode. Действует ТОЛЬКО внутри этого
+// репозитория — глобальный ~/.config/opencode/opencode.json не трогается.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "weather": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--directory",
+        "day17",
+        "--with",
+        "mcp>=2,<3",
+        "server.py"
+      ],
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
