@@ -106,8 +106,35 @@ python -m venv .venv
 }
 ```
 
-**Важно:** файл должен лежать в **корне репозитория** — opencode ищет проектный
-конфиг в корне воркспейса. Глобально нужен **абсолютный** путь к `server.py`.
+**Важно:** проектный `opencode.json` работает, только когда opencode запущен
+**из корня репозитория** (тогда `cwd: "day18"` разрешается). Если запускаешь
+opencode из другой папки — правь **глобальный** конфиг и указывай **абсолютные**
+пути и к `server.py`, и к `cwd`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "scheduler": {
+      "type": "local",
+      "command": ["uv", "run", "--no-project", "--with", "mcp>=2,<3",
+                  "C:/Users/Nauruz-work/Documents/ai_advent_challenge/day18/server.py"],
+      "cwd": "C:/Users/Nauruz-work/Documents/ai_advent_challenge/day18",
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
+```
+
+<div>
+
+**Симптом ошибки:** `opencode mcp list` → `✗ scheduler failed` с
+`ENOENT … uv_spawn 'uv'`, хотя `uv` установлен. Причина — **несуществующий рабочий
+каталог**: относительный `cwd: "day18"` считается от папки запуска opencode. Лечится
+абсолютным `cwd` (см. выше) либо запуском opencode из корня репозитория.
+
+</div>
 
 ## Инструменты (8)
 
