@@ -10,6 +10,19 @@ import registry
 DEFAULT_REMINDER_SECONDS = 60
 _CITY_RE = re.compile(r"(?:^|\s)(?:в|во)\s+([А-ЯЁ][а-яё]+)")
 _TOPIC_MARKERS = ("про ", "о ", "об ")
+_TOPIC_CUTS = (",", ";", " и напомн", " и сохран", " и запиш", " напомн", " сохран", " запиш")
+_CITY_FIX = {
+    "москве": "Москва",
+    "москву": "Москва",
+    "москвы": "Москва",
+    "алматы": "Алматы",
+    "астане": "Астана",
+    "питере": "Санкт-Петербург",
+    "петербурге": "Санкт-Петербург",
+    "лондоне": "Лондон",
+    "париже": "Париж",
+    "берлине": "Берлин",
+}
 
 
 class OrchestrationError(Exception):
@@ -21,18 +34,30 @@ class Step:
     server: str
     tool: str
     args: dict = field(default_factory=dict)
+    optional: bool = False
 
     def as_dict(self) -> dict:
-        return {"server": self.server, "tool": self.tool, "args": self.args}
+        return {"server": self.server, "tool": self.tool, "args": self.args, "optional": self.optional}
 
 
 def _extract_topic(goal: str) -> str:
     low = goal.lower()
+    start = None
     for marker in _TOPIC_MARKERS:
         idx = low.find(marker)
         if idx != -1:
-            return goal[idx + len(marker):].strip(" .,!?;:")
-    return goal.strip(" .,!?;:")
+            start = idx + len(marker)
+            break
+    chunk = goal[start:] if start is not None else goal
+    positions = [chunk.lower().find(cut) for cut in _TOPIC_CUTS]
+    positions = [pos for pos in positions if pos != -1]
+    if positions:
+        chunk = chunk[: min(positions)]
+    return chunk.strip(" .,!?;:-")
+
+
+def _normalize_city(name: str) -> str:
+    return _CITY_FIX.get(name.lower(), name)
 
 
 def parse_goal(goal: str) -> dict:
@@ -40,7 +65,7 @@ def parse_goal(goal: str) -> dict:
     if not goal:
         raise OrchestrationError("Пустая цель")
     match = _CITY_RE.search(goal)
-    city = match.group(1) if match else None
+    city = _normalize_city(match.group(1)) if match else None
     reminder = "напомн" in goal.lower()
     return {"topic": _extract_topic(goal), "city": city, "reminder": reminder}
 
@@ -54,7 +79,7 @@ def route(
 ) -> list[Step]:
     steps: list[Step] = []
     if city:
-        steps.append(Step("weather", "get_weather", {"city": city}))
+        steps.append(Step("weather", "get_weather", {"city": city}, optional=True))
     steps.append(Step("compose", "search", {"query": topic}))
     steps.append(Step("compose", "summarize", {"text": "$search_text"}))
     steps.append(Step("compose", "save_to_file", {"content": "$markdown"}))
@@ -64,6 +89,7 @@ def route(
                 "scheduler",
                 "add_reminder",
                 {"text": reminder_text or f"Проверить: {topic}", "in_seconds": in_seconds},
+                optional=True,
             )
         )
     steps.append(Step("notes", "add_note", {"title": topic, "body": "$summary"}))
@@ -132,7 +158,7 @@ async def run_flow(goal: str, caller=None, python: str | None = None) -> dict:
     error_message: str | None = None
 
     async with AsyncExitStack() as stack:
-        active = caller or await _real_caller_factory(stack, python)
+        active = caller or _real_caller_factory(stack, python)
         for index, step in enumerate(steps):
             try:
                 args = _resolve_args(step.args, ctx)
@@ -148,9 +174,7 @@ async def run_flow(goal: str, caller=None, python: str | None = None) -> dict:
                         "result": result,
                     }
                 )
-            except Exception as exc:  # noqa: BLE001 — фиксируем и останавливаем флоу
-                ok = False
-                error_message = str(exc)
+            except Exception as exc:  # noqa: BLE001 — ошибку шага фиксируем в trace
                 trace.append(
                     {
                         "index": index,
@@ -159,8 +183,13 @@ async def run_flow(goal: str, caller=None, python: str | None = None) -> dict:
                         "args": step.args,
                         "ok": False,
                         "error": str(exc),
+                        "optional": step.optional,
                     }
                 )
+                if step.optional:
+                    continue
+                ok = False
+                error_message = str(exc)
                 break
 
     return {

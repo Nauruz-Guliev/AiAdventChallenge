@@ -114,21 +114,26 @@ docs/superpowers/specs/2026-09-28-day20-orchestration-design.md   # этот д�
 
 - `Step(server, tool, args: dict)` — dataclass; `as_dict()`.
 - `parse_goal(goal) -> {topic, city, reminder}` — rule-based:
-  - `city` — regex `(?:в|во)\s+([А-ЯЁ][а-яё-]+)`;
+  - `city` — regex `(?:в|во)\s+([А-ЯЁ][а-яё-]+)` + нормализация падежа по маленькому
+    словарю (`«Москве» → «Москва»`);
   - `reminder` — слово «напомн» в цели;
-  - `topic` — текст после «про»/«о»/«об» либо вся цель без вводных слов.
+  - `topic` — текст после «про»/«о»/«об», обрезанный по запятой и хвостовым
+    командам («напомни», «сохрани», «запиши»).
 - `route(topic, city=None, reminder=False, in_seconds=60, reminder_text=None) -> list[Step]`:
-  порядок из флоу выше; `weather` — только при `city`; `reminder` — только при
-  `reminder`. Последний шаг всегда `notes.add_note`.
+  порядок из флоу выше; `weather` — только при `city` (шаг **необязательный**);
+  `reminder` — только при `reminder` (тоже необязательный). Последний шаг всегда
+  `notes.add_note`.
 - `run_flow(goal, caller=None, python=None) -> dict` (async):
   - `parse_goal` → `route` → исполнение шагов;
   - `caller(server, tool, args)` (async) инъектится в тестах; по умолчанию — реальный
     `client.call_tool` через `AsyncExitStack` (клиент на сервер);
   - контекст передаёт данные между шагами; `$key` резолвится из контекста;
-  - ошибка шага → запись `{ok: false, error}` в trace и **останов** флоу
+  - ошибка **необязательного** шага (погода/напоминание) → запись
+    `{ok: false, error, optional: true}` и **продолжение** флоу (best-effort);
+  - ошибка **обязательного** шага (search/summarize/save/note) → запись и **останов**
     (`ok=false` в отчёте, частичный trace сохранён);
   - возврат: `{goal, params, steps_planned, trace: [{index, server, tool, args, ok,
-    result|error}], ok, error, output_path}`.
+    optional?, result|error}], ok, error, output_path}`.
 
 ### `server.py` — MCP-сервер `orchestrator`
 

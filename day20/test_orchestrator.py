@@ -64,9 +64,15 @@ def test_client_make_params_uv_by_default():
 
 def test_parse_goal_topic_city_reminder():
     params = orchestrator.parse_goal("Узнай погоду в Москве, найди про MCP и напомни проверить")
-    assert params["city"] == "Москве"
+    assert params["city"] == "Москва"
     assert params["reminder"] is True
     assert "MCP" in params["topic"]
+
+
+def test_parse_goal_strips_trailing_commands():
+    params = orchestrator.parse_goal("Найди про Model Context Protocol, напомни проверить")
+    assert params["topic"] == "Model Context Protocol"
+    assert params["reminder"] is True
 
 
 def test_route_full_order():
@@ -128,6 +134,38 @@ def test_run_flow_trace_and_data_transfer():
     assert by_tool["summarize"]["args"]["text"] == "MCP. Протокол MCP. Ещё MCP."
     assert by_tool["add_note"]["args"]["body"] == by_tool["summarize"]["result"]["summary"]
     assert report["output_path"] == "C:/x/out.md"
+
+
+def test_run_flow_real_caller_against_notes(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOTES_DB", str(tmp_path / "notes.json"))
+    steps = [orchestrator.Step("notes", "add_note", {"title": "T", "body": "B"})]
+    monkeypatch.setattr(orchestrator, "route", lambda **kwargs: steps)
+
+    report = asyncio.run(orchestrator.run_flow("Заметка", python=sys.executable))
+    assert report["ok"] is True
+    assert report["trace"][0]["result"]["title"] == "T"
+
+
+def test_optional_step_failure_does_not_abort_flow():
+    async def fake(server, tool, args):
+        if tool == "get_weather":
+            raise client.ClientError("город не найден")
+        if tool == "search":
+            return {"query": args["query"], "results": [{"title": "T", "url": "u", "snippet": "s"}]}
+        if tool == "summarize":
+            return {"summary": args["text"], "sentence_count": 1}
+        if tool == "save_to_file":
+            return {"path": "p", "bytes_written": 1}
+        if tool == "add_note":
+            return {"id": 1}
+        return {}
+
+    report = asyncio.run(orchestrator.run_flow("Найди про MCP в Москве", caller=fake))
+    assert report["ok"] is True
+    by_tool = {t["tool"]: t for t in report["trace"]}
+    assert by_tool["get_weather"]["ok"] is False
+    assert by_tool["get_weather"]["optional"] is True
+    assert by_tool["add_note"]["ok"] is True
 
 
 def test_run_flow_records_failure_and_stops():
