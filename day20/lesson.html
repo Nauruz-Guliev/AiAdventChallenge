@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 20 — Оркестрация MCP</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0f11; --surface: #15171a; --line: rgba(255,255,255,.09);
+    --text: #edeef0; --dim: #9ba1a6; --mute: #6b7176;
+    --accent: #8fe3c0; --accent2: #7dd3fc; --gold: #f5c451;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; font-size: 16px; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 90px; }
+  h1 { font-size: 32px; letter-spacing: -.02em; margin: 0 0 6px; }
+  .sub { color: var(--dim); margin: 0 0 26px; }
+  nav { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 16px 20px; margin: 0 0 30px; }
+  nav ol { margin: 0; padding-left: 20px; }
+  nav a { color: var(--accent2); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  section { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 20px 24px; margin: 0 0 18px; }
+  section h2 { font-size: 20px; margin: 0 0 10px; }
+  section h2 .n { color: var(--mute); font-weight: 400; margin-right: 8px; }
+  p { margin: 10px 0; }
+  .accent { color: var(--accent); }
+  .gold { color: var(--gold); }
+  code.inline { font-family: Consolas, monospace; font-size: .89em; background: #0b0c0e;
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: #cfe9df; }
+  pre { background: #0b0c0e; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; font-family: Consolas, monospace;
+    font-size: 13px; color: #dcece6; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+  th { color: var(--accent2); font-weight: 600; }
+  .flow { display: flex; flex-direction: column; gap: 6px; margin: 14px 0;
+    font-family: Consolas, monospace; font-size: 13px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+    background: #0b0c0e; color: var(--accent); align-self: flex-start; }
+  .chip.s { color: var(--gold); }
+  .chip.o { color: var(--accent2); }
+  .tip { border-left: 3px solid var(--gold); background: #121316; border-radius: 8px;
+    padding: 10px 14px; color: var(--dim); margin: 12px 0; }
+  .tip b { color: var(--gold); }
+  .foot { color: var(--mute); font-size: 13px; border-top: 1px solid var(--line);
+    padding-top: 16px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Оркестрация MCP</h1>
+  <p class="sub">День 20 · несколько серверов, длинный флоу, trace</p>
+
+  <nav>
+    <ol>
+      <li><a href="#s1">Композиция vs оркестрация</a></li>
+      <li><a href="#s2">Оркестратор — это MCP-клиент</a></li>
+      <li><a href="#s3">Выбор инструментов: route</a></li>
+      <li><a href="#s4">parse_goal: rule-based</a></li>
+      <li><a href="#s5">Передача данных между серверами</a></li>
+      <li><a href="#s6">trace — доказательство порядка</a></li>
+      <li><a href="#s7">Обработка ошибок</a></li>
+      <li><a href="#s8">Проверка и демо</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2><span class="n">01</span>Композиция vs оркестрация</h2>
+    <p><span class="accent">Композиция</span> (день 19) — цепочка инструментов
+      <b>внутри</b> одного сервера. <span class="accent">Оркестрация</span> (день 20) —
+      сервер сам ходит в <b>другие</b> MCP-серверы и координирует их. Оркестратор
+      одновременно MCP-сервер (для агента) и MCP-клиент (для соседей).</p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>Оркестратор — это MCP-клиент</h2>
+    <p><code class="inline">client.py</code> открывает
+      <code class="inline">mcp.Client(StdioServerParameters(...))</code> и вызывает
+      инструмент на удалённом сервере. <code class="inline">run_flow</code> держит
+      <b>по одному клиенту на сервер</b> через
+      <code class="inline">AsyncExitStack</code> — не поднимает процесс на каждый шаг.</p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Выбор инструментов: route</h2>
+    <p><code class="inline">route()</code> строит список шагов:</p>
+    <div class="flow">
+      <span class="chip s">weather.get_weather</span> — если указан город
+      <span class="chip o">compose.search → summarize → save_to_file</span> — всегда
+      <span class="chip s">scheduler.add_reminder</span> — если просили напомнить
+      <span class="chip o">notes.add_note</span> — всегда последним
+    </div>
+    <p>Условные шаги и есть выбор инструментов под запрос.
+      <code class="inline">plan()</code> возвращает этот список до выполнения.</p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>parse_goal: rule-based</h2>
+    <p>Извлекаем параметры простыми правилами:</p>
+    <ul>
+      <li>город — regex <code class="inline">(?:в|во) +([А-ЯЁ][а-яё]+)</code> (после «в» пробел);</li>
+      <li>напоминание — слово «напомн»;</li>
+      <li>тема — текст после «про»/«о»/«об».</li>
+    </ul>
+    <div class="tip"><b>Это учебный роутер, а не NLU.</b> Для надёжности
+      <code class="inline">route()</code> можно звать с типизированными параметрами.</div>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>Передача данных между серверами</h2>
+    <p>Шаги обмениваются данными через контекст: ссылка <code class="inline">$key</code>
+      резолвится перед вызовом.</p>
+    <pre>search.results → $search_text → summarize → $summary ─┬─► add_note(body)
+                                                └─► $markdown → save_to_file</pre>
+    <p>Так выход одного сервера становится входом другого.</p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>trace — доказательство порядка</h2>
+    <pre>{"index": 0, "server": "weather", "tool": "get_weather",
+ "args": {...}, "ok": true, "result": {...}}</pre>
+    <p><code class="inline">trace</code> после выполнения должен совпадать с
+      <code class="inline">plan</code> до выполнения — это проверка корректности выбора
+      и порядка вызовов.</p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>Обработка ошибок</h2>
+    <p>Ошибка шага (например, недоступен wttr.in) записывается как
+      <code class="inline">{ok: false, error}</code> и <b>останавливает</b> флоу: в
+      отчёте <code class="inline">ok=false</code>, но частичный trace сохраняется —
+      видно, где сломалось. Остальные серверы не трогаются.</p>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>Проверка и демо</h2>
+    <table>
+      <tr><th>Проверка</th><th>Что доказывает</th></tr>
+      <tr><td>pytest (12)</td><td>роутер, trace, передача данных, остановка, stdio</td></tr>
+      <tr><td>stdio notes</td><td>реальный вызов отдельного MCP-сервера</td></tr>
+      <tr><td>opencode run_flow</td><td>длинный флоу одной фразой</td></tr>
+    </table>
+    <div class="tip"><b>Упражнения:</b> сервер <code class="inline">translate</code>;
+      умнее <code class="inline">parse_goal</code>; параллелить weather и search через
+      <code class="inline">asyncio.gather</code>.</div>
+  </section>
+
+  <p class="foot">day20 · orchestrator · weather → compose → scheduler → notes</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "orchestrator": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "mcp>=2,<3",
+        "server.py"
+      ],
+      "cwd": "day20",
+      "enabled": true,
+      "timeout": 120000
+    },
+    "notes": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "mcp>=2,<3",
+        "notes_server.py"
+      ],
+      "cwd": "day20",
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
