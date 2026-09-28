@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 19 — Композиция MCP-инструментов</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0f11; --surface: #15171a; --line: rgba(255,255,255,.09);
+    --text: #edeef0; --dim: #9ba1a6; --mute: #6b7176;
+    --accent: #8fe3c0; --accent2: #7dd3fc; --gold: #f5c451; --pink: #f0a5c0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; font-size: 16px; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 90px; }
+  h1 { font-size: 32px; letter-spacing: -.02em; margin: 0 0 6px; }
+  .sub { color: var(--dim); margin: 0 0 26px; }
+  nav { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 16px 20px; margin: 0 0 30px; }
+  nav ol { margin: 0; padding-left: 20px; }
+  nav a { color: var(--accent2); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  section { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 20px 24px; margin: 0 0 18px; }
+  section h2 { font-size: 20px; margin: 0 0 10px; }
+  section h2 .n { color: var(--mute); font-weight: 400; margin-right: 8px; }
+  p { margin: 10px 0; }
+  .accent { color: var(--accent); }
+  .gold { color: var(--gold); }
+  code.inline { font-family: Consolas, monospace; font-size: .89em; background: #0b0c0e;
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: #cfe9df; }
+  pre { background: #0b0c0e; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; font-family: Consolas, monospace;
+    font-size: 13px; color: #dcece6; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+  th { color: var(--accent2); font-weight: 600; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0;
+    font-family: Consolas, monospace; font-size: 13px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+    background: #0b0c0e; color: var(--accent); }
+  .chip.p { color: var(--gold); }
+  .arrow { color: var(--mute); }
+  .tip { border-left: 3px solid var(--gold); background: #121316; border-radius: 8px;
+    padding: 10px 14px; color: var(--dim); margin: 12px 0; }
+  .tip b { color: var(--gold); }
+  .foot { color: var(--mute); font-size: 13px; border-top: 1px solid var(--line);
+    padding-top: 16px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Композиция MCP-инструментов</h1>
+  <p class="sub">День 19 · пайплайн <code class="inline">search → summarize → save_to_file</code></p>
+
+  <nav>
+    <ol>
+      <li><a href="#s1">Что такое композиция</a></li>
+      <li><a href="#s2">MCP — pull-модель</a></li>
+      <li><a href="#s3">search: получение данных</a></li>
+      <li><a href="#s4">summarize: обработка</a></li>
+      <li><a href="#s5">save_to_file: сохранение</a></li>
+      <li><a href="#s6">pipeline: автоматическая цепочка</a></li>
+      <li><a href="#s7">MCP-сервер compose</a></li>
+      <li><a href="#s8">Проверка и демо</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2><span class="n">01</span>Что такое композиция</h2>
+    <p>Один инструмент делает одно дело. <span class="accent">Композиция</span> —
+      когда несколько инструментов соединяются в цепочку, где выход одного
+      становится входом следующего:</p>
+    <div class="flow">
+      <span class="chip">search</span><span class="arrow">→</span>
+      <span class="chip">summarize</span><span class="arrow">→</span>
+      <span class="chip">save_to_file</span>
+    </div>
+    <p>Ключ — <b>явные контракты</b>: каждый инструмент принимает и возвращает
+      понятные типы (<code class="inline">dict</code> с известными полями). Тогда
+      звенья стыкуются без «магии», а цепочку можно проверять по частям.</p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>MCP — pull-модель</h2>
+    <p>Сервер не может сам «толкнуть» агенту промежуточный результат. Поэтому
+      цепочку собирают двумя способами: агент вызывает инструменты по очереди
+      (гибко, но зависит от LLM) либо сервер отдаёт <b>составной инструмент</b>,
+      выполняющий всю цепочку внутри.</p>
+    <p>Здесь есть оба: три отдельных инструмента и составной
+      <code class="inline">pipeline</code>. Второй и есть автоматическое
+      выполнение цепочки.</p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>search: получение данных</h2>
+    <p>Ходит в Wikipedia Search API (<code class="inline">action=query&amp;list=search</code>),
+      без ключа:</p>
+    <pre>{"query": "...", "results": [{"title", "url", "snippet"}]}</pre>
+    <p>Тонкость: <code class="inline">snippet</code> приходит с HTML
+      (<code class="inline">&lt;span class="searchmatch"&gt;…&lt;/span&gt;</code>),
+      его чистит <code class="inline">_strip_html</code>.</p>
+    <div class="tip"><b>Ошибки:</b> сеть/пустой ответ →
+      <code class="inline">SearchError</code> → <code class="inline">ValueError</code>
+      в сервере (MCP покажет ошибку, процесс не падает).</div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>summarize: обработка</h2>
+    <p>Экстрактивная суммаризация без LLM:</p>
+    <ol>
+      <li>текст режется на предложения;</li>
+      <li>считается частотность значимых слов (длина ≥ 3, без стоп-слов);</li>
+      <li>предложение оценивается суммой частот, делённой на длину;</li>
+      <li>топ-N возвращается <b>в исходном порядке</b> — так саммари читается связно.</li>
+    </ol>
+    <p>Чистая функция: ни сети, ни файлов — поэтому легко тестируется.</p>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>save_to_file: сохранение</h2>
+    <p>Пишет контент как есть в UTF-8 и возвращает
+      <code class="inline">{path, bytes_written, written_at}</code>. Каталог
+      <code class="inline">out/</code> создаётся автоматически.</p>
+    <p>Разделение обязанностей: <code class="inline">storage</code> только пишет;
+      заголовок и структуру markdown собирает <code class="inline">pipeline</code>.</p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>pipeline: автоматическая цепочка</h2>
+    <p>Связывает три этапа и возвращает отчёт о передаче данных:</p>
+    <pre>{
+  "query": "...",
+  "stages": {
+    "search":    {"result_count": 5, "top_titles": [...]},
+    "summarize": {"sentence_count": 2, "summary_chars": 53},
+    "save":      {"path": "...", "bytes_written": 487}
+  },
+  "output_path": "...",
+  "summary": "..."
+}</pre>
+    <p>Именно <code class="inline">stages</code> доказывают корректность передачи:
+      видно, сколько данных пришло на вход каждого этапа и что вышло наружу.</p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>MCP-сервер compose</h2>
+    <table>
+      <tr><th>Инструмент</th><th>Параметры</th><th>Возврат</th></tr>
+      <tr><td>search</td><td>query, limit=5</td><td>results[]</td></tr>
+      <tr><td>summarize</td><td>text, sentences=3</td><td>summary + метрики</td></tr>
+      <tr><td>save_to_file</td><td>content, path?</td><td>path, bytes</td></tr>
+      <tr><td>pipeline</td><td>query, path?, sentences</td><td>stages, output_path</td></tr>
+    </table>
+    <p><code class="inline">MCPServer("compose")</code> + декоратор
+      <code class="inline">@mcp.tool()</code>. В opencode префикс:
+      <code class="inline">compose_pipeline</code> и т.д.</p>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>Проверка и демо</h2>
+    <p><span class="gold">Тесты:</span>
+      <code class="inline">pytest -q</code> → 18 офлайн-тестов.</p>
+    <p><span class="gold">Живьём:</span>
+      <code class="inline">pipeline.run('Model Context Protocol')</code> → отчёт + файл
+      в <code class="inline">day19/out/</code>.</p>
+    <p><span class="gold">В opencode:</span> «Найди в Википедии … и сохрани конспект» —
+      одна фраза, цепочка из трёх инструментов, готовый файл.</p>
+    <div class="tip"><b>Упражнения:</b> добавить <code class="inline">translate</code>
+      между summarize и save; ограничить число источников; сохранять сырой JSON рядом.</div>
+  </section>
+
+  <p class="foot">day19 · MCP compose pipeline · search → summarize → save_to_file</p>
+</div>
+</body>
+</html>

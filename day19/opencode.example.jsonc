@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "compose": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "mcp>=2,<3",
+        "server.py"
+      ],
+      "cwd": "day19",
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
