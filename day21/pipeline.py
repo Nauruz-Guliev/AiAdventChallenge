@@ -39,9 +39,9 @@ def build_index(
     embedder: Embedder,
     out_dir,
     tokenizer=None,
-    chunk_size: int = 512,
-    overlap: int = 64,
-    min_tokens: int = 128,
+    chunk_size: int = 120,
+    overlap: int = 20,
+    min_tokens: int = 48,
     model_name: str = "unknown",
 ) -> tuple[IndexStore, Path]:
     if strategy not in ("fixed", "structure"):
@@ -66,6 +66,7 @@ def build_index(
                     d.text,
                     source=d.source,
                     title=d.title,
+                    max_tokens=chunk_size,
                     min_tokens=min_tokens,
                     tokenizer=tokenizer,
                 )
@@ -84,15 +85,15 @@ def main(argv=None) -> int:
     parser.add_argument("--strategy", choices=["fixed", "structure", "both"], default="both")
     parser.add_argument("--embedder", choices=["fake", "sentence"], default="fake")
     parser.add_argument("--model", default=None)
-    parser.add_argument("--chunk-size", type=int, default=512)
-    parser.add_argument("--overlap", type=int, default=64)
-    parser.add_argument("--min-tokens", type=int, default=128)
+    parser.add_argument("--chunk-size", type=int, default=120)
+    parser.add_argument("--overlap", type=int, default=20)
+    parser.add_argument("--min-tokens", type=int, default=48)
     args = parser.parse_args(argv)
 
     embedder = get_embedder(args.embedder, model=args.model)
     if args.embedder == "fake":
         print("ВНИМАНИЕ: используется FakeEmbedder — векторы не семантические.")
-    tokenizer = getattr(embedder, "tokenize", None)
+    tokenizer = embedder
     model_name = getattr(embedder, "model_name", args.embedder)
 
     strategies = ["fixed", "structure"] if args.strategy == "both" else [args.strategy]

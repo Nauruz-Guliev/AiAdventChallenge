@@ -52,8 +52,21 @@ class SentenceTransformerEmbedder(Embedder):
     def dim(self) -> int:
         return int(self._load().get_sentence_embedding_dimension())
 
+    @property
+    def max_seq_length(self) -> int:
+        return int(self._load().max_seq_length)
+
     def tokenize(self, text: str) -> list:
-        return self._load().tokenize(text)
+        return self._load().tokenizer(text, add_special_tokens=False, verbose=False)["input_ids"]
+
+    def spans(self, text: str) -> list[tuple[int, int]]:
+        enc = self._load().tokenizer(
+            text,
+            add_special_tokens=False,
+            return_offsets_mapping=True,
+            verbose=False,
+        )
+        return [tuple(pair) for pair in enc["offset_mapping"]]
 
     def embed(self, texts: Sequence[str]) -> np.ndarray:
         model = self._load()

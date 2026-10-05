@@ -82,3 +82,32 @@ def test_structure_merges_small_sections():
 
 def test_structure_empty():
     assert chunk_structure("", source="e.md") == []
+
+
+class _CharTokenizer:
+    """Каждый символ = токен. Проверяем токенизаторный путь (spans)."""
+
+    def tokenize(self, text):
+        return list(text)
+
+    def spans(self, text):
+        return [(i, i + 1) for i in range(len(text))]
+
+
+def test_count_tokens_with_tokenizer_object():
+    assert count_tokens("abcd", tokenizer=_CharTokenizer()) == 4
+
+
+def test_fixed_uses_tokenizer_spans():
+    chunks = chunk_fixed(
+        "abcdefghij", chunk_size=4, overlap=0, tokenizer=_CharTokenizer(), source="x"
+    )
+    assert [c.text for c in chunks] == ["abcd", "efgh", "ij"]
+    assert chunks[0].token_count == 4
+
+
+def test_structure_splits_oversized_section():
+    md = "## Big\n" + "word " * 20
+    chunks = chunk_structure(md, source="s.md", max_tokens=5, min_tokens=1)
+    assert len(chunks) > 1
+    assert all(c.token_count <= 5 for c in chunks)
