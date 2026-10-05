@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 21 — Индексация документов (KMP)</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0f11; --surface: #15171a; --line: rgba(255,255,255,.09);
+    --text: #edeef0; --dim: #9ba1a6; --mute: #6b7176;
+    --accent: #8fe3c0; --accent2: #7dd3fc; --gold: #f5c451; --pink: #f0a6ca;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; font-size: 16px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 90px; }
+  h1 { font-size: 32px; letter-spacing: -.02em; margin: 0 0 6px; }
+  .sub { color: var(--dim); margin: 0 0 26px; }
+  nav { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 16px 20px; margin: 0 0 30px; }
+  nav ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 30px; }
+  nav a { color: var(--accent2); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  section { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 20px 24px; margin: 0 0 18px; }
+  section h2 { font-size: 20px; margin: 0 0 10px; }
+  section h2 .n { color: var(--mute); font-weight: 400; margin-right: 8px; }
+  h3 { font-size: 15px; color: var(--accent2); margin: 18px 0 6px; }
+  p { margin: 10px 0; }
+  ul { margin: 8px 0; }
+  .accent { color: var(--accent); }
+  .gold { color: var(--gold); }
+  .pink { color: var(--pink); }
+  code.inline { font-family: Consolas, monospace; font-size: .89em; background: #0b0c0e;
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: #cfe9df; }
+  pre { background: #0b0c0e; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; font-family: Consolas, monospace;
+    font-size: 13px; color: #dcece6; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { color: var(--accent2); font-weight: 600; }
+  .flow { display: flex; flex-direction: column; gap: 6px; margin: 14px 0;
+    font-family: Consolas, monospace; font-size: 13px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+    background: #0b0c0e; color: var(--accent); align-self: flex-start; }
+  .chip.s { color: var(--gold); }
+  .chip.o { color: var(--accent2); }
+  .tip { border-left: 3px solid var(--gold); background: #121316; border-radius: 8px;
+    padding: 10px 14px; color: var(--dim); margin: 12px 0; }
+  .tip b { color: var(--gold); }
+  .step { border-left: 3px solid var(--accent2); background: #121316; border-radius: 8px;
+    padding: 12px 16px; margin: 12px 0; }
+  .step b { color: var(--accent2); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } nav ol { columns: 1; } }
+  .foot { color: var(--mute); font-size: 13px; border-top: 1px solid var(--line);
+    padding-top: 16px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Индексация документов</h1>
+  <p class="sub">День 21 · chunking → embeddings → индекс · Kotlin Multiplatform для RAG</p>
+
+  <nav>
+    <ol>
+      <li><a href="#s1">Что и зачем: RAG и индекс</a></li>
+      <li><a href="#s2">Архитектура пайплайна</a></li>
+      <li><a href="#s3">Шаг 1. Корпус KMP</a></li>
+      <li><a href="#s4">Шаг 2. Chunking (2 стратегии)</a></li>
+      <li><a href="#s5">Шаг 3. Эмбеддинги</a></li>
+      <li><a href="#s6">Шаг 4. IndexStore</a></li>
+      <li><a href="#s7">Шаг 5. pipeline.py</a></li>
+      <li><a href="#s8">Шаг 6. compare / query</a></li>
+      <li><a href="#s9">Метаданные чанка</a></li>
+      <li><a href="#s10">Повтори сам</a></li>
+      <li><a href="#s11">Подводные камни</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2><span class="n">01</span>Что и зачем: RAG и индекс</h2>
+    <p>LLM знает только то, что попало в контекст. <span class="accent">RAG</span>
+      (Retrieval-Augmented Generation) дополняет ответ релевантными фрагментами из базы
+      знаний. Чтобы их находить быстро, документы заранее:</p>
+    <div class="flow">
+      <span class="chip">1. chunking — режем на смысловые единицы</span>
+      <span class="chip o">2. embeddings — каждый чанк → вектор</span>
+      <span class="chip s">3. index — «вектор + метаданные» каждого чанка</span>
+    </div>
+    <p>На запрос эмбеддим его тем же способом, ищем ближайшие чанки по
+      <span class="accent">cosine similarity</span> и подставляем их текст в промпт.</p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="n">02</span>Архитектура пайплайна</h2>
+    <pre>corpus/*.md
+   │  load            (source, title, text)
+   ▼
+chunking ──┬── fixed-size   (~512 токенов, overlap 64)
+           └── structure    (по заголовкам # → ## → ###)
+   │  чанки + метаданные
+   ▼
+embeddings        (sentence-transformers, батчами, L2-normalize)
+   │  вектор на чанк
+   ▼
+index (JSON: chunk_id, source, title, section, strategy, text, embedding, …)
+   │
+   ├─► compare.py   сравнение стратегий (метрики + качество извлечения)
+   └─► query.py     семантический поиск top-k (RAG-выборка)</pre>
+    <p>Ключевой приём: один корпус прогоняем через <b>обе</b> стратегии независимо —
+      сравнение честное, на одних данных.</p>
+  </section>
+
+  <section id="s3">
+    <h2><span class="n">03</span>Шаг 1. Корпус KMP</h2>
+    <p>Тема — <span class="accent">Kotlin Multiplatform</span>. Собираем максимум
+      актуальной информации скриптом <code class="inline">fetch_docs.py</code> прямо из
+      официальных источников на GitHub:</p>
+    <table>
+      <tr><th>Папка</th><th>Что внутри</th><th>Файлов</th></tr>
+      <tr><td><code class="inline">corpus/kmp-docs/</code></td>
+        <td>официальные доки KMP из <code class="inline">JetBrains/kotlin-multiplatform-dev-docs</code>
+        (overview, expect/actual, iOS-интеграция, Compose MP, tools, whats-new)</td><td>122</td></tr>
+      <tr><td><code class="inline">corpus/libs/</code></td>
+        <td>README kotlinx.coroutines/serialization/datetime/io/atomicfu, Ktor, Compose MP,
+        SQLDelight, Multiplatform Settings, MOKO, Koin, Store + страница ktor.io</td><td>14</td></tr>
+      <tr><td><code class="inline">corpus/ru/</code></td>
+        <td>официальный русский перевод kotlinlang.ru по KMP и корутинам</td><td>8</td></tr>
+    </table>
+    <p><b>144 документа, ≈1.8 млн символов (≈1000 страниц).</b> Корпус фиксируется в
+      репозитории как markdown, поэтому индексация воспроизводима.</p>
+    <div class="tip"><b>Почему raw GitHub, а не HTML.</b> kotlinlang.org — SPA, обычный
+      HTTP-запрос отдаёт пустую страницу. Исходники документации лежат в репозитории как
+      markdown — их и берём напрямую. Из Writeside-текста удаляем служебные теги
+      (<code class="inline">strip_writeside</code>), а заголовок достаём из
+      <code class="inline">[//]: # (title: …)</code>.</div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="n">04</span>Шаг 2. Chunking — две стратегии</h2>
+    <p>Чанк — компромисс: крупный размывает смысл, мелкий теряет контекст. Поэтому делаем
+      две стратегии и сравниваем.</p>
+
+    <h3>A. Фиксированный размер — <code class="inline">chunk_fixed</code></h3>
+    <p>Окна по <code class="inline">chunk_size</code> токенов со сдвигом
+      <code class="inline">step = chunk_size − overlap</code>. Перекрытие сохраняет
+      контекст на стыках.</p>
+    <pre>def chunk_fixed(text, chunk_size=512, overlap=64, source="", title=""):
+    spans = _word_spans(text)                 # границы слов в тексте
+    step = max(1, chunk_size - overlap)       # 512 - 64 = 448
+    i = idx = 0
+    while i &lt; len(spans):
+        j = min(i + chunk_size, len(spans))
+        yield Chunk(chunk_id=f"{source}:fixed:{idx}",
+                    section="fixed", strategy="fixed",
+                    text=text[spans[i][0]:spans[j-1][1]],
+                    char_offset=spans[i][0], token_count=j - i)
+        if j == len(spans): break
+        i += step; idx += 1</pre>
+    <p><span class="gold">Плюс:</span> ровные чанки, предсказуемая стоимость.
+      <span class="pink">Минус:</span> граница проходит по слову, игнорируя структуру.</p>
+
+    <h3>B. По структуре — <code class="inline">chunk_structure</code></h3>
+    <p>Режем по заголовкам markdown (<code class="inline">^#{1,6}\s</code>), отслеживая
+      путь <code class="inline"># A &gt; ## B &gt; ### C</code>. Мелкие секции склеиваем
+      до <code class="inline">min_tokens</code>.</p>
+    <pre>def chunk_structure(markdown, min_tokens=128, source="", title=""):
+    sections = _split_sections(markdown, title, source)   # (path, text, offset)
+    merged, cur = [], []
+    for path, text, off in sections:
+        cur.append(text)                          # копим секции…
+        if count_tokens("\n\n".join(cur)) >= min_tokens:
+            merged.append((path, "\n\n".join(cur), off)); cur = []
+    # каждая merged-группа -> Chunk(strategy="structure", section=path)</pre>
+    <p><span class="gold">Плюс:</span> чанк — законченная секция, <code class="inline">section</code>
+      даёт точную навигацию. <span class="pink">Минус:</span> размеры плавают, нужна склейка.</p>
+
+    <table>
+      <tr><th></th><th>fixed</th><th>structure</th></tr>
+      <tr><td>Принцип</td><td>~512 токенов</td><td>по заголовкам + границы файлов</td></tr>
+      <tr><td>Overlap</td><td>~64 токена</td><td>нет (склейка мелких)</td></tr>
+      <tr><td><code class="inline">section</code></td><td><code class="inline">"fixed"</code></td><td>путь заголовков</td></tr>
+      <tr><td>Чанков (прогон)</td><td>506</td><td>926</td></tr>
+    </table>
+  </section>
+
+  <section id="s5">
+    <h2><span class="n">05</span>Шаг 3. Эмбеддинги</h2>
+    <p>Эмбеддер — текст → вектор: похожие по смыслу тексты дают близкие векторы. Контракт:</p>
+    <pre>class Embedder:
+    dim: int
+    def embed(self, texts) -&gt; np.ndarray: ...   # (N, D)</pre>
+    <p>Две реализации:</p>
+    <ul>
+      <li><span class="accent">SentenceTransformerEmbedder</span> — модель
+        <code class="inline">paraphrase-multilingual-MiniLM-L12-v2</code> (RU+EN),
+        батчами, <code class="inline">normalize_embeddings=True</code>;</li>
+      <li><span class="accent">FakeEmbedder</span> — детерминированный хэш текста → вектор.
+        Нужен для <b>офлайн-тестов</b> и прогонов без скачивания модели (семантики не даёт).</li>
+    </ul>
+    <div class="tip"><b>Зачем FakeEmbedder.</b> Логику chunking и индекса тестируем без
+      torch (~2 ГБ) и модели (~470 МБ). Настоящая модель грузится только на финальном
+      прогоне. Разделение зависимостей = быстрые офлайн-тесты.</div>
+  </section>
+
+  <section id="s6">
+    <h2><span class="n">06</span>Шаг 4. IndexStore — хранение и поиск</h2>
+    <p>Индекс — это матрица векторов <code class="inline">(N, D)</code> + список
+      метаданных. Строим, сохраняем в JSON, грузим, ищем косинусом:</p>
+    <pre>class IndexStore:
+    @classmethod
+    def build(cls, chunks, embedder, model_name):   # embed + L2-normalize
+    def save(self, path):                            # JSON: meta + chunks + embedding
+    @classmethod
+    def load(cls, path):
+    def search(self, query_vec, top_k=5):
+        q = query_vec / norm(query_vec)
+        scores = self.embeddings @ q                 # cosine (векторы нормированы)
+        order = np.argsort(-scores)[:top_k]
+        return [Hit(...) for i in order]</pre>
+    <p>Нормированные векторы + скалярное произведение = косинус за одну операцию.</p>
+    <h3>Формат файла <code class="inline">index/structure.json</code></h3>
+    <pre>{
+  "meta": { "strategy": "structure", "model": "paraphrase-multilingual-MiniLM-L12-v2",
+            "embedding_dim": 384, "num_chunks": 926, "created_at": "..." },
+  "chunks": [
+    { "chunk_id": "kmp-docs/071-…-expect-actual.md:struct:2",
+      "source":   "kmp-docs/071-development-multiplatform-expect-actual.md",
+      "title": "Expected and actual declarations",
+      "section": "Rules for expected and actual declarations",
+      "strategy": "structure", "char_offset": 812, "token_count": 214,
+      "text": "…", "embedding": [0.011, -0.023, …] }
+  ]
+}</pre>
+    <div class="tip"><b>Альтернативы.</b> Формат JSON портируем и читаем. Для больших
+      объёмов — <b>SQLite</b> (метаданные + blob-векторы) или <b>FAISS</b> (быстрый
+      ANN-поиск). Здесь ~1000 чанков, честный перебор numpy быстрее и проще.</div>
+  </section>
+
+  <section id="s7">
+    <h2><span class="n">07</span>Шаг 5. pipeline.py — сборка индекса</h2>
+    <pre>python pipeline.py --strategy both --embedder fake       # офлайн, без модели
+python pipeline.py --strategy both --embedder sentence   # реальные эмбеддинги</pre>
+    <p>Пайплайн: <code class="inline">load_corpus → chunk_* → IndexStore.build → save</code>.
+      Пример вывода на фейковом эмбеддере:</p>
+    <pre>ВНИМАНИЕ: используется FakeEmbedder — векторы не семантические.
+[fixed] chunks=506 tokens=225419 -&gt; index\fixed.json
+[structure] chunks=926 tokens=202251 -&gt; index\structure.json</pre>
+  </section>
+
+  <section id="s8">
+    <h2><span class="n">08</span>Шаг 6. compare.py и query.py</h2>
+    <h3>Сравнение стратегий</h3>
+    <pre>python compare.py --embedder sentence</pre>
+    <p>Считает структурные метрики (число чанков, avg/min/max/std токенов) и прикладную —
+      <b>hit-rate</b> на 5 контрольных KMP-запросах (попал ли ожидаемый документ в top-3).
+      Пишет <code class="inline">index/comparison.md</code> и <code class="inline">.json</code>.</p>
+    <pre>| Метрика     | fixed  | structure |
+|-------------|--------|-----------|
+| num_chunks  | 506    | 926       |
+| avg_tokens  | 445.49 | 216.45    |
+| std_tokens  | 124.71 | …         |
+| hit_rate    | …      | …         |</pre>
+    <h3>Семантический поиск (RAG-выборка)</h3>
+    <pre>python query.py "how do expect and actual declarations work" --top 3</pre>
+    <pre>1. [0.6173] kmp-docs/071-development-multiplatform-expect-actual.md
+   :: Expected and actual declarations
+   Expected and actual declarations allow you to access platform-specific APIs…</pre>
+    <p>В коде: <code class="inline">query.answer()</code> возвращает top-k чанков с
+      метаданными — их тексты и есть контекст для промпта LLM (полноценный RAG).</p>
+  </section>
+
+  <section id="s9">
+    <h2><span class="n">09</span>Метаданные чанка</h2>
+    <table>
+      <tr><th>Поле</th><th>Смысл</th></tr>
+      <tr><td><code class="inline">source</code></td><td>относительный путь файла (для ссылки/цитаты)</td></tr>
+      <tr><td><code class="inline">title</code></td><td>заголовок документа</td></tr>
+      <tr><td><code class="inline">section</code></td><td>путь заголовков или <code class="inline">"fixed"</code></td></tr>
+      <tr><td><code class="inline">chunk_id</code></td><td><code class="inline">{source}:{strategy}:{i}</code>, уникален</td></tr>
+      <tr><td><code class="inline">strategy</code></td><td><code class="inline">fixed</code> | <code class="inline">structure</code></td></tr>
+      <tr><td><code class="inline">char_offset</code></td><td>позиция начала чанка в документе</td></tr>
+      <tr><td><code class="inline">token_count</code></td><td>длина в токенах</td></tr>
+    </table>
+    <p>Именно метаданные превращают «нашёлся вектор» в «нашёлся фрагмент
+      <b>вот из этого документа, вот из этой секции</b>».</p>
+  </section>
+
+  <section id="s10">
+    <h2><span class="n">10</span>Повтори сам — от нуля до результата</h2>
+
+    <div class="step"><b>Шаг 1.</b> Создай окружение и поставь зависимости.
+      <pre>cd day21
+python -m venv .venv
+&amp; ".venv\Scripts\python.exe" -m pip install -r requirements.txt</pre></div>
+
+    <div class="step"><b>Шаг 2.</b> (Опционально) собери корпус KMP заново. Файлы уже
+      закоммичены, но скрипт воспроизводит сбор из официальных источников.
+      <pre>&amp; ".venv\Scripts\python.exe" fetch_docs.py
+# -&gt; 144 документа, ~1.8 млн символов</pre></div>
+
+    <div class="step"><b>Шаг 3.</b> Прогони пайплайн <b>офлайн</b> (без модели) — проверить,
+      что всё работает.
+      <pre>&amp; ".venv\Scripts\python.exe" pipeline.py --strategy both --embedder fake</pre></div>
+
+    <div class="step"><b>Шаг 4.</b> Собери <b>реальный</b> индекс (скачается модель ~470 МБ,
+      дальше офлайн).
+      <pre>&amp; ".venv\Scripts\python.exe" pipeline.py --strategy both --embedder sentence</pre></div>
+
+    <div class="step"><b>Шаг 5.</b> Сравни стратегии и сделай поиск.
+      <pre>&amp; ".venv\Scripts\python.exe" compare.py --embedder sentence
+&amp; ".venv\Scripts\python.exe" query.py "how do expect and actual declarations work" --top 3</pre>
+      Смотри <code class="inline">index/comparison.md</code> — там таблица и разбор запросов.</div>
+
+    <div class="step"><b>Шаг 6.</b> Прогони тесты (полностью офлайн, без модели).
+      <pre>&amp; ".venv\Scripts\python.exe" -m pytest -q     # 25 passed</pre></div>
+
+    <div class="step"><b>Шаг 7.</b> Используй как библиотеку в своём RAG.
+      <pre>from embeddings import get_embedder
+from index import IndexStore
+
+embedder = get_embedder("sentence")
+store = IndexStore.load("index/structure.json")
+hits = store.search_text("Ktor client in common code", embedder, top_k=5)
+context = "\n\n".join(h.text for h in hits)   # -&gt; в промпт LLM</pre></div>
+
+    <div class="tip"><b>Кириллица в PowerShell.</b> Перед запуском:
+      <code class="inline">$env:PYTHONIOENCODING="utf-8"; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8</code></div>
+  </section>
+
+  <section id="s11">
+    <h2><span class="n">11</span>Подводные камни и выводы</h2>
+    <ul>
+      <li><b>Тяжёлые зависимости.</b> sentence-transformers тянет torch (~2 ГБ) + модель
+        ~470 МБ → отсюда FakeEmbedder для тестов.</li>
+      <li><b>Мусор в чанках.</b> Writeside-теги и навигацию из HTML надо чистить, иначе
+        эмбеддинги шумятся.</li>
+      <li><b>min_tokens и overlap</b> сильно влияют на результат: большой min склеит
+        секции, малый наплодит огрызков.</li>
+      <li><b>JSON-индекс крупный</b> (векторы как float). Для продакшна — бинарный
+        формат / FAISS.</li>
+    </ul>
+    <p><b>Итог:</b> локальный индекс KMP-документов с эмбеддингами и метаданными, две
+      стратегии chunking с честным сравнением и семантический поиск для RAG.</p>
+  </section>
+
+  <p class="foot">День 21 · AI Advent Challenge · Kotlin Multiplatform RAG index</p>
+</div>
+</body>
+</html>
