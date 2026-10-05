@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 23 — Реранкинг и фильтрация</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0e0f11; color: #edeef0;
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 48px 22px 96px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  .sub { color: #9ba1a6; margin: 0 0 32px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; border-left: 3px solid #f5c451; padding-left: 12px; }
+  p { color: #d7dadd; }
+  code { font-family: Consolas, monospace; background: #15171a; border: 1px solid #2a2d31;
+    border-radius: 6px; padding: 1px 6px; color: #cfe9df; font-size: .9em; }
+  pre { background: #101215; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 14px 16px; overflow-x: auto; color: #d7dadd; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #2a2d31; }
+  th { color: #9ba1a6; }
+  .card { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 16px 18px; margin: 16px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .k { color: #f5c451; font-weight: 600; }
+  .muted { color: #9ba1a6; }
+  .big { font-size: 22px; color: #f5c451; }
+  ul { color: #d7dadd; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>День 23 — Реранкинг и фильтрация</h1>
+  <p class="sub">Добавляем к поиску второй этап: <b>фильтр релевантности +
+  heuristic-реранкинг</b> и <b>query rewrite</b>. Сравниваем пять режимов на 10 вопросах.</p>
+
+  <h2>Идея</h2>
+  <p>Векторный поиск не гарантирует релевантность топа и не уточняет запрос. День 23
+  встраивает два этапа: до поиска — <span class="k">rewrite</span> вопроса в англоязычный
+  запрос, после поиска — <span class="k">фильтр</span> по порогу и
+  <span class="k">реранкинг</span> по пересечению терминов.</p>
+  <pre>вопрос → [rewrite → запрос] → поиск top-K_pre → фильтр → реранк → top-K_post → LLM</pre>
+
+  <h2>Пять режимов</h2>
+  <table>
+    <tr><th>Режим</th><th>Rewrite</th><th>Фильтр+реранк</th></tr>
+    <tr><td><code>no_rag</code></td><td>—</td><td>—</td></tr>
+    <tr><td><code>rag</code></td><td>—</td><td>—</td></tr>
+    <tr><td><code>rag_filter</code></td><td>—</td><td>да</td></tr>
+    <tr><td><code>rag_rewrite</code></td><td>да</td><td>—</td></tr>
+    <tr><td><code>rag_full</code></td><td>да</td><td>да</td></tr>
+  </table>
+
+  <h2>Фильтр и реранкинг</h2>
+  <div class="grid">
+    <div class="card"><div class="k">Фильтр</div>
+      <p class="muted">K_pre = 30 → отсечение по cosine-порогу MIN_SIM → K_post = 8.
+      Если отброшено всё — fallback на исходные top-K_post.</p></div>
+    <div class="card"><div class="k">Heuristic-реранкинг</div>
+      <p class="muted">final = 0.6·sim + 0.3·lex + 0.1·head, где lex — пересечение
+      терминов запроса с текстом, head — бонус за заголовок/секцию.</p></div>
+  </div>
+
+  <h2>Пайплайн</h2>
+  <ul>
+    <li><code>query_rewriter.py</code> — LLM-rewrite вопроса в англ. запрос.</li>
+    <li><code>retrieval.py</code> — cosine-поиск по индексу Дня 21.</li>
+    <li><code>heuristic_reranker.py</code> — фильтр по порогу + реранкинг.</li>
+    <li><code>agent.py</code> — 5 режимов, сборка контекста, вызов DeepSeek.</li>
+    <li><code>evaluator.py</code> — LLM-судья и сравнение режимов.</li>
+  </ul>
+
+  <h2>Результаты</h2>
+  <table>
+    <tr><th>Режим</th><th>Балл</th><th>Покрытие</th></tr>
+    <tr><td>Без RAG</td><td class="big">0.98</td><td>—</td></tr>
+    <tr><td>RAG (baseline)</td><td class="big">0.83</td><td>0.80</td></tr>
+    <tr><td>RAG + фильтр/реранк</td><td class="big">0.81</td><td class="big">0.90</td></tr>
+    <tr><td>RAG + rewrite</td><td class="big">0.75</td><td>0.80</td></tr>
+    <tr><td>RAG + rewrite + фильтр</td><td class="big">0.81</td><td class="big">0.90</td></tr>
+  </table>
+  <div class="card">
+    <p><span class="k">Разбор.</span> Фильтр + реранкинг поднимают покрытие источников
+    с 0.80 до 0.90 — поиск находит нужные доки точнее. Средний балл почти не меняется:
+    судья оценивает ответ, а ответ и так силён. Rewrite в одиночку чуть проседает по баллу,
+    но поднимает профильный документ в топ. Вывод — второй этап улучшает precision поиска
+    и надёжность ссылок.</p>
+  </div>
+
+  <h2>Запуск</h2>
+  <pre>cd day23/backend
+python -m venv .venv
+& .venv/Scripts/python.exe -m pip install -r requirements.txt
+copy .env.example .env      # впиши DEEPSEEK_API_KEY
+& .venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
+
+# другое окно:
+cd day23/frontend
+npm install
+npm run dev                 # http://localhost:5173</pre>
+</div>
+</body>
+</html>
