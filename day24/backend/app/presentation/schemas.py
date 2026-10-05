@@ -10,10 +10,22 @@ class HitSchema(BaseModel):
     text: str
 
 
+class CitationSchema(BaseModel):
+    ref: int
+    chunk_id: str
+    source: str
+    section: str
+    quote: str
+    grounded: bool
+
+
 class AnswerSchema(BaseModel):
     mode: str
     text: str
     sources: list[HitSchema]
+    citations: list[CitationSchema]
+    answerable: bool
+    relevance: float | None
 
 
 class AnswerRequest(BaseModel):
@@ -46,6 +58,11 @@ class EvalItemSchema(BaseModel):
     mode_scores: dict[str, float]
     mode_sources: dict[str, list[str]]
     source_coverage: dict[str, bool]
+    mode_citations: dict[str, list[dict]]
+    has_citations: dict[str, bool]
+    grounding_rate: dict[str, float]
+    support_scores: dict[str, float]
+    no_answer: dict[str, bool]
 
 
 class EvalReportSchema(BaseModel):

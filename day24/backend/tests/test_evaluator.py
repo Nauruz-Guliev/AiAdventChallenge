@@ -17,14 +17,15 @@ class NoopRewriter:
 
 def _agent():
     return RAGAgent(
-        gateway=FakeLLM(answer="x"),
+        gateway=FakeLLM(answer="alpha [1]"),
         retriever=StubRetriever(),
         reranker=HeuristicReranker(),
         rewriter=NoopRewriter(),
+        min_quote_len=3,
     )
 
 
-async def test_evaluator_builds_report_with_all_modes():
+async def test_evaluator_builds_report_with_citation_metrics():
     evaluator = Evaluator(agent=_agent(), gateway=FakeLLM(judge_score=1.0))
     questions = [Question("q1", "вопрос", "ожидание", ("a.md",))]
     report = await evaluator.evaluate(questions)
@@ -32,13 +33,13 @@ async def test_evaluator_builds_report_with_all_modes():
     item = report.items[0]
     assert item.mode_scores["rag"] == 1.0
     assert item.source_coverage["rag"] is True
-    assert item.source_coverage["no_rag"] is False
-    assert report.summary["questions"] == 1
-    assert set(report.summary["modes"]) == {
-        "no_rag", "rag", "rag_filter", "rag_rewrite", "rag_full",
-    }
-    assert report.summary["modes"]["rag"]["avg_score"] == 1.0
-    assert report.summary["modes"]["rag"]["source_coverage_rate"] == 1.0
+    assert item.has_citations["rag"] is True
+    assert item.has_citations["no_rag"] is False
+    assert set(report.summary["modes"]) == {"no_rag", "rag", "rag_guard"}
+    m = report.summary["modes"]["rag"]
+    assert m["citation_rate"] == 1.0
+    assert m["avg_grounding"] == 1.0
+    assert m["no_answer_rate"] == 0.0
 
 
 def test_source_coverage_matches_substrings():

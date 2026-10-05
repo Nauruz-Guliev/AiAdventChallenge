@@ -17,6 +17,7 @@ from app.presentation.dependencies import (
 from app.presentation.schemas import (
     AnswerRequest,
     AnswerSchema,
+    CitationSchema,
     EvalReportSchema,
     HitSchema,
     ModesResponse,
@@ -27,7 +28,7 @@ router = APIRouter()
 _post = router.post
 _get = router.get
 
-ALL_MODES = ["no_rag", "rag", "rag_filter", "rag_rewrite", "rag_full"]
+ALL_MODES = ["no_rag", "rag", "rag_guard"]
 
 
 def _answer_schema(answer: Answer) -> AnswerSchema:
@@ -45,6 +46,19 @@ def _answer_schema(answer: Answer) -> AnswerSchema:
             )
             for h in answer.sources
         ],
+        citations=[
+            CitationSchema(
+                ref=c.ref,
+                chunk_id=c.chunk_id,
+                source=c.source,
+                section=c.section,
+                quote=c.quote,
+                grounded=c.grounded,
+            )
+            for c in answer.citations
+        ],
+        answerable=answer.answerable,
+        relevance=answer.relevance,
     )
 
 
@@ -57,6 +71,11 @@ def _item_dict(item) -> dict:
         "mode_scores": item.mode_scores,
         "mode_sources": item.mode_sources,
         "source_coverage": item.source_coverage,
+        "mode_citations": item.mode_citations,
+        "has_citations": item.has_citations,
+        "grounding_rate": item.grounding_rate,
+        "support_scores": item.support_scores,
+        "no_answer": item.no_answer,
     }
 
 

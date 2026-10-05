@@ -65,6 +65,8 @@ def get_agent() -> RAGAgent:
         k_pre=settings.k_pre,
         k_post=settings.k_post,
         min_sim=settings.min_sim,
+        min_quote_len=settings.min_quote_len,
+        no_answer_min_score=settings.no_answer_min_score,
     )
 
 

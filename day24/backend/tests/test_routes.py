@@ -15,7 +15,7 @@ from app.presentation.dependencies import (
     get_settings,
 )
 
-ALL_MODES = {"no_rag", "rag", "rag_filter", "rag_rewrite", "rag_full"}
+ALL_MODES = {"no_rag", "rag", "rag_guard"}
 
 
 class StubRetriever:
@@ -30,10 +30,11 @@ class NoopRewriter:
 
 def _agent():
     return RAGAgent(
-        gateway=FakeLLM(answer="ответ"),
+        gateway=FakeLLM(answer="alpha [1]"),
         retriever=StubRetriever(),
         reranker=HeuristicReranker(),
         rewriter=NoopRewriter(),
+        min_quote_len=3,
     )
 
 
@@ -60,7 +61,10 @@ def test_answer_returns_all_modes(client):
     body = response.json()
     assert set(body["modes"]) == ALL_MODES
     assert body["modes"]["rag"]["sources"][0]["source"] == "docs/a.md"
+    assert body["modes"]["rag"]["citations"][0]["grounded"] is True
+    assert body["modes"]["rag"]["answerable"] is True
     assert body["modes"]["no_rag"]["sources"] == []
+    assert body["modes"]["no_rag"]["citations"] == []
 
 
 def test_answer_blank_returns_422(client):

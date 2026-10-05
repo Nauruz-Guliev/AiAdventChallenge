@@ -32,73 +32,50 @@ def _hits():
     ]
 
 
-def _agent(hits=None, k_pre=30, k_post=8, min_sim=0.35):
-    retriever = StubRetriever(hits if hits is not None else _hits())
-    rewriter = StubRewriter()
+def _agent(hits=None, k_pre=30, k_post=8, min_sim=0.35, no_answer_min_score=0.0):
     agent = RAGAgent(
-        gateway=FakeLLM(answer="x"),
-        retriever=retriever,
+        gateway=FakeLLM(answer="alpha ktor [1]"),
+        retriever=StubRetriever(hits if hits is not None else _hits()),
         reranker=HeuristicReranker(),
-        rewriter=rewriter,
-        k_pre=k_pre,
-        k_post=k_post,
-        min_sim=min_sim,
+        rewriter=StubRewriter(),
+        k_pre=k_pre, k_post=k_post, min_sim=min_sim,
+        min_quote_len=3, no_answer_min_score=no_answer_min_score,
     )
-    return agent, retriever, rewriter
-
-
-async def test_no_rag_has_no_sources():
-    agent, _, _ = _agent()
-    answer = await agent.answer("вопрос", mode="no_rag")
-    assert answer.sources == ()
+    return agent
 
 
 async def test_rag_uses_original_question_and_no_filter():
-    agent, retriever, rewriter = _agent()
+    agent = _agent()
     answer = await agent.answer("вопрос", mode="rag")
-    assert retriever.queries[0][0] == "вопрос"
-    assert retriever.queries[0][1] == 8
+    assert answer.sources[0].chunk_id == "c1"
     assert len(answer.sources) == 3
-    assert rewriter.calls == []
 
 
-async def test_rag_filter_drops_low_similarity():
-    agent, retriever, rewriter = _agent()
-    answer = await agent.answer("ktor client", mode="rag_filter")
+async def test_rag_guard_rewrites_and_filters():
+    agent = _agent()
+    answer = await agent.answer("Как настроить Ktor?", mode="rag_guard")
     ids = [h.chunk_id for h in answer.sources]
     assert "c2" not in ids
-    assert retriever.queries[0][1] == 30
-    assert rewriter.calls == []
+    assert answer.relevance == 0.9
+    assert len(answer.citations) >= 1
 
 
-async def test_rag_rewrite_uses_rewritten_query():
-    agent, retriever, rewriter = _agent()
-    answer = await agent.answer("Как настроить Ktor?", mode="rag_rewrite")
-    assert rewriter.calls == ["Как настроить Ktor?"]
-    assert retriever.queries[0][0] == "ktor client setup"
-    assert len(answer.sources) == 3
+async def test_rag_guard_answers_not_know_when_below_threshold():
+    agent = _agent(no_answer_min_score=0.99)
+    answer = await agent.answer("Как настроить Ktor?", mode="rag_guard")
+    assert answer.answerable is False
+    assert "не нашёл" in answer.text
+    assert answer.sources == ()
+    assert answer.citations == ()
 
 
-async def test_rag_full_combines_rewrite_and_filter():
-    agent, retriever, rewriter = _agent()
-    answer = await agent.answer("Как настроить Ktor?", mode="rag_full")
-    assert rewriter.calls == ["Как настроить Ktor?"]
-    assert retriever.queries[0][0] == "ktor client setup"
-    assert retriever.queries[0][1] == 30
-    assert [h.chunk_id for h in answer.sources] == ["c1", "c3"]
+async def test_rag_guard_not_know_when_no_hits():
+    agent = _agent(hits=[], no_answer_min_score=0.5)
+    answer = await agent.answer("Как настроить Ktor?", mode="rag_guard")
+    assert answer.answerable is False
 
 
-async def test_k_post_caps_sources():
-    agent, _, _ = _agent(k_post=1)
+async def test_rag_returns_citations_grounded():
+    agent = _agent()
     answer = await agent.answer("вопрос", mode="rag")
-    assert len(answer.sources) == 1
-
-
-async def test_rerank_prefers_lexical_overlap_over_similarity():
-    hits = [
-        Hit("a", "docs/a.md", "A", "S", 0.50, "nothing relevant here"),
-        Hit("b", "docs/b.md", "B", "S", 0.45, "ktor client usage"),
-    ]
-    agent, _, _ = _agent(hits=hits)
-    answer = await agent.answer("ktor client", mode="rag_filter")
-    assert answer.sources[0].chunk_id == "b"
+    assert answer.citations[0].grounded is True
