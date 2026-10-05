@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     w_head: float = 0.1
     rewrite_enabled: bool = True
     min_quote_len: int = 24
-    no_answer_min_score: float = 0.50
+    no_answer_min_score: float = 0.60
     eval_questions_path: str = "app/data/eval_questions.json"
     eval_report_path: str = "data/eval_report.json"
 

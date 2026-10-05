@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>День 23 — Реранкинг и фильтрация</title>
+<title>День 24 — Цитаты, источники и анти-галлюцинации</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -28,78 +28,90 @@
   .muted { color: #9ba1a6; }
   .big { font-size: 22px; color: #f5c451; }
   ul { color: #d7dadd; }
+  blockquote { margin: 10px 0; padding: 8px 14px; border-left: 3px solid #3fbf8f;
+    background: #101614; border-radius: 0 8px 8px 0; color: #bfe6d5; font-size: 14px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>День 23 — Реранкинг и фильтрация</h1>
-  <p class="sub">Добавляем к поиску второй этап: <b>фильтр релевантности +
-  heuristic-реранкинг</b> и <b>query rewrite</b>. Сравниваем пять режимов на 10 вопросах.</p>
+  <h1>День 24 — Цитаты, источники и анти-галлюцинации</h1>
+  <p class="sub">Заставляем RAG <b>цитировать</b> источники дословно и <b>честно говорить
+  «не знаю»</b>, когда контекст слабый. Три режима на 10 вопросах.</p>
 
   <h2>Идея</h2>
-  <p>Векторный поиск не гарантирует релевантность топа и не уточняет запрос. День 23
-  встраивает два этапа: до поиска — <span class="k">rewrite</span> вопроса в англоязычный
-  запрос, после поиска — <span class="k">фильтр</span> по порогу и
-  <span class="k">реранкинг</span> по пересечению терминов.</p>
-  <pre>вопрос → [rewrite → запрос] → поиск top-K_pre → фильтр → реранк → top-K_post → LLM</pre>
+  <p>День 23 научил ассистента искать и давать источники. Но модель может звучать
+  правдоподобно, не опираясь на найденный текст. День 24 добавляет <span class="k">цитаты</span>
+  — дословные фрагменты чанков — и <span class="k">порог «не знаю»</span>.</p>
+  <pre>вопрос → поиск → контекст [1]…[n] → LLM с маркерами [n]
+       → парсинг маркеров → LCS(ответ, чанк) → цитаты</pre>
 
-  <h2>Пять режимов</h2>
+  <h2>Три режима</h2>
   <table>
-    <tr><th>Режим</th><th>Rewrite</th><th>Фильтр+реранк</th></tr>
-    <tr><td><code>no_rag</code></td><td>—</td><td>—</td></tr>
-    <tr><td><code>rag</code></td><td>—</td><td>—</td></tr>
-    <tr><td><code>rag_filter</code></td><td>—</td><td>да</td></tr>
-    <tr><td><code>rag_rewrite</code></td><td>да</td><td>—</td></tr>
-    <tr><td><code>rag_full</code></td><td>да</td><td>да</td></tr>
+    <tr><th>Режим</th><th>Rewrite+фильтр+реранк</th><th>Цитаты</th><th>«Не знаю»</th></tr>
+    <tr><td><code>no_rag</code></td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td><code>rag</code></td><td>—</td><td>да</td><td>—</td></tr>
+    <tr><td><code>rag_guard</code></td><td>да</td><td>да</td><td>да</td></tr>
   </table>
 
-  <h2>Фильтр и реранкинг</h2>
+  <h2>Как получаются цитаты</h2>
   <div class="grid">
-    <div class="card"><div class="k">Фильтр</div>
-      <p class="muted">K_pre = 30 → отсечение по cosine-порогу MIN_SIM → K_post = 8.
-      Если отброшено всё — fallback на исходные top-K_post.</p></div>
-    <div class="card"><div class="k">Heuristic-реранкинг</div>
-      <p class="muted">final = 0.6·sim + 0.3·lex + 0.1·head, где lex — пересечение
-      терминов запроса с текстом, head — бонус за заголовок/секцию.</p></div>
+    <div class="card"><div class="k">Маркеры в промпте</div>
+      <p class="muted">Промпт просит: «Каждый факт помечай ссылкой <code>[n]</code> на номер
+      блока контекста». Контекст — пронумерованные блоки.</p></div>
+    <div class="card"><div class="k">LCS с чанком</div>
+      <p class="muted">Для маркера <code>[n]</code> берём чанк и ищем <b>наибольшую общую
+      подстроку</b> между ответом и текстом чанка. Это и есть цитата.</p></div>
   </div>
+  <blockquote>«…expect declaration используется в common, actual — в платформенном коде…»
+  <br><span class="muted">[1] docs/expect-actual.md :: Expect/Actual · chunk_id — дословный фрагмент</span></blockquote>
+  <p>Цитата <span class="k">grounded</span>, если её длина ≥ <code>MIN_QUOTE_LEN</code> (24 символа).
+  Короче — модель сослалась, но не воспроизвела слова чанка (признак галлюцинации).</p>
+
+  <h2>Правило «не знаю» (rag_guard)</h2>
+  <p>Релевантность = cosine-сходство <b>оригинального</b> вопроса с лучшим чанком. Ниже
+  <code>NO_ANSWER_MIN_SCORE</code> (0.60) — отвечаем «не знаю» без вызова LLM. Cosine берём по
+  исходному вопросу: рерайтер переводит запрос в KMP-термины, поэтому off-topic («борщ») всё
+  равно найдёт KMP-чанки — ловим его именно низким cosine оригинального вопроса.</p>
 
   <h2>Пайплайн</h2>
   <ul>
-    <li><code>query_rewriter.py</code> — LLM-rewrite вопроса в англ. запрос.</li>
-    <li><code>retrieval.py</code> — cosine-поиск по индексу Дня 21.</li>
-    <li><code>heuristic_reranker.py</code> — фильтр по порогу + реранкинг.</li>
-    <li><code>agent.py</code> — 5 режимов, сборка контекста, вызов DeepSeek.</li>
-    <li><code>evaluator.py</code> — LLM-судья и сравнение режимов.</li>
+    <li><code>citation.py</code> — <code>parse_markers</code>, <code>lcs</code>, <code>extract_citations</code>.</li>
+    <li><code>agent.py</code> — 3 режима, сборка контекста, вызов DeepSeek, цитаты, порог «не знаю».</li>
+    <li><code>retrieval.py</code> — <code>JsonRetriever</code> + <code>similarity(text, chunk_id)</code> для релевантности.</li>
+    <li><code>evaluator.py</code> — LLM-судья качества + судья поддержки цитатами, параллельный прогон.</li>
   </ul>
 
-  <h2>Результаты</h2>
+  <h2>Результаты (реальный прогон)</h2>
   <table>
-    <tr><th>Режим</th><th>Балл</th><th>Покрытие</th></tr>
-    <tr><td>Без RAG</td><td class="big">0.98</td><td>—</td></tr>
-    <tr><td>RAG (baseline)</td><td class="big">0.83</td><td>0.80</td></tr>
-    <tr><td>RAG + фильтр/реранк</td><td class="big">0.81</td><td class="big">0.90</td></tr>
-    <tr><td>RAG + rewrite</td><td class="big">0.75</td><td>0.80</td></tr>
-    <tr><td>RAG + rewrite + фильтр</td><td class="big">0.81</td><td class="big">0.90</td></tr>
+    <tr><th>Режим</th><th>Балл</th><th>Покрытие</th><th>Цитаты</th><th>Grounding</th><th>Support</th><th>«Не знаю»</th></tr>
+    <tr><td>Без RAG</td><td class="big">0.98</td><td>—</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr>
+    <tr><td>RAG</td><td class="big">0.76</td><td>0.80</td><td class="big">1.0</td><td>0.50</td><td class="big">0.87</td><td>0.0</td></tr>
+    <tr><td>RAG Guard</td><td class="big">0.51</td><td>0.80</td><td class="big">0.70</td><td>0.28</td><td>0.77</td><td class="big">0.20</td></tr>
   </table>
   <div class="card">
-    <p><span class="k">Разбор.</span> Фильтр + реранкинг поднимают покрытие источников
-    с 0.80 до 0.90 — поиск находит нужные доки точнее. Средний балл почти не меняется:
-    судья оценивает ответ, а ответ и так силён. Rewrite в одиночку чуть проседает по баллу,
-    но поднимает профильный документ в топ. Вывод — второй этап улучшает precision поиска
-    и надёжность ссылок.</p>
+    <p><span class="k">Разбор.</span> Источники и цитаты появились в каждом RAG-ответе
+    (citation_rate 1.0), судья подтверждает соответствие ответа цитатам (support 0.87).
+    Grounding 0.28–0.50 — доля дословных цитат: модель чаще пересказывает, чем цитирует,
+    это честная цена подхода LCS. Правило «не знаю» срабатывает на off-topic
+    (борщ → релевантность ≈0.14) и изредка на сложных вопросах (0.20), делая ассистента
+    честнее, но ниже по баллу. Распараллеливание прогона сократило его с ~4 минут до ~45 секунд.</p>
   </div>
 
   <h2>Запуск</h2>
-  <pre>cd day23/backend
+  <pre>cd day24/backend
 python -m venv .venv
 & .venv/Scripts/python.exe -m pip install -r requirements.txt
 copy .env.example .env      # впиши DEEPSEEK_API_KEY
 & .venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
 
 # другое окно:
-cd day23/frontend
+cd day24/frontend
 npm install
 npm run dev                 # http://localhost:5173</pre>
+
+  <h2>Тесты</h2>
+  <pre>cd day24/backend
+& .venv/Scripts/python.exe -m pytest -q</pre>
 </div>
 </body>
 </html>

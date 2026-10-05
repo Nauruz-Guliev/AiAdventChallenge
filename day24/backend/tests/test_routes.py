@@ -22,6 +22,9 @@ class StubRetriever:
     def search(self, question, top_k=4):
         return [Hit("c1", "docs/a.md", "A", "Intro", 0.9, "alpha")]
 
+    def similarity(self, text, chunk_id):
+        return 0.9
+
 
 class NoopRewriter:
     async def rewrite(self, question):

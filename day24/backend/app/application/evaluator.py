@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+from collections import defaultdict
 
 from app.application.agent import RAGAgent
 from app.domain.models import EvalItem, EvalReport, Hit, Question
 from app.ports.llm_gateway import LLMGateway
 
 DEFAULT_MODES = ["no_rag", "rag", "rag_guard"]
+
+CONCURRENCY = 6
 
 JUDGE_SYSTEM = (
     "JUDGE Ты оцениваешь качество ответа на вопрос по ожиданию. "
@@ -70,34 +74,58 @@ class Evaluator:
         ])
         return _parse_score(reply)
 
+    async def _eval_mode(self, q: Question, mode: str) -> dict:
+        answer = await self._agent.answer(q.question, mode=mode)
+        score = await self.judge(q.expectation, answer.text)
+        citations = list(answer.citations)
+        grounded = [c for c in citations if c.grounded]
+        gr = (len(grounded) / len(citations)) if citations else 0.0
+        support = await self.judge_support(q.question, answer.text, citations) if citations else 0.0
+        return {
+            "answer": answer,
+            "score": round(score, 3),
+            "grounding": round(gr, 3),
+            "support": round(support, 3),
+            "citations": citations,
+            "grounded_count": len(grounded),
+        }
+
     async def evaluate(self, questions: list[Question]) -> EvalReport:
+        sem = asyncio.Semaphore(CONCURRENCY)
+
+        async def run(mode: str, q: Question):
+            async with sem:
+                return q, mode, await self._eval_mode(q, mode)
+
+        tasks = [run(mode, q) for q in questions for mode in self._modes]
+        results = await asyncio.gather(*tasks)
+
+        by_question: dict[str, dict[str, dict]] = defaultdict(dict)
+        for q, mode, data in results:
+            by_question[q.id][mode] = data
+
         items: list[EvalItem] = []
         for q in questions:
-            mode_answers, mode_scores, mode_sources = {}, {}, {}
-            coverage, mode_citations, has_citations = {}, {}, {}
-            grounding_rate, support_scores, no_answer = {}, {}, {}
-            for mode in self._modes:
-                answer = await self._agent.answer(q.question, mode=mode)
-                score = await self.judge(q.expectation, answer.text)
-                citations = list(answer.citations)
-                grounded = [c for c in citations if c.grounded]
-                gr = (len(grounded) / len(citations)) if citations else 0.0
-                support = await self.judge_support(q.question, answer.text, citations)
-                mode_answers[mode] = answer.text
-                mode_scores[mode] = round(score, 3)
-                mode_sources[mode] = [f"{h.source} :: {h.section}" for h in answer.sources]
-                coverage[mode] = source_coverage(q.sources, list(answer.sources))
-                mode_citations[mode] = _citation_dicts(citations)
-                has_citations[mode] = len(grounded) > 0
-                grounding_rate[mode] = round(gr, 3)
-                support_scores[mode] = round(support, 3)
-                no_answer[mode] = not answer.answerable
+            per_mode = by_question[q.id]
             items.append(EvalItem(
-                question=q.question, expectation=q.expectation, sources=list(q.sources),
-                mode_answers=mode_answers, mode_scores=mode_scores, mode_sources=mode_sources,
-                source_coverage=coverage, mode_citations=mode_citations,
-                has_citations=has_citations, grounding_rate=grounding_rate,
-                support_scores=support_scores, no_answer=no_answer,
+                question=q.question,
+                expectation=q.expectation,
+                sources=list(q.sources),
+                mode_answers={m: per_mode[m]["answer"].text for m in self._modes},
+                mode_scores={m: per_mode[m]["score"] for m in self._modes},
+                mode_sources={
+                    m: [f"{h.source} :: {h.section}" for h in per_mode[m]["answer"].sources]
+                    for m in self._modes
+                },
+                source_coverage={
+                    m: source_coverage(q.sources, list(per_mode[m]["answer"].sources))
+                    for m in self._modes
+                },
+                mode_citations={m: _citation_dicts(per_mode[m]["citations"]) for m in self._modes},
+                has_citations={m: per_mode[m]["grounded_count"] > 0 for m in self._modes},
+                grounding_rate={m: per_mode[m]["grounding"] for m in self._modes},
+                support_scores={m: per_mode[m]["support"] for m in self._modes},
+                no_answer={m: not per_mode[m]["answer"].answerable for m in self._modes},
             ))
         return EvalReport(items=items, summary=self._summary(items))
 

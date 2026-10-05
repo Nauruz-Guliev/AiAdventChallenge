@@ -13,6 +13,8 @@ class StubRetriever:
         self.queries.append((question, top_k))
         return self.hits[:top_k]
 
+    def similarity(self, text, chunk_id):
+        return next((h.score for h in self.hits if h.chunk_id == chunk_id), 0.0)
 
 class StubRewriter:
     def __init__(self, query="ktor client setup"):

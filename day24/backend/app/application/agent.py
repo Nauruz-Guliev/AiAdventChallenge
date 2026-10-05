@@ -71,13 +71,16 @@ class RAGAgent:
 
         if mode == "rag":
             hits = self._retriever.search(text, top_k=self.k_post)
-            relevance = hits[0].score if hits else None
+            relevance = round(hits[0].score, 3) if hits else None
         else:  # rag_guard
             query = await self._rewriter.rewrite(text)
             hits = self._retriever.search(query, top_k=self.k_pre)
             hits = self._reranker.rerank(query, hits)
             hits = filter_by_threshold(hits, self.min_sim, self.k_post)
-            relevance = hits[0].score if hits else 0.0
+            relevance = round(
+                max((self._retriever.similarity(text, h.chunk_id) for h in hits), default=0.0),
+                3,
+            )
             if relevance < self.no_answer_min_score:
                 return Answer(
                     mode=mode, text=NO_ANSWER_TEXT, sources=(),

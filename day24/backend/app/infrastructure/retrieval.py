@@ -25,9 +25,20 @@ class JsonRetriever:
         self._embeddings = _normalize_rows(matrix).astype(np.float32)
         self._embedder = embedder
         self.top_k = top_k
+        self._chunk_index = {c["chunk_id"]: i for i, c in enumerate(self._chunks)}
 
     def chunk_count(self) -> int:
         return len(self._chunks)
+
+    def similarity(self, text: str, chunk_id: str) -> float:
+        idx = self._chunk_index.get(chunk_id)
+        if idx is None:
+            return 0.0
+        q = np.asarray(self._embedder.embed([text])[0], dtype=np.float32)
+        n = float(np.linalg.norm(q))
+        if n:
+            q = q / n
+        return float(self._embeddings[idx] @ q)
 
     def search(self, question: str, top_k: int | None = None) -> list[Hit]:
         k = top_k or self.top_k
