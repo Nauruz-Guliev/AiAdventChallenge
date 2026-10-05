@@ -2,15 +2,17 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export default function AnswerPanel({ title, answer }) {
+  if (!answer) return null;
+  const hasSources = answer.sources && answer.sources.length > 0;
   return (
     <article className="answer-panel">
       <h2>{title}</h2>
       <div className="answer-text">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.text}</ReactMarkdown>
       </div>
-      {answer.mode === 'rag' && (
+      {hasSources && (
         <div className="sources">
-          <h3>Источники</h3>
+          <h3>Источники ({answer.sources.length})</h3>
           <ul>
             {answer.sources.map((source) => (
               <li key={source.chunk_id}>

@@ -3,6 +3,7 @@ import { askQuestion, runEval } from './api.js';
 import AnswerPanel from './components/AnswerPanel.jsx';
 import CompareTable from './components/CompareTable.jsx';
 import QuestionInput from './components/QuestionInput.jsx';
+import { MODE_LABELS } from './modeLabels.js';
 
 export default function App() {
   const [result, setResult] = useState(null);
@@ -40,13 +41,16 @@ export default function App() {
   return (
     <main className="app">
       <header className="masthead">
-        <h1>Первый RAG-запрос</h1>
-        <p>Один вопрос — два ответа: модель без документов и модель с поиском по базе KMP.</p>
+        <h1>Реранкинг и фильтрация</h1>
+        <p>
+          Один вопрос — пять режимов: от чистого LLM до RAG с query rewrite,
+          фильтром релевантности и heuristic-реранкингом.
+        </p>
       </header>
 
       <nav className="tabs">
         <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')}>Вопрос</button>
-        <button className={tab === 'compare' ? 'active' : ''} onClick={() => setTab('compare')}>Сравнение по 10 вопросам</button>
+        <button className={tab === 'compare' ? 'active' : ''} onClick={() => setTab('compare')}>Сравнение режимов</button>
       </nav>
 
       {error && <div className="error">{error}</div>}
@@ -54,10 +58,12 @@ export default function App() {
       {tab === 'ask' && (
         <section>
           <QuestionInput onSubmit={handleAsk} disabled={loading} />
+          {loading && <p className="muted">Считаем пять режимов…</p>}
           {result && (
             <div className="answers">
-              <AnswerPanel title="Без RAG" answer={result.no_rag} />
-              <AnswerPanel title="С RAG" answer={result.rag} />
+              {MODE_LABELS.map(([mode, label]) => (
+                <AnswerPanel key={mode} title={label} answer={result.modes[mode]} />
+              ))}
             </div>
           )}
         </section>

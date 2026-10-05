@@ -1,31 +1,40 @@
+import { modeLabel } from '../modeLabels.js';
+
 export default function CompareTable({ report }) {
   const { items, summary } = report;
+  const modes = Object.keys(summary.modes || {});
   return (
     <div className="compare">
       <div className="summary">
-        <div><span>Средний балл без RAG</span><b>{summary.avg_no_rag_score}</b></div>
-        <div><span>Средний балл с RAG</span><b>{summary.avg_rag_score}</b></div>
-        <div><span>Покрытие источников</span><b>{summary.source_coverage_rate}</b></div>
+        {modes.map((mode) => (
+          <div key={mode}>
+            <span>{modeLabel(mode)}</span>
+            <b>{summary.modes[mode].avg_score}</b>
+            <small className="muted">покрытие {summary.modes[mode].source_coverage_rate}</small>
+          </div>
+        ))}
       </div>
       <table>
         <thead>
           <tr>
             <th>Вопрос</th>
-            <th>Без RAG</th>
-            <th>С RAG</th>
-            <th>Источники</th>
+            {modes.map((mode) => (
+              <th key={mode}>{modeLabel(mode)}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {items.map((item) => (
             <tr key={item.question}>
               <td>{item.question}</td>
-              <td className={item.no_rag_score >= 0.5 ? 'good' : 'bad'}>{item.no_rag_score}</td>
-              <td className={item.rag_score >= 0.5 ? 'good' : 'bad'}>{item.rag_score}</td>
-              <td>
-                {item.source_coverage ? '✅' : '❌'}{' '}
-                <span className="muted">{item.rag_sources.join('; ')}</span>
-              </td>
+              {modes.map((mode) => (
+                <td
+                  key={mode}
+                  className={(item.mode_scores[mode] ?? 0) >= 0.5 ? 'good' : 'bad'}
+                >
+                  {item.mode_scores[mode]} {item.source_coverage[mode] ? '✅' : '❌'}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
