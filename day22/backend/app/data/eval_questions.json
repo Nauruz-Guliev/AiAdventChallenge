@@ -1,0 +1,22 @@
+[
+  {"id": "q1", "question": "Как работают expect и actual declarations в Kotlin Multiplatform?",
+   "expectation": "Описан механизм expect/actual: общая декларация expect и платформенные реализации actual.", "sources": ["expect-actual"]},
+  {"id": "q2", "question": "Как добавить зависимость в commonMain?",
+   "expectation": "Использование блока sourceSets с dependencies и implementation.", "sources": ["multiplatform-add-dependencies"]},
+  {"id": "q3", "question": "Как устроена иерархия source sets в Kotlin Multiplatform?",
+   "expectation": "Описаны default hierarchy и intermediate source sets.", "sources": ["hierarchy"]},
+  {"id": "q4", "question": "Как опубликовать библиотеку в Maven?",
+   "expectation": "Использование maven-publish, настройка publication и координат.", "sources": ["publish-libraries-to-maven", "publish-lib-setup"]},
+  {"id": "q5", "question": "Как запустить тесты в Kotlin Multiplatform?",
+   "expectation": "Описаны commonTest и запуск платформенных тестов.", "sources": ["run-tests"]},
+  {"id": "q6", "question": "Как использовать Ktor-клиент в общем коде?",
+   "expectation": "Создание HttpClient, выбор движка, ContentNegotiation.", "sources": ["ktor"]},
+  {"id": "q7", "question": "Как настроить навигацию в Compose Multiplatform?",
+   "expectation": "Описан NavHost, навигация и роутинг между экранами.", "sources": ["compose-navigation"]},
+  {"id": "q8", "question": "Какие платформы поддерживает Kotlin Multiplatform?",
+   "expectation": "Перечислены Android, iOS, JVM, JS и нативные таргеты.", "sources": ["overview-supported-platforms"]},
+  {"id": "q9", "question": "Как подключить CocoaPods или Swift-код из iOS?",
+   "expectation": "Описана интеграция с CocoaPods и iOS-приложением.", "sources": ["cocoapods", "ios-integration-overview"]},
+  {"id": "q10", "question": "Как сериализовать данные с kotlinx.serialization?",
+   "expectation": "Использование @Serializable и Json для кодирования/декодирования.", "sources": ["kotlinx-serialization"]}
+]
