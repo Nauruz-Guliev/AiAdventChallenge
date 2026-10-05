@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Literal
-
-from app.domain.models import Answer, Hit, InvalidQuestion
+from app.domain.models import Answer, Hit, InvalidQuestion, Mode
+from app.infrastructure.heuristic_reranker import filter_by_threshold
 from app.ports.llm_gateway import LLMGateway
+from app.ports.reranker import Reranker
 from app.ports.retriever import Retriever
+from app.ports.rewriter import Rewriter
 
 NO_RAG_SYSTEM = (
     "Ты — ассистент по Kotlin Multiplatform. Отвечай кратко и по делу, "
@@ -19,6 +20,9 @@ RAG_SYSTEM = (
     "общие знания."
 )
 
+_FILTER_MODES = ("rag_filter", "rag_full")
+_REWRITE_MODES = ("rag_rewrite", "rag_full")
+
 
 def build_context(hits: list[Hit]) -> str:
     blocks = []
@@ -28,12 +32,25 @@ def build_context(hits: list[Hit]) -> str:
 
 
 class RAGAgent:
-    def __init__(self, gateway: LLMGateway, retriever: Retriever, top_k: int = 4):
+    def __init__(
+        self,
+        gateway: LLMGateway,
+        retriever: Retriever,
+        reranker: Reranker,
+        rewriter: Rewriter,
+        k_pre: int = 30,
+        k_post: int = 8,
+        min_sim: float = 0.35,
+    ):
         self._gateway = gateway
         self._retriever = retriever
-        self.top_k = top_k
+        self._reranker = reranker
+        self._rewriter = rewriter
+        self.k_pre = k_pre
+        self.k_post = k_post
+        self.min_sim = min_sim
 
-    async def answer(self, question: str, mode: Literal["no_rag", "rag"] = "rag") -> Answer:
+    async def answer(self, question: str, mode: Mode = "rag") -> Answer:
         text = (question or "").strip()
         if not text:
             raise InvalidQuestion("Вопрос не может быть пустым")
@@ -45,10 +62,20 @@ class RAGAgent:
             ])
             return Answer(mode="no_rag", text=reply, sources=())
 
-        hits = self._retriever.search(text, top_k=self.top_k)
+        if mode == "rag":
+            hits = self._retriever.search(text, top_k=self.k_post)
+        else:
+            query = await self._rewriter.rewrite(text) if mode in _REWRITE_MODES else text
+            if mode in _FILTER_MODES:
+                hits = self._retriever.search(query, top_k=self.k_pre)
+                hits = self._reranker.rerank(query, hits)
+                hits = filter_by_threshold(hits, self.min_sim, self.k_post)
+            else:
+                hits = self._retriever.search(query, top_k=self.k_post)
+
         context = build_context(hits)
         reply = await self._gateway.complete([
             {"role": "system", "content": RAG_SYSTEM},
             {"role": "user", "content": f"Контекст:\n{context}\n\nВопрос: {text}"},
         ])
-        return Answer(mode="rag", text=reply, sources=tuple(hits))
+        return Answer(mode=mode, text=reply, sources=tuple(hits))
