@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app.domain.models import IndexNotFound, InvalidQuestion, LLMGatewayError
 from app.presentation.routes import router
 
-app = FastAPI(title="Day 22 First RAG Query")
+app = FastAPI(title="Day 23 Reranking and Filtering")
 app.include_router(router)
 
 

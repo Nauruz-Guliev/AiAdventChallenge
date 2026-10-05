@@ -4,10 +4,12 @@ from pathlib import Path
 
 from app.application.agent import RAGAgent
 from app.application.evaluator import Evaluator
+from app.application.query_rewriter import QueryRewriter
 from app.domain.models import Question
 from app.infrastructure.deepseek_gateway import DeepSeekGateway
 from app.infrastructure.embeddings import get_embedder
 from app.infrastructure.fake_llm import FakeLLM
+from app.infrastructure.heuristic_reranker import HeuristicReranker
 from app.infrastructure.retrieval import JsonRetriever
 from app.infrastructure.settings import Settings
 
@@ -23,7 +25,7 @@ def get_llm():
     if settings.llm_provider == "fake":
         return FakeLLM()
     return DeepSeekGateway(
-        api_key=settings.deepseek_api_key,
+        settings.deepseek_api_key,
         base_url=settings.deepseek_base_url,
         model=settings.deepseek_model,
     )
@@ -35,13 +37,35 @@ def get_retriever() -> JsonRetriever:
     return JsonRetriever(
         index_path=Path(settings.index_path),
         embedder=get_embedder("sentence"),
-        top_k=settings.top_k,
+        top_k=settings.k_pre,
     )
+
+
+@lru_cache
+def get_reranker() -> HeuristicReranker:
+    settings = get_settings()
+    return HeuristicReranker(
+        w_sim=settings.w_sim, w_lex=settings.w_lex, w_head=settings.w_head
+    )
+
+
+@lru_cache
+def get_rewriter() -> QueryRewriter:
+    settings = get_settings()
+    return QueryRewriter(gateway=get_llm(), enabled=settings.rewrite_enabled)
 
 
 def get_agent() -> RAGAgent:
     settings = get_settings()
-    return RAGAgent(gateway=get_llm(), retriever=get_retriever(), top_k=settings.top_k)
+    return RAGAgent(
+        gateway=get_llm(),
+        retriever=get_retriever(),
+        reranker=get_reranker(),
+        rewriter=get_rewriter(),
+        k_pre=settings.k_pre,
+        k_post=settings.k_post,
+        min_sim=settings.min_sim,
+    )
 
 
 def get_evaluator() -> Evaluator:

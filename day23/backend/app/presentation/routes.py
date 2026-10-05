@@ -16,16 +16,18 @@ from app.presentation.dependencies import (
 )
 from app.presentation.schemas import (
     AnswerRequest,
-    AnswerResponse,
     AnswerSchema,
     EvalReportSchema,
     HitSchema,
+    ModesResponse,
     QuestionSchema,
 )
 
 router = APIRouter()
 _post = router.post
 _get = router.get
+
+ALL_MODES = ["no_rag", "rag", "rag_filter", "rag_rewrite", "rag_full"]
 
 
 def _answer_schema(answer: Answer) -> AnswerSchema:
@@ -51,11 +53,9 @@ def _item_dict(item) -> dict:
         "question": item.question,
         "expectation": item.expectation,
         "sources": item.sources,
-        "no_rag_answer": item.no_rag_answer,
-        "no_rag_score": item.no_rag_score,
-        "rag_answer": item.rag_answer,
-        "rag_score": item.rag_score,
-        "rag_sources": item.rag_sources,
+        "mode_answers": item.mode_answers,
+        "mode_scores": item.mode_scores,
+        "mode_sources": item.mode_sources,
         "source_coverage": item.source_coverage,
     }
 
@@ -67,14 +67,16 @@ def _report_dict(report: EvalReport) -> dict:
     }
 
 
-@_post("/api/answer", response_model=AnswerResponse)
+@_post("/api/answer", response_model=ModesResponse)
 async def answer(
     request: AnswerRequest,
     agent: Annotated[RAGAgent, Depends(get_agent)],
-) -> AnswerResponse:
-    no_rag = await agent.answer(request.question, mode="no_rag")
-    rag = await agent.answer(request.question, mode="rag")
-    return AnswerResponse(no_rag=_answer_schema(no_rag), rag=_answer_schema(rag))
+) -> ModesResponse:
+    modes: dict[str, AnswerSchema] = {}
+    for mode in ALL_MODES:
+        result = await agent.answer(request.question, mode=mode)
+        modes[mode] = _answer_schema(result)
+    return ModesResponse(modes=modes)
 
 
 @_get("/api/questions", response_model=list[QuestionSchema])

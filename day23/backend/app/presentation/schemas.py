@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -13,7 +11,7 @@ class HitSchema(BaseModel):
 
 
 class AnswerSchema(BaseModel):
-    mode: Literal["no_rag", "rag"]
+    mode: str
     text: str
     sources: list[HitSchema]
 
@@ -29,9 +27,8 @@ class AnswerRequest(BaseModel):
         return value
 
 
-class AnswerResponse(BaseModel):
-    no_rag: AnswerSchema
-    rag: AnswerSchema
+class ModesResponse(BaseModel):
+    modes: dict[str, AnswerSchema]
 
 
 class QuestionSchema(BaseModel):
@@ -45,12 +42,10 @@ class EvalItemSchema(BaseModel):
     question: str
     expectation: str
     sources: list[str]
-    no_rag_answer: str
-    no_rag_score: float
-    rag_answer: str
-    rag_score: float
-    rag_sources: list[str]
-    source_coverage: bool
+    mode_answers: dict[str, str]
+    mode_scores: dict[str, float]
+    mode_sources: dict[str, list[str]]
+    source_coverage: dict[str, bool]
 
 
 class EvalReportSchema(BaseModel):
