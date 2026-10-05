@@ -98,7 +98,7 @@
     <pre>corpus/*.md
    │  load            (source, title, text)
    ▼
-chunking ──┬── fixed-size   (~512 токенов, overlap 64)
+chunking ──┬── fixed-size   (~120 токенов, overlap 20)
            └── structure    (по заголовкам # → ## → ###)
    │  чанки + метаданные
    ▼
@@ -147,9 +147,9 @@ index (JSON: chunk_id, source, title, section, strategy, text, embedding, …)
     <p>Окна по <code class="inline">chunk_size</code> токенов со сдвигом
       <code class="inline">step = chunk_size − overlap</code>. Перекрытие сохраняет
       контекст на стыках.</p>
-    <pre>def chunk_fixed(text, chunk_size=512, overlap=64, source="", title=""):
-    spans = _word_spans(text)                 # границы слов в тексте
-    step = max(1, chunk_size - overlap)       # 512 - 64 = 448
+    <pre>def chunk_fixed(text, chunk_size=120, overlap=20, source="", title="", tokenizer=None):
+    spans = _spans(text, tokenizer)           # границы токенов (модель) или слов
+    step = max(1, chunk_size - overlap)       # 120 - 20 = 100
     i = idx = 0
     while i &lt; len(spans):
         j = min(i + chunk_size, len(spans))
@@ -166,23 +166,30 @@ index (JSON: chunk_id, source, title, section, strategy, text, embedding, …)
     <p>Режем по заголовкам markdown (<code class="inline">^#{1,6}\s</code>), отслеживая
       путь <code class="inline"># A &gt; ## B &gt; ### C</code>. Мелкие секции склеиваем
       до <code class="inline">min_tokens</code>.</p>
-    <pre>def chunk_structure(markdown, min_tokens=128, source="", title=""):
+    <pre>def chunk_structure(markdown, max_tokens=120, min_tokens=48, source="", title=""):
     sections = _split_sections(markdown, title, source)   # (path, text, offset)
-    merged, cur = [], []
+    units = []                                   # длинные секции режем на окна
     for path, text, off in sections:
-        cur.append(text)                          # копим секции…
-        if count_tokens("\n\n".join(cur)) >= min_tokens:
-            merged.append((path, "\n\n".join(cur), off)); cur = []
-    # каждая merged-группа -> Chunk(strategy="structure", section=path)</pre>
+        if count_tokens(text) &lt;= max_tokens:
+            units.append((path, text, off))
+        else:
+            units += [(path, w, off + o) for w, o, _ in
+                      _slice_windows(text, max_tokens, overlap=0)]
+    # склеиваем мелкие unit'ы до min_tokens, не превышая max_tokens</pre>
     <p><span class="gold">Плюс:</span> чанк — законченная секция, <code class="inline">section</code>
       даёт точную навигацию. <span class="pink">Минус:</span> размеры плавают, нужна склейка.</p>
 
+    <div class="tip"><b>Лимит модели: <code class="inline">max_seq_length=128</code>.</b>
+      Всё, что длиннее, обрезается при эмбеддинге. Поэтому окно и <code class="inline">max_tokens</code>
+      держим ≤120. А токенизатор модели даёт <b>offset mapping</b> — границы токенов в
+      символах, по которым режем исходный текст точно по токенам (а не по словам).</div>
+
     <table>
       <tr><th></th><th>fixed</th><th>structure</th></tr>
-      <tr><td>Принцип</td><td>~512 токенов</td><td>по заголовкам + границы файлов</td></tr>
-      <tr><td>Overlap</td><td>~64 токена</td><td>нет (склейка мелких)</td></tr>
+      <tr><td>Принцип</td><td>~120 токенов</td><td>по заголовкам + границы файлов</td></tr>
+      <tr><td>Overlap</td><td>~20 токенов</td><td>нет (склейка мелких)</td></tr>
       <tr><td><code class="inline">section</code></td><td><code class="inline">"fixed"</code></td><td>путь заголовков</td></tr>
-      <tr><td>Чанков (прогон)</td><td>506</td><td>926</td></tr>
+      <tr><td>Чанков (реальный прогон)</td><td>4942</td><td>4817</td></tr>
     </table>
   </section>
 
@@ -224,19 +231,19 @@ index (JSON: chunk_id, source, title, section, strategy, text, embedding, …)
     <h3>Формат файла <code class="inline">index/structure.json</code></h3>
     <pre>{
   "meta": { "strategy": "structure", "model": "paraphrase-multilingual-MiniLM-L12-v2",
-            "embedding_dim": 384, "num_chunks": 926, "created_at": "..." },
+            "embedding_dim": 384, "num_chunks": 4817, "created_at": "..." },
   "chunks": [
     { "chunk_id": "kmp-docs/071-…-expect-actual.md:struct:2",
       "source":   "kmp-docs/071-development-multiplatform-expect-actual.md",
       "title": "Expected and actual declarations",
       "section": "Rules for expected and actual declarations",
-      "strategy": "structure", "char_offset": 812, "token_count": 214,
+      "strategy": "structure", "char_offset": 812, "token_count": 101,
       "text": "…", "embedding": [0.011, -0.023, …] }
   ]
 }</pre>
     <div class="tip"><b>Альтернативы.</b> Формат JSON портируем и читаем. Для больших
       объёмов — <b>SQLite</b> (метаданные + blob-векторы) или <b>FAISS</b> (быстрый
-      ANN-поиск). Здесь ~1000 чанков, честный перебор numpy быстрее и проще.</div>
+      ANN-поиск). Здесь ~5000 чанков, честный перебор numpy быстрее и проще.</div>
   </section>
 
   <section id="s7">
@@ -244,10 +251,11 @@ index (JSON: chunk_id, source, title, section, strategy, text, embedding, …)
     <pre>python pipeline.py --strategy both --embedder fake       # офлайн, без модели
 python pipeline.py --strategy both --embedder sentence   # реальные эмбеддинги</pre>
     <p>Пайплайн: <code class="inline">load_corpus → chunk_* → IndexStore.build → save</code>.
-      Пример вывода на фейковом эмбеддере:</p>
-    <pre>ВНИМАНИЕ: используется FakeEmbedder — векторы не семантические.
-[fixed] chunks=506 tokens=225419 -&gt; index\fixed.json
-[structure] chunks=926 tokens=202251 -&gt; index\structure.json</pre>
+      Вывод на фейковом эмбеддере (слова) и на реальной модели (токены):</p>
+    <pre>[fake]      [fixed] chunks=2070 tokens=240771
+            [structure] chunks=2294 tokens=202251
+[sentence]  [fixed] chunks=4942 tokens=585339
+            [structure] chunks=4817 tokens=489379</pre>
   </section>
 
   <section id="s8">
@@ -259,15 +267,15 @@ python pipeline.py --strategy both --embedder sentence   # реальные эм
       Пишет <code class="inline">index/comparison.md</code> и <code class="inline">.json</code>.</p>
     <pre>| Метрика     | fixed  | structure |
 |-------------|--------|-----------|
-| num_chunks  | 506    | 926       |
-| avg_tokens  | 445.49 | 216.45    |
-| std_tokens  | 124.71 | …         |
-| hit_rate    | …      | …         |</pre>
+| num_chunks  | 4942   | 4817      |
+| avg_tokens  | 118.44 | 101.59    |
+| std_tokens  | 10.26  | 33.31     |
+| hit_rate    | 0.8    | 0.6       |</pre>
     <h3>Семантический поиск (RAG-выборка)</h3>
     <pre>python query.py "how do expect and actual declarations work" --top 3</pre>
-    <pre>1. [0.6173] kmp-docs/071-development-multiplatform-expect-actual.md
-   :: Expected and actual declarations
-   Expected and actual declarations allow you to access platform-specific APIs…</pre>
+    <pre>1. [0.7390] kmp-docs/071-development-multiplatform-expect-actual.md
+   :: Expected and actual declarations &gt; Rules for expected and actual declarations
+   ## Rules for expected and actual declarations  To define expected and actual declarations…</pre>
     <p>В коде: <code class="inline">query.answer()</code> возвращает top-k чанков с
       метаданными — их тексты и есть контекст для промпта LLM (полноценный RAG).</p>
   </section>
@@ -315,7 +323,7 @@ python -m venv .venv
       Смотри <code class="inline">index/comparison.md</code> — там таблица и разбор запросов.</div>
 
     <div class="step"><b>Шаг 6.</b> Прогони тесты (полностью офлайн, без модели).
-      <pre>&amp; ".venv\Scripts\python.exe" -m pytest -q     # 25 passed</pre></div>
+      <pre>&amp; ".venv\Scripts\python.exe" -m pytest -q     # 28 passed</pre></div>
 
     <div class="step"><b>Шаг 7.</b> Используй как библиотеку в своём RAG.
       <pre>from embeddings import get_embedder

@@ -13,7 +13,7 @@
 corpus/*.md
    │  load (source, title, text)
    ▼
-chunking ──┬── fixed-size   (~512 токенов, overlap 64)
+chunking ──┬── fixed-size   (~120 токенов, overlap 20)
            └── structure    (по заголовкам # → ## → ###)
    │  чанки + метаданные
    ▼
@@ -42,7 +42,7 @@ day21/
   pipeline.py             # CLI: corpus → chunks → embeddings → index
   compare.py              # CLI: сравнение fixed vs structure → comparison.md/.json
   query.py                # CLI: семантический поиск по индексу
-  tests/                  # 25 офлайн-тестов (FakeEmbedder, без модели)
+  tests/                  # 28 офлайн-тестов (FakeEmbedder, без модели)
   requirements.txt        # sentence-transformers, numpy, pytest
   README.md
   LESSON.md               # конспект урока
@@ -55,13 +55,17 @@ day21/
 
 | | `fixed` | `structure` |
 |---|---|---|
-| Принцип | нарезка по ~512 токенов | по заголовкам markdown + границы файлов |
-| Перекрытие | ~64 токена | нет (мелкие секции склеиваются до `min_tokens`) |
+| Принцип | окна по ~120 токенов | по заголовкам markdown + границы файлов |
+| Перекрытие | ~20 токенов | нет (мелкие секции склеиваются до `min_tokens`) |
 | `section` | `"fixed"` | путь заголовков, напр. `Project setup > Source sets` |
 | Плюсы | равномерные чанки, предсказуемый размер | цельные по смыслу, сохраняют структуру документа |
 | Минусы | режет предложения/секции | неравномерные размеры |
 
-Реализация: `chunking.py:35` (`chunk_fixed`), `chunking.py:117` (`chunk_structure`).
+Размер чанка ограничен `max_seq_length=128` модели эмбеддингов: более длинные чанки
+обрезались бы при эмбеддинге, поэтому окно по умолчанию — 120 токенов (реальные токены
+модели, не слова). Секции в `structure` длиннее лимита дополнительно режутся на окна.
+
+Реализация: `chunking.py` — `chunk_fixed`, `chunk_structure`.
 
 ## Метаданные чанка
 
@@ -97,9 +101,12 @@ python -m venv .venv
 
 ```
 ВНИМАНИЕ: используется FakeEmbedder — векторы не семантические.
-[fixed] chunks=506 tokens=225419 -> index\fixed.json
-[structure] chunks=926 tokens=202251 -> index\structure.json
+[fixed] chunks=2070 tokens=240771 -> index\fixed.json
+[structure] chunks=2294 tokens=202251 -> index\structure.json
 ```
+
+(Числа зависят от токенизатора: на реальной модели-токенизаторе чанков больше —
+см. раздел «Результаты».)
 
 ## Реальный индекс (semantic)
 
@@ -120,6 +127,22 @@ python -m venv .venv
 размер, дисперсия и **hit-rate** на 5 контрольных KMP-запросах (попадание ожидаемого
 документа в top-3).
 
+### Результаты реального прогона
+
+| Метрика | fixed | structure |
+|---|---|---|
+| num_chunks | 4942 | 4817 |
+| total_tokens | 585339 | 489379 |
+| avg_tokens | 118.44 | 101.59 |
+| min_tokens | 21 | 1 |
+| max_tokens | 120 | 120 |
+| std_tokens | 10.26 | 33.31 |
+| **hit_rate** | **0.8** | **0.6** |
+
+`fixed` даёт ровные чанки (std 10.26 против 33.31) и выше качество извлечения на этом
+наборе запросов; `structure` — чанки-секции с осмысленным `section`, но с «хвостами»
+в 1 токен.
+
 ## Семантический поиск (RAG-выборка)
 
 ```powershell
@@ -129,8 +152,11 @@ python -m venv .venv
 Пример:
 
 ```
-1. [0.6173] kmp-docs/071-development-multiplatform-expect-actual.md :: Expected and actual declarations
-   Expected and actual declarations allow you to access platform-specific APIs…
+1. [0.7390] kmp-docs/071-development-multiplatform-expect-actual.md
+   :: Expected and actual declarations > Rules for expected and actual declarations
+   ## Rules for expected and actual declarations  To define expected and actual declarations…
+2. [0.6442] kmp-docs/068-development-multiplatform-connect-to-apis.md
+   :: Use platform-specific APIs > … > Further reading on `expect`/`actual` declarations
 ```
 
 С кодом RAG это выглядит так: `query.py:answer()` возвращает top-k чанков с
@@ -142,7 +168,7 @@ python -m venv .venv
 & ".venv\Scripts\python.exe" -m pytest -q
 ```
 
-Ожидаемо: `25 passed`. Тесты полностью офлайн: `FakeEmbedder` (без модели),
+Ожидаемо: `28 passed`. Тесты полностью офлайн: `FakeEmbedder` (без модели),
 временные индексы на `tmp_path`, проверка chunking, roundtrip save/load, cosine-поиск,
 сборка пайплайна по обеим стратегиям.
 
