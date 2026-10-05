@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+Mode = Literal["no_rag", "rag", "rag_filter", "rag_rewrite", "rag_full"]
+
 
 @dataclass(frozen=True)
 class Hit:
@@ -16,7 +18,7 @@ class Hit:
 
 @dataclass(frozen=True)
 class Answer:
-    mode: Literal["no_rag", "rag"]
+    mode: Mode
     text: str
     sources: tuple[Hit, ...]
 
@@ -34,12 +36,10 @@ class EvalItem:
     question: str
     expectation: str
     sources: list[str]
-    no_rag_answer: str
-    no_rag_score: float
-    rag_answer: str
-    rag_score: float
-    rag_sources: list[str]
-    source_coverage: bool
+    mode_answers: dict[str, str]
+    mode_scores: dict[str, float]
+    mode_sources: dict[str, list[str]]
+    source_coverage: dict[str, bool]
 
 
 @dataclass(frozen=True)
