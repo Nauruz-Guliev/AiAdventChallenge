@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>День 22 — сценарий видео (сухое, только действия)</title>
+<title>День 23 — сценарий видео (сухое, только действия)</title>
 <style>
   body { background:#0e0f11; color:#edeef0; font-family:'Segoe UI',system-ui,sans-serif;
     line-height:1.6; max-width:820px; margin:0 auto; padding:40px 20px 80px; }
@@ -20,7 +20,7 @@
 </style>
 </head>
 <body>
-<h1>День 22 — Первый RAG-запрос</h1>
+<h1>День 23 — Реранкинг и фильтрация</h1>
 <p class="sub">Сценарий видео · <b>сухое, без голоса и без титров — только действия на экране</b></p>
 
 <div class="note"><b>Формат.</b> Немое видео: зритель видит терминал и браузер.
@@ -34,27 +34,28 @@
 
   <li><span class="t">0:10</span><span class="do">Во втором окне запустить frontend:
     <code>npm run dev</code>, затем открыть в браузере <code>http://localhost:5173</code>.</span>
-    <div class="see">Видно: страница с вкладками «Вопрос» и «Сравнение по 10 вопросам».</div></li>
+    <div class="see">Видно: страница с вкладками «Вопрос» и «Сравнение режимов».</div></li>
 
   <li><span class="t">0:20</span><span class="do">На вкладке «Вопрос» ввести
     <code>Как работают expect и actual declarations?</code> и нажать «Спросить».</span>
-    <div class="see">Видно: две панели рядом — «Без RAG» и «С RAG»; под RAG-ответом список источников с файлами и скорами.</div></li>
+    <div class="see">Видно: пять панелей — «Без RAG», «RAG (baseline)», «RAG + фильтр/реранк»,
+    «RAG + rewrite», «RAG + rewrite + фильтр». У RAG-панелей внизу источники со скорами.</div></li>
 
-  <li><span class="t">0:45</span><span class="do">Задать второй вопрос
+  <li><span class="t">0:50</span><span class="do">Задать второй вопрос
     <code>Как использовать Ktor-клиент в общем коде?</code>.</span>
-    <div class="see">Видно: другие источники (ktor), смену ответов.</div></li>
+    <div class="see">Видно: другой набор источников (ktor), у режима с rewrite профильный документ выше.</div></li>
 
-  <li><span class="t">1:00</span><span class="do">Переключиться на вкладку «Сравнение по 10 вопросам»,
+  <li><span class="t">1:15</span><span class="do">Переключиться на вкладку «Сравнение режимов»,
     нажать «Запустить сравнение», дождаться окончания.</span>
-    <div class="see">Видно: сводку (средние баллы без RAG / с RAG, покрытие) и таблицу по 10 вопросам.</div></li>
+    <div class="see">Видно: сводку по пяти режимам (средний балл + покрытие) и таблицу 10 вопросов × 5 режимов.</div></li>
 
-  <li><span class="t">1:30</span><span class="do">Прокрутить таблицу, показать строки с оценками и отметками источников.</span>
-    <div class="see">Видно: где RAG силён (галочка источников), где просел (retrieval).</div></li>
+  <li><span class="t">1:50</span><span class="do">Прокрутить таблицу, показать колонки фильтра/rewrite и отметки источников.</span>
+    <div class="see">Видно: покрытие источников растёт на режимах с фильтром (0.8 → 0.9).</div></li>
 
-  <li><span class="t">1:45</span><span class="do">Открыть в редакторе <code>backend/data/eval_report.json</code>, показать, что отчёт сохранён.</span>
-    <div class="see">Видно: JSON с ответами, скорами и источниками.</div></li>
+  <li><span class="t">2:05</span><span class="do">Открыть в редакторе <code>backend/data/eval_report.json</code>, показать, что отчёт сохранён.</span>
+    <div class="see">Видно: JSON с ответами, скорами и источниками по каждому режиму.</div></li>
 
-  <li><span class="t">1:55</span><span class="do">Остановить запись.</span></li>
+  <li><span class="t">2:15</span><span class="do">Остановить запись.</span></li>
 </ol>
 </body>
 </html>
