@@ -41,10 +41,10 @@ export default function App() {
   return (
     <main className="app">
       <header className="masthead">
-        <h1>Реранкинг и фильтрация</h1>
+        <h1>Цитаты, источники и анти-галлюцинации</h1>
         <p>
-          Один вопрос — пять режимов: от чистого LLM до RAG с query rewrite,
-          фильтром релевантности и heuristic-реранкингом.
+          Ответы с обязательными источниками и цитатами из найденных чанков.
+          Режим RAG Guard говорит «не знаю», когда релевантность ниже порога.
         </p>
       </header>
 
@@ -58,7 +58,7 @@ export default function App() {
       {tab === 'ask' && (
         <section>
           <QuestionInput onSubmit={handleAsk} disabled={loading} />
-          {loading && <p className="muted">Считаем пять режимов…</p>}
+          {loading && <p className="muted">Считаем три режима…</p>}
           {result && (
             <div className="answers">
               {MODE_LABELS.map(([mode, label]) => (

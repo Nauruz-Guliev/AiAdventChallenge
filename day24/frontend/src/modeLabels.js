@@ -1,9 +1,7 @@
 export const MODE_LABELS = [
   ['no_rag', 'Без RAG'],
-  ['rag', 'RAG (baseline)'],
-  ['rag_filter', 'RAG + фильтр/реранк'],
-  ['rag_rewrite', 'RAG + rewrite'],
-  ['rag_full', 'RAG + rewrite + фильтр'],
+  ['rag', 'RAG + цитаты'],
+  ['rag_guard', 'RAG Guard (цитаты + «не знаю»)'],
 ];
 
 const LABELS = Object.fromEntries(MODE_LABELS);
