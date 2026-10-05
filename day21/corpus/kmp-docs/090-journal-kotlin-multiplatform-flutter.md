@@ -1,0 +1,127 @@
+# Kotlin Multiplatform and Flutter: cross-platform development solutions
+
+# Kotlin Multiplatform and Flutter: cross-platform development solutions
+
+<web-summary>This article explores Kotlin Multiplatform and Flutter, helping you to understand their capabilities and choose the right fit for your cross-platform project.</web-summary> 
+
+In the rapidly evolving world of technology, developers are constantly seeking efficient frameworks and tools to help them build high-quality applications. However, when choosing between available possibilities, it’s important to avoid placing too much emphasis on finding the so-called best option, as this approach might not always lead to the most suitable choice.
+
+Each project is unique and has specific requirements. This article aims to help you navigate your choices and better understand which technology, such as Kotlin Multiplatform or Flutter, best fits your project, so you can make informed decisions.
+
+## Cross-platform development: a unified approach to modern application building
+
+Cross-platform development offers a way to build applications that run across multiple platforms with a single codebase, eliminating the need to rewrite the same functionality for each system. While often associated with [mobile development](cross-platform-mobile-development.topic) – targeting both Android and iOS – this approach extends far beyond mobile, covering web, desktop, and even server-side environments.
+
+The core idea is to maximize code reuse while ensuring platform-specific features can still be implemented when necessary, streamlining the development process and reducing maintenance efforts. Teams can speed up development cycles, reduce costs, and ensure consistency across platforms, making cross-platform development a smart choice in today's increasingly diverse application landscape.
+
+## Kotlin Multiplatform and Flutter: streamlining development across platforms
+
+Flutter and Kotlin Multiplatform are two popular cross-platform technologies that simplify the development of applications across different platforms.
+
+### Flutter
+
+[Flutter](https://flutter.dev/) is an open-source framework for building natively compiled, multiplatform applications from a single codebase. It allows you to create rich app experiences across Android, iOS, web, desktop (Windows, macOS, Linux), and embedded systems – all from a single, shared app codebase. Flutter apps are written using the Dart programming language. Flutter is supported and used by Google.
+
+First introduced in 2014 under the name Sky, [Flutter 1.0](https://developers.googleblog.com/en/flutter-10-googles-portable-ui-toolkit/) was officially announced in December 2018 during Flutter Live.
+
+The Flutter developer community is both large and highly active, providing continuous improvements and support. Flutter allows the use of shared packages contributed by developers within the Flutter and Dart ecosystems.
+
+### Kotlin Multiplatform
+
+[Kotlin Multiplatform](https://www.jetbrains.com/kotlin-multiplatform/) (KMP) is an open-source technology built by JetBrains that allows developers to create applications for Android, iOS, web, desktop (Windows, macOS, Linux), and the server side, enabling them to efficiently reuse Kotlin code across these platforms while retaining the benefits of native programming.
+
+With Kotlin Multiplatform, you have various options: you can share all code except for app entry points, share a single piece of logic (like a network or a database module), or share business logic while keeping the UI native.
+
+![Kotlin Multiplatform is a technology for reusing up to 100% of your code](kmp-logic-and-ui.svg){ width="700" }
+
+Kotlin Multiplatform was first introduced as part of Kotlin 1.2 in 2017. In November 2023, Kotlin Multiplatform became stable. During Google I/O 2024, Google announced its [support for Kotlin Multiplatform](https://android-developers.googleblog.com/2024/05/android-support-for-kotlin-multiplatform-to-share-business-logic-across-mobile-web-server-desktop.html) for sharing business logic across Android and iOS.
+
+If you want to learn more about the general direction for Kotlin Multiplatform, take a look at our blog post, [What’s Next for Kotlin Multiplatform and Compose Multiplatform](https://blog.jetbrains.com/kotlin/2025/08/kmp-roadmap-aug-2025/).
+
+[![Discover Kotlin Multiplatform](discover-kmp.svg)](https://www.jetbrains.com/kotlin-multiplatform/)
+
+#### Compose Multiplatform
+
+You can write shared UI code across multiple platforms using [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/), a modern declarative framework by JetBrains, which is built on Kotlin Multiplatform and Google’s Jetpack Compose.
+
+Compose Multiplatform is currently [stable on iOS](https://blog.jetbrains.com/kotlin/2025/05/compose-multiplatform-1-8-0-released-compose-multiplatform-for-ios-is-stable-and-production-ready/), Android and desktop, and in Beta on web.
+
+[![Explore Compose Multiplatform](explore-compose.svg)](https://www.jetbrains.com/compose-multiplatform/)
+
+Our dedicated article outlines the relationship between [Compose Multiplatform and Jetpack Compose](compose-multiplatform-and-jetpack-compose.md), highlighting the key differences.
+
+### Kotlin Multiplatform and Flutter: an overview
+
+    <tr>
+        <td></td>
+        <td>Kotlin Multiplatform</td>
+        <td>Flutter</td>
+    </tr>
+    <tr>
+        <td>Created by</td>
+        <td>JetBrains</td>
+        <td>Google</td>
+    </tr>
+    <tr>
+        <td>Language</td>
+        <td>Kotlin</td>
+        <td>Dart</td>
+    </tr>
+    <tr>
+        <td>Flexibility and code reuse</td>
+        <td>Share whichever part of your codebase you want to, including business logic and/or UI, from 1% to 100%.</td>
+        <td>Control every pixel of an application to create customized and adaptive designs with 100% code sharing across all platforms.</td>
+    </tr>
+    <tr>
+        <td>Packages, dependencies, and ecosystem</td>
+        <td>Packages are available from Maven Central and other repositories, including
+            klibs.io, which is designed to simplify the search for KMP libraries.
+            This list contains some of the most popular KMP libraries and tools. </td>
+        <td>Packages are available from Pub.dev.</td>
+    </tr>
+    <tr>
+        <td>Build tool</td>
+        <td>Gradle (plus Xcode for applications targeting Apple devices).</td>
+        <td>The Flutter command line tool (which uses Gradle and Xcode under the hood).</td>
+    </tr>
+    <tr>
+        <td>Code sharing</td>
+        <td>Android, iOS, web, desktop, and server-side.</td>
+        <td>Android, iOS, web, desktop, and embedded devices.</td>
+    </tr>
+    <tr>
+        <td>Compilation</td>
+        <td>Compiles to JVM bytecode for desktop and Android, JavaScript or Wasm on the web, and platform-specific binaries for native platforms</td>
+        <td>Debug builds run Dart code in a virtual machine.
+        Release builds output platform-specific binaries for native platforms, and JavaScript/Wasm for the web.
+        </td>
+    </tr>
+    <tr>
+        <td>Communication with native APIs</td>
+        <td>Native APIs are accessible directly from Kotlin code using expect/actual declarations.</td>
+        <td>Communication with the host platform is possible using platform channels.</td>
+    </tr>
+    <tr>
+        <td>UI rendering</td>
+        <td>Compose Multiplatform can be used to share UI across platforms, based on Jetpack Compose by Google, using the Skia engine that is compatible with OpenGL, ANGLE (which translates OpenGL ES 2 or 3 calls to native APIs), Vulkan, and Metal.</td>
+        <td>Flutter widgets are rendered on the screen using the custom Impeller engine, which talks straight to the GPU using Metal, Vulkan, or OpenGL depending on the platform and device.</td>
+    </tr>
+    <tr>
+        <td>Iteration on UI development</td>
+        <td>UI previews are available even from common code.
+        With Compose Hot Reload, you can instantly see UI changes without restarting your app or losing its state.</td>
+        <td>IDE plugins are available for VS Code and Android Studio.</td>
+    </tr>
+    <tr>
+        <td>Companies using the technology</td>
+        <td>Forbes, Todoist, McDonald’s, Google Workspace, Philips, 9gag, Baidu, Autodesk, TouchLab, Instabee, and more are listed in our KMP case studies.</td>
+        <td>Xiaomi, Wolt, Universal Studios, Alibaba Group, ByteDance, Geico, eBay Motors, Google Pay, So Vegan, and more are listed on the Flutter Showcase.</td>
+    </tr>
+
+[![Explore real-life use cases from global companies that leverage Kotlin Multiplatform for cross-platform development.](kmp-use-cases-1.svg)](https://www.jetbrains.com/help/kotlin-multiplatform-dev/case-studies.html)
+
+You can also check out Google’s blog post, [Making Development Across Platforms Easier for Developers](https://developers.googleblog.com/en/making-development-across-platforms-easier-for-developers/), which provides guidance on choosing the right tech stack for your project.
+
+If you're looking for an additional comparison between Kotlin Multiplatform and Flutter, you can also watch the [KMP vs. Flutter video](https://www.youtube.com/watch?v=dzog64ENKG0) by Philipp Lackner. In this video, he shares some interesting observations about these technologies, in terms of code sharing, UI rendering, performance, and the future of both technologies.
+
+By carefully evaluating your specific business needs, objectives, and tasks, you can identify the cross-platform solution that best meets your requirements.

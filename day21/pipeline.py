@@ -20,14 +20,16 @@ class Document:
 
 
 def load_corpus(corpus_dir) -> list[Document]:
+    root = Path(corpus_dir)
     docs: list[Document] = []
-    for path in sorted(Path(corpus_dir).glob("*.md")):
+    for path in sorted(root.rglob("*.md")):
         text = path.read_text(encoding="utf-8").strip()
         if not text:
             continue
         m = _HEADING_RE.search(text)
         title = m.group(1).strip() if m else path.stem
-        docs.append(Document(source=path.name, title=title, text=text))
+        source = path.relative_to(root).as_posix()
+        docs.append(Document(source=source, title=title, text=text))
     return docs
 
 

@@ -1,0 +1,405 @@
+# CocoaPods overview and setup
+
+This is a local integration method. It can work for you if:<br/>
+
+   * You have a mono repository setup with an iOS project that uses CocoaPods.
+   * Your Kotlin Multiplatform project has CocoaPods dependencies.<br/>
+
+   [Choose the integration method that suits you best](multiplatform-ios-integration-overview.md)
+
+Kotlin/Native provides integration with the [CocoaPods dependency manager](https://cocoapods.org/). You can add dependencies
+on Pod libraries as well as use a Kotlin project as a CocoaPods dependency.
+
+> The CocoaPods integration approach can't be used together with the `embedAndSignAppleFrameworkForXcode` mechanism
+> used for [direct integration](multiplatform-direct-integration.md).
+>
+
+You can manage Pod dependencies directly in IntelliJ IDEA or Android Studio and enjoy all the additional features such as
+code highlighting and completion. You can build an entire Kotlin project with Gradle without switching to Xcode. 
+
+You only need Xcode if you want to change Swift/Objective-C code or run your application on an Apple simulator or device.
+To work with Xcode, [update your Podfile](#update-podfile-for-xcode) first.
+
+## Set up an environment to work with CocoaPods
+
+Install the [CocoaPods dependency manager](https://cocoapods.org/) using the installation tool of your choice:
+
+1. Install [RVM](https://rvm.io/rvm/install) in case you don't have it yet.
+2. Install Ruby. You can choose a specific version:
+
+    ```bash
+    rvm install ruby %rubyVersion%
+    ```
+
+3. Install CocoaPods:
+
+    ```bash
+    sudo gem install -n /usr/local/bin cocoapods
+    ```
+
+1. Install [rbenv from GitHub](https://github.com/rbenv/rbenv#installation) if you don't have it yet.
+2. Install Ruby. You can choose a specific version:
+
+    ```bash
+    rbenv install %rubyVersion%
+    ```
+
+3. Set the Ruby version as local for a particular directory or global for the whole machine:
+
+    ```bash
+    rbenv global %rubyVersion%
+    ```
+    
+4. Install CocoaPods:
+
+    ```bash
+    sudo gem install -n /usr/local/bin cocoapods
+    ```
+
+> This way of installation doesn't work on devices with Apple M chips. Use other tools to set up an environment to work
+> with CocoaPods.
+>
+
+You can install the CocoaPods dependency manager with the default Ruby that should be available on macOS:
+
+```bash
+sudo gem install cocoapods
+```
+
+> The CocoaPods installation with Homebrew might result in compatibility issues.
+>
+> When installing CocoaPods, Homebrew also installs the [Xcodeproj](https://github.com/CocoaPods/Xcodeproj) gem that is
+> necessary for working with Xcode.
+> However, it cannot be updated with Homebrew, and if the installed Xcodeproj doesn't support the newest Xcode version yet,
+> you'll get errors with Pod installation. If this is the case, try other tools to install CocoaPods.
+>
+
+1. Install [Homebrew](https://brew.sh/) in case you don't have it yet.
+2. Install CocoaPods:
+
+    ```bash
+    brew install cocoapods
+    ```
+
+If you encounter problems during the installation, check the [Possible issues and solutions](#possible-issues-and-solutions) section.
+
+## Create a project
+
+When your CocoaPods environment is set up, you can configure your Kotlin Multiplatform project to work with Pods.
+The following steps show the configuration on a freshly generated project:
+
+1. Generate a new project for Android and iOS using the [Kotlin Multiplatform IDE plugin](https://plugins.jetbrains.com/plugin/14936-kotlin-multiplatform)
+   or the [Kotlin Multiplatform web wizard](https://kmp.jetbrains.com).
+   If using the web wizard, unpack the archive and import the project in your IDE.
+2. Add the Kotlin CocoaPods Gradle plugin to the version catalog
+   (the `gradle/libs.versions.toml` file):
+
+   ```toml
+   [plugins]
+   kotlinCocoapods = { id = "org.jetbrains.kotlin.native.cocoapods", version.ref = "kotlin" }
+   ```
+
+3. Navigate to the root `build.gradle.kts` file of your project and add the following alias to the `plugins {}` block:
+
+   ```kotlin
+   alias(libs.plugins.kotlinCocoapods) apply false
+   ```
+
+4. Open the module where you want to integrate CocoaPods, for example, the `sharedLogic` module, and add the following alias
+   to the `plugins {}` block of the `build.gradle.kts` file:
+
+   ```kotlin
+   alias(libs.plugins.kotlinCocoapods)
+   ```
+
+Now you are ready to [configure CocoaPods in your Kotlin Multiplatform project](#configure-the-project).
+
+## Configure the project
+
+To configure the Kotlin CocoaPods Gradle plugin in your multiplatform project:
+
+1. In the shared module's `build.gradle(.kts)` of your project, apply the CocoaPods plugin as well as the Kotlin Multiplatform plugin.
+
+   > Skip this step if you've created your project [with the IDE plugin or the web wizard](#create-a-project).
+   > 
+   
+    
+    ```kotlin
+    plugins {
+        kotlin("multiplatform") version "%kotlinVersion%"
+        kotlin("native.cocoapods") version "%kotlinVersion%"
+    }
+    ```
+
+2. Configure `version`, `summary`, `homepage`, and `baseName` of the Podspec file in the `cocoapods` block:
+    
+    ```kotlin
+    plugins {
+        kotlin("multiplatform") version "%kotlinVersion%"
+        kotlin("native.cocoapods") version "%kotlinVersion%"
+    }
+ 
+    kotlin {
+        cocoapods {
+            // Required properties
+            // Specify the required Pod version here
+            // Otherwise, the Gradle project version is used
+            version = "1.0"
+            summary = "Some description for a Kotlin/Native module"
+            homepage = "Link to a Kotlin/Native module homepage"
+   
+            // Optional properties
+            // Configure the Pod name here instead of changing the Gradle project name
+            name = "MyCocoaPod"
+
+            framework {
+                // Required properties              
+                // Framework name configuration. Use this property instead of deprecated 'frameworkName'
+                baseName = "MyFramework"
+                
+                // Optional properties
+                // Specify the framework linking type. It's dynamic by default. 
+                isStatic = false
+                // Dependency export
+                // Uncomment and specify another project module if you have one:
+                // export(project(":<your other KMP module>"))
+                transitiveExport = false // This is default.
+            }
+
+            // Maps custom Xcode configuration to NativeBuildType
+            xcodeConfigurationToNativeBuildType["CUSTOM_DEBUG"] = NativeBuildType.DEBUG
+            xcodeConfigurationToNativeBuildType["CUSTOM_RELEASE"] = NativeBuildType.RELEASE
+        }
+    }
+    ```
+
+    > See the full syntax of Kotlin DSL in the [Kotlin Gradle plugin repository](https://github.com/JetBrains/kotlin/blob/master/libraries/tools/kotlin-gradle-plugin/src/common/kotlin/org/jetbrains/kotlin/gradle/targets/native/cocoapods/CocoapodsExtension.kt).
+    >
+    
+    
+3. Run **Build** | **Reload All Gradle Projects** in IntelliJ IDEA (or **File** | **Sync Project with Gradle Files** in Android Studio)
+   to re-import the project.
+4. Generate the [Gradle wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html) to avoid compatibility
+   issues during an Xcode build.
+
+When applied, the CocoaPods plugin does the following:
+
+* Adds both `debug` and `release` frameworks as output binaries for all macOS, iOS, tvOS, and watchOS targets.
+* Creates a `podspec` task which generates a [Podspec](https://guides.cocoapods.org/syntax/podspec.html)
+  file for the project.
+
+The `Podspec` file includes a path to an output framework and script phases that automate building this framework during 
+the build process of an Xcode project.
+
+## Update Podfile for Xcode
+
+If you want to import your Kotlin project to an Xcode project:
+
+1. In the iOS part of your Kotlin project, make changes to the Podfile:
+
+   * If your project has any Git, HTTP, or custom Podspec repository dependencies, specify the path to
+     the Podspec in the Podfile.
+
+     For example, if you add a dependency on `podspecWithFilesExample`, declare the path to the Podspec in the Podfile:
+
+     ```ruby
+     target 'ios-app' do
+        # ... other dependencies ...
+        pod 'podspecWithFilesExample', :path => 'cocoapods/externalSources/url/podspecWithFilesExample' 
+     end
+     ```
+
+     The `:path` should contain the filepath to the Pod.
+
+   * If you add a library from the custom Podspec repository, specify the [location](https://guides.cocoapods.org/syntax/podfile.html#source)
+     of specs at the beginning of your Podfile:
+
+     ```ruby
+     source 'https://github.com/Kotlin/kotlin-cocoapods-spec.git'
+
+     target 'kotlin-cocoapods-xcproj' do
+         # ... other dependencies ...
+         pod 'example'
+     end
+     ```
+
+2. Run `pod install` in your project directory.
+
+   When you run `pod install` for the first time, it creates the `.xcworkspace` file. This file
+   includes your original `.xcodeproj` and the CocoaPods project.
+3. Close your `.xcodeproj` and open the new `.xcworkspace` file instead. This way you avoid issues with project dependencies.
+4. Run **Build** | **Reload All Gradle Projects** in IntelliJ IDEA (or **File** | **Sync Project with Gradle Files** in Android Studio)
+   to re-import the project.
+
+If you don't make these changes in the Podfile, the `podInstall` task will fail, and the CocoaPods plugin will show
+an error message in the log.
+
+## Possible issues and solutions
+
+### CocoaPods installation {initial-collapse-state="collapsed" collapsible="true"}
+
+#### Ruby installation
+
+CocoaPods is built with Ruby, and you can install it with the default Ruby that should be available on macOS.
+Ruby 1.9 or later has a built-in RubyGems package management framework that helps you install the [CocoaPods dependency manager](https://guides.cocoapods.org/using/getting-started.html#installation).
+
+If you're experiencing problems installing CocoaPods and getting it to work, follow [this guide](https://www.ruby-lang.org/en/documentation/installation/)
+to install Ruby or refer to the [RubyGems website](https://rubygems.org/pages/download/) to install the framework.
+
+#### Version compatibility
+
+We recommend using the latest Kotlin version.
+The minimum required version for this CocoaPods setup is 1.7.0.
+
+### Build errors when using Xcode {initial-collapse-state="collapsed" collapsible="true"}
+
+Some variations of the CocoaPods installation can lead to build errors in Xcode.
+Generally, the Kotlin Gradle plugin discovers the `pod` executable in `PATH`, but this may be inconsistent depending on
+your environment.
+
+To set the CocoaPods installation path explicitly, you can add it to the `local.properties` file of your project
+manually or using a shell command:
+
+* If using a code editor, add the following line to the `local.properties` file:
+
+    ```text
+    kotlin.apple.cocoapods.bin=/Users/Jane.Doe/.rbenv/shims/pod
+    ```
+
+* If using a terminal, run the following command:
+
+    ```shell
+    echo -e "kotlin.apple.cocoapods.bin=$(which pod)" >> local.properties
+    ```
+
+### Module or framework not found {initial-collapse-state="collapsed" collapsible="true"}
+
+When installing Pods, you may encounter `module 'SomeSDK' not found` or `framework 'SomeFramework' not found`
+errors related to [C interop](https://kotlinlang.org/docs/native-c-interop.html) issues. To resolve such errors, try these solutions:
+
+#### Update packages
+
+Update your installation tool and the installed packages (gems):
+
+1. Update RVM:
+
+   ```bash
+   rvm get stable
+   ```
+
+2. Update Ruby's package manager, RubyGems:
+
+    ```bash
+    gem update --system
+    ```
+
+3. Upgrade all installed gems to their latest versions:
+
+    ```bash
+    gem update
+    ```
+
+1. Update Rbenv:
+
+    ```bash
+    cd ~/.rbenv
+    git pull
+    ```
+
+2. Update Ruby's package manager, RubyGems:
+
+    ```bash
+    gem update --system
+    ```
+
+3. Upgrade all the installed gems to their latest versions:
+
+    ```bash
+    gem update
+    ```
+
+1. Update the Homebrew package manager: 
+
+   ```bash
+   brew update
+   ```
+
+2. Upgrade all the installed packages to their latest versions:
+
+   ```bash
+   brew upgrade
+   ````
+
+#### Specify the framework name 
+
+1. Look through the downloaded Pod directory `[shared_module_name]/build/cocoapods/synthetic/IOS/Pods/...`
+   for the `module.modulemap` file.
+2. Check the framework name inside the module, for example `SDWebImageMapKit {}`. If the framework name doesn't match
+   the Pod name, specify it explicitly:
+
+    ```kotlin
+    pod("SDWebImage/MapKit") {
+        moduleName = "SDWebImageMapKit"
+    }
+    ```
+
+#### Specify headers
+
+If the Pod doesn't contain a `.modulemap` file, like the `pod("NearbyMessages")`, specify the main header explicitly:
+
+```kotlin
+pod("NearbyMessages") {
+    version = "1.1.1"
+    headers = "GNSMessages.h"
+}
+```
+
+Check the [CocoaPods documentation](https://guides.cocoapods.org/) for more information. If nothing works, and you still
+encounter this error, report an issue in [YouTrack](https://youtrack.jetbrains.com/newissue?project=kt).
+
+### Missing resources in the app bundle {initial-collapse-state="collapsed" collapsible="true"}
+
+If your iOS app builds successfully but crashes on launch, or if resources such as custom fonts and 
+images are missing from the final `.ipa` package, 
+there might be an issue with how a Pod integrates with your project.
+
+**To prevent the issue**: Instead of running the `pod install` command directly,
+use the Gradle `podInstall` task provided by the Kotlin CocoaPods Gradle plugin.
+This task creates the required directories and configures everything for you:
+
+```bash
+./gradlew podInstall
+open iosApp/iosApp.xcworkspace
+```
+
+**Why the issue happens**: When you run the native `pod install` command on a clean project
+(for example, after cloning the repository or when working in a CI/CD pipeline),
+the resources directory has not been created yet.
+The Compose Multiplatform Gradle plugin specifies where resources are located
+in the generated `.podspec` file:
+`spec.resources = ['build/compose/cocoapods/compose-resources']`, but that path only exists after a build.
+As a result, CocoaPods ignores the missing directory and configures the Xcode project without these resources.
+When the project is built and resources are generated, Xcode does not copy them into the final bundle.
+
+### Rsync error {initial-collapse-state="collapsed" collapsible="true"}
+
+You might encounter the `rsync error: some files could not be transferred` error. It's a [known issue](https://github.com/CocoaPods/CocoaPods/issues/11946)
+that occurs if the application target in Xcode has sandboxing of the user scripts enabled.
+
+To solve this issue:
+
+1. Disable sandboxing of user scripts in the application target:
+
+   ![Disable sandboxing CocoaPods](disable-sandboxing-cocoapods.png){width=700}
+
+2. Stop the Gradle daemon process that might have been sandboxed:
+
+    ```shell
+    ./gradlew --stop
+    ```
+
+## What's next
+
+* [Add dependencies on a Pod library in your Kotlin project](multiplatform-cocoapods-libraries.md)
+* [Set up dependencies between a Kotlin project and an Xcode project](multiplatform-cocoapods-xcode.md)
+* [See the full CocoaPods Gradle plugin DSL reference](multiplatform-cocoapods-dsl-reference.md)
