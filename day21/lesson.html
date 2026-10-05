@@ -248,8 +248,13 @@ index (JSON: chunk_id, source, title, section, strategy, text, embedding, …)
 
   <section id="s7">
     <h2><span class="n">07</span>Шаг 5. pipeline.py — сборка индекса</h2>
-    <pre>python pipeline.py --strategy both --embedder fake       # офлайн, без модели
-python pipeline.py --strategy both --embedder sentence   # реальные эмбеддинги</pre>
+    <div class="tip"><b>Команды — из папки <code class="inline">day21</code> в PowerShell.</b>
+      Python-скрипты запускаются <b>только</b> через интерпретатор venv:
+      <code class="inline">&amp; ".venv\Scripts\python.exe" &lt;скрипт&gt;</code>. Запись
+      <code class="inline">query.py "..."</code> без префикса PowerShell не распознаёт
+      («не является командой»).</div>
+    <pre>&amp; ".venv\Scripts\python.exe" pipeline.py --strategy both --embedder fake
+&amp; ".venv\Scripts\python.exe" pipeline.py --strategy both --embedder sentence</pre>
     <p>Пайплайн: <code class="inline">load_corpus → chunk_* → IndexStore.build → save</code>.
       Вывод на фейковом эмбеддере (слова) и на реальной модели (токены):</p>
     <pre>[fake]      [fixed] chunks=2070 tokens=240771
@@ -261,7 +266,7 @@ python pipeline.py --strategy both --embedder sentence   # реальные эм
   <section id="s8">
     <h2><span class="n">08</span>Шаг 6. compare.py и query.py</h2>
     <h3>Сравнение стратегий</h3>
-    <pre>python compare.py --embedder sentence</pre>
+    <pre>&amp; ".venv\Scripts\python.exe" compare.py --embedder sentence</pre>
     <p>Считает структурные метрики (число чанков, avg/min/max/std токенов) и прикладную —
       <b>hit-rate</b> на 5 контрольных KMP-запросах (попал ли ожидаемый документ в top-3).
       Пишет <code class="inline">index/comparison.md</code> и <code class="inline">.json</code>.</p>
@@ -272,7 +277,7 @@ python pipeline.py --strategy both --embedder sentence   # реальные эм
 | std_tokens  | 10.26  | 33.31     |
 | hit_rate    | 0.8    | 0.6       |</pre>
     <h3>Семантический поиск (RAG-выборка)</h3>
-    <pre>python query.py "how do expect and actual declarations work" --top 3</pre>
+    <pre>&amp; ".venv\Scripts\python.exe" query.py "how do expect and actual declarations work" --top 3</pre>
     <pre>1. [0.7390] kmp-docs/071-development-multiplatform-expect-actual.md
    :: Expected and actual declarations &gt; Rules for expected and actual declarations
    ## Rules for expected and actual declarations  To define expected and actual declarations…</pre>

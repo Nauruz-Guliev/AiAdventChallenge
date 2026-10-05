@@ -111,7 +111,14 @@ blob-векторы) и **FAISS** (быстрый ANN-поиск). Здесь о
 
 ## 9. Как воспроизвести с нуля
 
+Все команды — в PowerShell **из папки `day21`**. Скрипты запускаем только через
+интерпретатор venv: `& ".venv\Scripts\python.exe" <скрипт>`. Просто `query.py "..."`
+PowerShell не выполнит — это файл, а не команда.
+
 ```powershell
+cd day21
+$env:PYTHONIOENCODING="utf-8"; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8
+
 python -m venv .venv
 & ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 

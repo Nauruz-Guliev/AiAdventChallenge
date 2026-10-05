@@ -81,6 +81,23 @@ day21/
 | `char_offset` | позиция начала чанка в документе |
 | `token_count` | длина в токенах |
 
+## Как запускать команды (важно)
+
+Все команды выполняются **в PowerShell из папки `day21`**, а Python-скрипты
+запускаются **только через интерпретатор из venv**. Иначе PowerShell не распознаёт
+`query.py` как команду, а системный `python` не видит установленные зависимости.
+
+```powershell
+cd day21
+$env:PYTHONIOENCODING="utf-8"; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8
+
+& ".venv\Scripts\python.exe" query.py "how do expect and actual declarations work" --top 3
+```
+
+> `query.py "..."` сам по себе в PowerShell **не сработает** — это файл, а не команда.
+> Всегда используйте префикс `& ".venv\Scripts\python.exe"` (или, если venv активирован,
+> короткий вариант `python query.py ...`).
+
 ## Установка
 
 ```powershell
