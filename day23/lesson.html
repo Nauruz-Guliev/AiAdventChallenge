@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>День 22 — Первый RAG-запрос</title>
+<title>День 23 — Реранкинг и фильтрация</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -32,64 +32,72 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>День 22 — Первый RAG-запрос</h1>
-  <p class="sub">Вопрос → поиск релевантных чанков → контекст + вопрос → LLM.
-  Сравниваем ответ <b>без RAG</b> и <b>с RAG</b> на 10 контрольных вопросах.</p>
+  <h1>День 23 — Реранкинг и фильтрация</h1>
+  <p class="sub">Добавляем к поиску второй этап: <b>фильтр релевантности +
+  heuristic-реранкинг</b> и <b>query rewrite</b>. Сравниваем пять режимов на 10 вопросах.</p>
 
   <h2>Идея</h2>
-  <p>Обычный ассистент отвечает из «памяти» модели. RAG сначала ищет нужные
-  фрагменты в своей базе (индекс Дня 21) и просит модель ответить, опираясь на них.
-  Главный тезис: <span class="k">качество RAG = качество поиска</span>.</p>
-  <pre>без RAG:  вопрос ──────────────────────────────► LLM ──► ответ
-с RAG:    вопрос ─► поиск top-k ─► контекст+вопрос ─► LLM ──► ответ + источники</pre>
+  <p>Векторный поиск не гарантирует релевантность топа и не уточняет запрос. День 23
+  встраивает два этапа: до поиска — <span class="k">rewrite</span> вопроса в англоязычный
+  запрос, после поиска — <span class="k">фильтр</span> по порогу и
+  <span class="k">реранкинг</span> по пересечению терминов.</p>
+  <pre>вопрос → [rewrite → запрос] → поиск top-K_pre → фильтр → реранк → top-K_post → LLM</pre>
 
-  <h2>Два режима</h2>
+  <h2>Пять режимов</h2>
+  <table>
+    <tr><th>Режим</th><th>Rewrite</th><th>Фильтр+реранк</th></tr>
+    <tr><td><code>no_rag</code></td><td>—</td><td>—</td></tr>
+    <tr><td><code>rag</code></td><td>—</td><td>—</td></tr>
+    <tr><td><code>rag_filter</code></td><td>—</td><td>да</td></tr>
+    <tr><td><code>rag_rewrite</code></td><td>да</td><td>—</td></tr>
+    <tr><td><code>rag_full</code></td><td>да</td><td>да</td></tr>
+  </table>
+
+  <h2>Фильтр и реранкинг</h2>
   <div class="grid">
-    <div class="card"><div class="k">Без RAG</div>
-      <p class="muted">Вопрос уходит прямо в модель. Ответ — из общих знаний,
-      без ссылок на источники.</p></div>
-    <div class="card"><div class="k">С RAG</div>
-      <p class="muted">Ищем top-k чанков по вопросу, подставляем их в промпт.
-      Ответ опирается на документацию, в конце — источники.</p></div>
+    <div class="card"><div class="k">Фильтр</div>
+      <p class="muted">K_pre = 30 → отсечение по cosine-порогу MIN_SIM → K_post = 8.
+      Если отброшено всё — fallback на исходные top-K_post.</p></div>
+    <div class="card"><div class="k">Heuristic-реранкинг</div>
+      <p class="muted">final = 0.6·sim + 0.3·lex + 0.1·head, где lex — пересечение
+      терминов запроса с текстом, head — бонус за заголовок/секцию.</p></div>
   </div>
 
   <h2>Пайплайн</h2>
   <ul>
-    <li><code>retrieval.py</code> — cosine-поиск по индексу Дня 21 (numpy).</li>
-    <li><code>agent.py</code> — собирает контекст и зовёт LLM (DeepSeek).</li>
-    <li><code>evaluator.py</code> — прогон 10 вопросов, LLM-судья, покрытие источников.</li>
-    <li><code>FakeLLM</code> — детерминированная заглушка для офлайн-тестов.</li>
+    <li><code>query_rewriter.py</code> — LLM-rewrite вопроса в англ. запрос.</li>
+    <li><code>retrieval.py</code> — cosine-поиск по индексу Дня 21.</li>
+    <li><code>heuristic_reranker.py</code> — фильтр по порогу + реранкинг.</li>
+    <li><code>agent.py</code> — 5 режимов, сборка контекста, вызов DeepSeek.</li>
+    <li><code>evaluator.py</code> — LLM-судья и сравнение режимов.</li>
   </ul>
-
-  <h2>10 контрольных вопросов</h2>
-  <p>Темы: expect/actual, зависимости в commonMain, иерархия source sets,
-  публикация в Maven, тесты, Ktor, навигация в Compose MP, платформы,
-  CocoaPods/iOS, kotlinx.serialization. У каждого — ожидание и ожидаемые источники.</p>
 
   <h2>Результаты</h2>
   <table>
-    <tr><th>Метрика</th><th>Значение</th></tr>
-    <tr><td>Средний балл без RAG</td><td class="big">0.98</td></tr>
-    <tr><td>Средний балл с RAG</td><td class="big">0.74</td></tr>
-    <tr><td>Покрытие источников</td><td class="big">0.80</td></tr>
+    <tr><th>Режим</th><th>Балл</th><th>Покрытие</th></tr>
+    <tr><td>Без RAG</td><td class="big">0.98</td><td>—</td></tr>
+    <tr><td>RAG (baseline)</td><td class="big">0.83</td><td>0.80</td></tr>
+    <tr><td>RAG + фильтр/реранк</td><td class="big">0.81</td><td class="big">0.90</td></tr>
+    <tr><td>RAG + rewrite</td><td class="big">0.75</td><td>0.80</td></tr>
+    <tr><td>RAG + rewrite + фильтр</td><td class="big">0.81</td><td class="big">0.90</td></tr>
   </table>
   <div class="card">
-    <p><span class="k">Разбор.</span> Модель и так хорошо знает KMP, поэтому «без RAG»
-    даёт почти максимум. RAG добавляет опору на документацию и ссылки, но проигрывает
-    в полноте: чанки по ~120 токенов и англоязычные доки при русском вопросе не всегда
-    покрывают вопрос целиком. Усиливать нужно retrieval (ре-ранкинг, гибридный поиск,
-    кросс-языковой поиск, большее top-k).</p>
+    <p><span class="k">Разбор.</span> Фильтр + реранкинг поднимают покрытие источников
+    с 0.80 до 0.90 — поиск находит нужные доки точнее. Средний балл почти не меняется:
+    судья оценивает ответ, а ответ и так силён. Rewrite в одиночку чуть проседает по баллу,
+    но поднимает профильный документ в топ. Вывод — второй этап улучшает precision поиска
+    и надёжность ссылок.</p>
   </div>
 
   <h2>Запуск</h2>
-  <pre>cd day22/backend
+  <pre>cd day23/backend
 python -m venv .venv
 & .venv/Scripts/python.exe -m pip install -r requirements.txt
 copy .env.example .env      # впиши DEEPSEEK_API_KEY
 & .venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
 
 # другое окно:
-cd day22/frontend
+cd day23/frontend
 npm install
 npm run dev                 # http://localhost:5173</pre>
 </div>
