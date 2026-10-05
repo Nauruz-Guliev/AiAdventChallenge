@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 22 — Первый RAG-запрос</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0e0f11; color: #edeef0;
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 48px 22px 96px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  .sub { color: #9ba1a6; margin: 0 0 32px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; border-left: 3px solid #f5c451; padding-left: 12px; }
+  p { color: #d7dadd; }
+  code { font-family: Consolas, monospace; background: #15171a; border: 1px solid #2a2d31;
+    border-radius: 6px; padding: 1px 6px; color: #cfe9df; font-size: .9em; }
+  pre { background: #101215; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 14px 16px; overflow-x: auto; color: #d7dadd; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #2a2d31; }
+  th { color: #9ba1a6; }
+  .card { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 16px 18px; margin: 16px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .k { color: #f5c451; font-weight: 600; }
+  .muted { color: #9ba1a6; }
+  .big { font-size: 22px; color: #f5c451; }
+  ul { color: #d7dadd; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>День 22 — Первый RAG-запрос</h1>
+  <p class="sub">Вопрос → поиск релевантных чанков → контекст + вопрос → LLM.
+  Сравниваем ответ <b>без RAG</b> и <b>с RAG</b> на 10 контрольных вопросах.</p>
+
+  <h2>Идея</h2>
+  <p>Обычный ассистент отвечает из «памяти» модели. RAG сначала ищет нужные
+  фрагменты в своей базе (индекс Дня 21) и просит модель ответить, опираясь на них.
+  Главный тезис: <span class="k">качество RAG = качество поиска</span>.</p>
+  <pre>без RAG:  вопрос ──────────────────────────────► LLM ──► ответ
+с RAG:    вопрос ─► поиск top-k ─► контекст+вопрос ─► LLM ──► ответ + источники</pre>
+
+  <h2>Два режима</h2>
+  <div class="grid">
+    <div class="card"><div class="k">Без RAG</div>
+      <p class="muted">Вопрос уходит прямо в модель. Ответ — из общих знаний,
+      без ссылок на источники.</p></div>
+    <div class="card"><div class="k">С RAG</div>
+      <p class="muted">Ищем top-k чанков по вопросу, подставляем их в промпт.
+      Ответ опирается на документацию, в конце — источники.</p></div>
+  </div>
+
+  <h2>Пайплайн</h2>
+  <ul>
+    <li><code>retrieval.py</code> — cosine-поиск по индексу Дня 21 (numpy).</li>
+    <li><code>agent.py</code> — собирает контекст и зовёт LLM (DeepSeek).</li>
+    <li><code>evaluator.py</code> — прогон 10 вопросов, LLM-судья, покрытие источников.</li>
+    <li><code>FakeLLM</code> — детерминированная заглушка для офлайн-тестов.</li>
+  </ul>
+
+  <h2>10 контрольных вопросов</h2>
+  <p>Темы: expect/actual, зависимости в commonMain, иерархия source sets,
+  публикация в Maven, тесты, Ktor, навигация в Compose MP, платформы,
+  CocoaPods/iOS, kotlinx.serialization. У каждого — ожидание и ожидаемые источники.</p>
+
+  <h2>Результаты</h2>
+  <table>
+    <tr><th>Метрика</th><th>Значение</th></tr>
+    <tr><td>Средний балл без RAG</td><td class="big">0.98</td></tr>
+    <tr><td>Средний балл с RAG</td><td class="big">0.74</td></tr>
+    <tr><td>Покрытие источников</td><td class="big">0.80</td></tr>
+  </table>
+  <div class="card">
+    <p><span class="k">Разбор.</span> Модель и так хорошо знает KMP, поэтому «без RAG»
+    даёт почти максимум. RAG добавляет опору на документацию и ссылки, но проигрывает
+    в полноте: чанки по ~120 токенов и англоязычные доки при русском вопросе не всегда
+    покрывают вопрос целиком. Усиливать нужно retrieval (ре-ранкинг, гибридный поиск,
+    кросс-языковой поиск, большее top-k).</p>
+  </div>
+
+  <h2>Запуск</h2>
+  <pre>cd day22/backend
+python -m venv .venv
+& .venv/Scripts/python.exe -m pip install -r requirements.txt
+copy .env.example .env      # впиши DEEPSEEK_API_KEY
+& .venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
+
+# другое окно:
+cd day22/frontend
+npm install
+npm run dev                 # http://localhost:5173</pre>
+</div>
+</body>
+</html>
