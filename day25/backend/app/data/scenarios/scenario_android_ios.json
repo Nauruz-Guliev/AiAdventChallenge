@@ -1,0 +1,17 @@
+{
+  "name": "Настройка KMP-проекта под Android и iOS",
+  "goal": "Настроить минимальный рабочий Kotlin Multiplatform проект для Android и iOS",
+  "messages": [
+    {"role": "user", "text": "Помоги настроить новый Kotlin Multiplatform проект."},
+    {"role": "user", "text": "Нужны таргеты для Android и iOS."},
+    {"role": "user", "text": "Что положить в commonMain?"},
+    {"role": "user", "text": "Как объявить expect и actual declarations?"},
+    {"role": "user", "text": "Зафиксируй ограничение: используем только Kotlin 2.0."},
+    {"role": "user", "text": "Как подключить Android library в build.gradle.kts?"},
+    {"role": "user", "text": "Что нужно для iOS framework?"},
+    {"role": "user", "text": "Какие зависимости добавить в commonMain?"},
+    {"role": "user", "text": "Помни, цель — минимальный рабочий проект."},
+    {"role": "user", "text": "Как устроена иерархия source sets?"},
+    {"role": "user", "text": "Подведи итог: что мы настроили и что осталось?"}
+  ]
+}

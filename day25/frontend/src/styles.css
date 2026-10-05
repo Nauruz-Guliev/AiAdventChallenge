@@ -1,0 +1,59 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #0e0f11; color: #edeef0; }
+.app { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; }
+.masthead h1 { margin: 0 0 8px; font-size: 26px; }
+.masthead p { margin: 0; color: #9ba1a6; }
+.tabs { display: flex; gap: 8px; margin: 20px 0; border-bottom: 1px solid #2a2d31; }
+.tabs button { background: none; border: none; color: #9ba1a6; padding: 10px 16px; cursor: pointer; font-size: 15px; }
+.tabs button.active { color: #edeef0; border-bottom: 2px solid #f5c451; }
+.error { background: #3a1d1d; color: #ffb4b4; padding: 10px 14px; border-radius: 8px; margin: 12px 0; }
+.muted { color: #9ba1a6; }
+
+.layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+.sidebar { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px; padding: 12px; }
+.new-session { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.new-session input { background: #101215; border: 1px solid #2a2d31; color: #edeef0; padding: 9px; border-radius: 8px; }
+.new-session button { background: #f5c451; color: #101113; border: none; padding: 9px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.new-session button:disabled { opacity: 0.5; cursor: default; }
+.session-list { list-style: none; margin: 0; padding: 0; }
+.session-list li { padding: 9px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
+.session-list li:hover { background: #1d2024; }
+.session-list li.active { background: #262a30; }
+.s-goal { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-meta { font-size: 11px; color: #9ba1a6; }
+
+.chat-area { display: flex; flex-direction: column; gap: 12px; }
+.memory-panel { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px; padding: 12px 14px; }
+.mem-goal { color: #f5c451; font-weight: 600; margin-bottom: 6px; }
+.mem-group h4 { margin: 8px 0 2px; font-size: 12px; color: #9ba1a6; }
+.mem-group ul { list-style: none; margin: 0; padding: 0; }
+.mem-group li { font-size: 13px; color: #c9cdd1; padding: 1px 0; }
+
+.chat { display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; }
+.msg.user { align-self: flex-end; background: #262a30; }
+.msg.assistant { align-self: flex-start; background: #15171a; border: 1px solid #2a2d31; }
+.msg-sources { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.src-label { font-size: 11px; color: #9ba1a6; }
+.src-tag { font-size: 11px; color: #8fe3c0; background: #101614; border: 1px solid #234034; padding: 2px 8px; border-radius: 6px; }
+.msg-citations { margin-top: 8px; }
+.msg-citations blockquote { margin: 4px 0; padding: 6px 10px; background: #101215; border-left: 3px solid #f5c451; color: #d7dadd; border-radius: 4px; font-size: 12px; }
+.msg-citations blockquote.ungrounded { border-left-color: #ffb4b4; color: #9ba1a6; }
+.cite-meta { color: #8fe3c0; font-family: Consolas, monospace; font-size: 11px; }
+
+.composer { display: flex; gap: 8px; }
+.composer input { flex: 1; background: #15171a; border: 1px solid #2a2d31; color: #edeef0; padding: 12px; border-radius: 8px; font-size: 15px; }
+.composer button { background: #f5c451; color: #101113; border: none; padding: 12px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.composer button:disabled { opacity: 0.5; cursor: default; }
+
+.eval-actions { margin: 16px 0; }
+.eval-actions button { background: #f5c451; color: #101113; border: none; padding: 12px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.eval-actions button:disabled { opacity: 0.5; }
+.reports { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.report { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px; padding: 16px; }
+.report h3 { margin: 0 0 8px; font-size: 15px; }
+.report p { margin: 0 0 8px; color: #c9cdd1; font-size: 13px; }
+.report-status { display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+.report.passed .report-status { background: #10321f; color: #8fe3c0; }
+.report.failed .report-status { background: #3a1d1d; color: #ffb4b4; }

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 25 — Мини-чат с RAG и памятью задачи</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0e0f11; color: #edeef0;
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 48px 22px 96px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  .sub { color: #9ba1a6; margin: 0 0 32px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; border-left: 3px solid #f5c451; padding-left: 12px; }
+  p { color: #d7dadd; }
+  code { font-family: Consolas, monospace; background: #15171a; border: 1px solid #2a2d31;
+    border-radius: 6px; padding: 1px 6px; color: #cfe9df; font-size: .9em; }
+  pre { background: #101215; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 14px 16px; overflow-x: auto; color: #d7dadd; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #2a2d31; }
+  th { color: #9ba1a6; }
+  .card { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 16px 18px; margin: 16px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .k { color: #f5c451; font-weight: 600; }
+  .muted { color: #9ba1a6; }
+  ul { color: #d7dadd; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>День 25 — Мини-чат с RAG и памятью задачи</h1>
+  <p class="sub">Многоходовый чат: история на диске, RAG на каждом вопросе, источники в каждом
+  ответе и <b>память задачи</b>, которая не теряется.</p>
+
+  <h2>Идея</h2>
+  <p>Дни 22–24 отвечали на один вопрос. Реальный чат — диалог, в котором надо помнить цель,
+  уточнения и ограничения. День 25 собирает мини-чат: <span class="k">история</span> +
+  <span class="k">RAG</span> + <span class="k">источники</span> + <span class="k">память задачи</span>.</p>
+
+  <h2>Память задачи</h2>
+  <pre>{
+  "goal": "Настроить минимальный рабочий KMP-проект",
+  "clarifications": ["нужны таргеты Android и iOS"],
+  "constraints": ["только Kotlin 2.0"],
+  "terms": ["expect/actual", "commonMain"]
+}</pre>
+  <div class="grid">
+    <div class="card"><div class="k">Что хранит</div>
+      <p class="muted">цель, уточнения, ограничения, термины. Цель задаётся при старте сессии
+      и не теряется: если апдейт вернул пустую цель — остаётся старая.</p></div>
+    <div class="card"><div class="k">Как обновляется</div>
+      <p class="muted">LLM каждый ход возвращает JSON-память, backend делает merge
+      (union без дублей), не перезаписывая уже зафиксированное.</p></div>
+  </div>
+
+  <h2>Цикл одного хода</h2>
+  <pre>вопрос → [rewrite с целью] → поиск k_pre → реранк → фильтр k_post
+       → промпт = системный + ПАМЯТЬ + ИСТОРИЯ + КОНТЕКСТ(RAG) + вопрос
+       → LLM-ответ с [n] → цитаты (LCS) → LLM-апдейт памяти → save</pre>
+
+  <h2>API</h2>
+  <table>
+    <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
+    <tr><td>POST</td><td><code>/api/sessions</code></td><td>новая сессия с целью</td></tr>
+    <tr><td>POST</td><td><code>/api/sessions/{id}/messages</code></td><td>вопрос → ответ + источники + память</td></tr>
+    <tr><td>GET</td><td><code>/api/sessions/{id}</code></td><td>полная сессия</td></tr>
+    <tr><td>POST</td><td><code>/api/scenarios/run</code></td><td>прогон 2 сценариев</td></tr>
+  </table>
+
+  <h2>Проверка (2 сценария × 11 сообщений)</h2>
+  <div class="card">
+    <p><span class="k">passed</span> = все три условия:</p>
+    <ul>
+      <li><b>Источники всегда</b> — у каждого ответа ассистента ≥ 1 источника.</li>
+      <li><b>Цель не потеряна</b> — итоговая цель непустая и пересекается с начальной.</li>
+      <li><b>Память накопилась</b> — есть хотя бы одно уточнение/ограничение/термин.</li>
+    </ul>
+    <p class="muted">Сценарии: «Настройка KMP-проекта под Android и iOS» и
+    «Сетевой слой на Ktor + корутины».</p>
+  </div>
+
+  <h2>Запуск</h2>
+  <pre>cd day25/backend
+python -m venv .venv
+& .venv/Scripts/python.exe -m pip install -r requirements.txt
+copy .env.example .env      # впиши DEEPSEEK_API_KEY
+& .venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
+
+# другое окно:
+cd day25/frontend
+npm install
+npm run dev                 # http://localhost:5173</pre>
+
+  <h2>Тесты</h2>
+  <pre>cd day25/backend
+& .venv/Scripts/python.exe -m pytest -q</pre>
+</div>
+</body>
+</html>
