@@ -9,13 +9,14 @@ from app.application.formatter import TELEGRAM_LIMIT, md_to_telegram_html, split
 class TelegramMessageStreamer:
     """Стримит текст в сообщение Telegram через троттлинг-правки.
 
-    `send(text) -> message` и `edit(message, text, parse_mode=None)` — внедряемые
-    callable, поэтому класс тестируется без aiogram.
+    `send(text, parse_mode=None) -> message` и `edit(message, text, parse_mode=None)`
+    — внедряемые callable, поэтому класс тестируется без aiogram. Вывод модели
+    конвертируется в Telegram-safe HTML на каждом шаге.
     """
 
     def __init__(
         self,
-        send: Callable[[str], Awaitable[object]],
+        send: Callable[..., Awaitable[object]],
         edit: Callable[..., Awaitable[None]],
         min_interval: float = 1.2,
         limit: int = TELEGRAM_LIMIT,
@@ -47,51 +48,59 @@ class TelegramMessageStreamer:
             return
         while len(self._buffer) > self._limit:
             parts = split_message(self._buffer, self._limit)
-            head = parts[0]
-            rest = "".join(parts[1:])
-            if head != self._last_sent:
-                await self._safe_edit(head)
+            head, rest = parts[0], "".join(parts[1:])
+            html_head = md_to_telegram_html(head)
+            if html_head and html_head != self._last_sent:
+                await self._safe_edit(html_head, "HTML")
             self.overflowed = True
             self._buffer = rest
             self._message = await self._send("…")
             self._last_sent = "…"
-        if self._buffer and self._buffer != self._last_sent:
-            await self._safe_edit(self._buffer)
+        if self._buffer:
+            html = md_to_telegram_html(self._buffer)
+            if html and html != self._last_sent:
+                await self._safe_edit(html, "HTML")
 
     async def _safe_edit(self, text: str, parse_mode: Optional[str] = None) -> None:
         try:
             await self._edit(self._message, text, parse_mode)
             self._last_sent = text
             self._last_time = time.monotonic()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     async def finish(self, final_body: str, footer_text: str = "") -> None:
+        html = md_to_telegram_html(final_body)
         if not self.overflowed:
-            html = md_to_telegram_html(final_body)
             text = f"{html}\n{footer_text}" if footer_text else html
             if len(text) <= self._limit:
                 try:
                     await self._edit(self._message, text, "HTML")
                     self._last_sent = text
                     return
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
             plain = f"{final_body}\n\n{footer_text}" if footer_text else final_body
             await self._emit_parts(plain)
             return
-        # overflow: footer дописываем к хвосту последнего сообщения
         tail = self._buffer
         if not tail:
             if footer_text:
                 await self._send(footer_text)
             return
-        text = f"{tail}\n\n{footer_text}" if footer_text else tail
-        await self._emit_parts(text)
+        raw = f"{tail}\n\n{footer_text}" if footer_text else tail
+        await self._emit_parts_html(md_to_telegram_html(raw))
 
     async def _emit_parts(self, text: str) -> None:
         parts = split_message(text, self._limit)
         await self._safe_edit(parts[0])
         for extra in parts[1:]:
             self._message = await self._send(extra)
+            self._last_sent = extra
+
+    async def _emit_parts_html(self, text: str) -> None:
+        parts = split_message(text, self._limit)
+        await self._safe_edit(parts[0], "HTML")
+        for extra in parts[1:]:
+            self._message = await self._send(extra, "HTML")
             self._last_sent = extra
