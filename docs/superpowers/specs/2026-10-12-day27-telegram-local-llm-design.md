@@ -253,10 +253,9 @@ docs/superpowers/specs/2026-10-12-day27-telegram-local-llm-design.md   # это�
   "show_thinking": false,
   "updated_at": "2026-10-12T10:00:00Z",
   "messages": [
-    {"role": "system", "content": "..."},
     {"role": "user", "content": "Привет! Кто ты?"},
     {"role": "assistant", "content": "Я локальная модель gemma4:12b..."},
-    {"role": "user", "content": "[фото]", "images": null}
+    {"role": "user", "content": "[фото]"}
   ]
 }
 ```

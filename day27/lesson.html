@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 27 — Telegram-бот на локальной LLM</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0e0f11; color: #edeef0;
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 48px 22px 96px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  .sub { color: #9ba1a6; margin: 0 0 32px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; border-left: 3px solid #f5c451; padding-left: 12px; }
+  h3 { font-size: 17px; margin: 24px 0 8px; color: #f5c451; }
+  p { color: #d7dadd; }
+  code { font-family: Consolas, monospace; background: #15171a; border: 1px solid #2a2d31;
+    border-radius: 6px; padding: 1px 6px; color: #cfe9df; font-size: .9em; }
+  pre { background: #101215; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 14px 16px; overflow-x: auto; color: #d7dadd; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #2a2d31; }
+  th { color: #9ba1a6; }
+  .card { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 16px 18px; margin: 16px 0; }
+  .k { color: #f5c451; font-weight: 600; }
+  .muted { color: #9ba1a6; }
+  ul { color: #d7dadd; }
+  .green { color: #8fe3c0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>День 27 — Telegram-бот на локальной LLM</h1>
+  <p class="sub">Встраиваем локальную модель (<code>gemma4:12b</code> в Ollama) в реальное
+  приложение — Telegram-бота. Стриминг ответа, память диалога, vision, команды. Без облака.</p>
+
+  <h2>Идея</h2>
+  <p>День 26 — запустили локальную модель и общались с ней вручную. День 27 — встроить её в
+  <span class="k">реальное приложение</span>. Пользователь пишет боту в Telegram, бот идёт в
+  локальную Ollama и показывает ответ.</p>
+
+  <h2>Почему Telegram и long polling</h2>
+  <p>Чтобы получать сообщения, бот либо ловит <b>webhook</b> (нужен публичный HTTPS-URL), либо
+  сам опрашивает Telegram — <b>long polling</b> (публичный URL не нужен). Для локальной модели
+  идеален long polling: всё крутится на домашнем ПК, наружу — только соединение к Telegram.</p>
+
+  <h2>Архитектура: ядро не знает про Telegram</h2>
+  <pre>Telegram ⇄ aiogram (presentation) ⇄ ChatService (application) ⇄ LLMClient (port) ⇄ OllamaClient
+                     │                        │
+              TelegramStreamer          JsonChatStore
+              (правки/сплит)            (история диалога)</pre>
+  <p>Ядро зависит только от интерфейса <code>LLMClient</code>. Поэтому логика тестируется офлайн
+  (<code>FakeLLMClient</code>), а Telegram-слой — отдельно.</p>
+
+  <h2>Стриминг в Telegram</h2>
+  <p>Ollama отдаёт ответ потоком (NDJSON: <code>thinking</code> + <code>content</code>). Telegram
+  не умеет дописывать текст построчно, но умеет <b>редактировать</b> сообщение. Приём: отправляем
+  сообщение и обновляем его (<code>edit_message_text</code>) не чаще ~1.2 с.</p>
+  <div class="card">
+    <ul>
+      <li>ответ длиннее 4096 символов → разбиваем и «переливаем» в новое сообщение;</li>
+      <li>Markdown → безопасный Telegram-HTML (экранирование), иначе — простым текстом;</li>
+      <li>«размышления» модели — по команде <code>/think on</code>.</li>
+    </ul>
+  </div>
+
+  <h2>Память диалога</h2>
+  <p>История — на диск: <code>data/chats/&lt;chat_id&gt;.json</code>. Каждый ход в модель уходит
+  <code>system + последние N ходов + новый вопрос</code>. Обрезается по числу сообщений и объёму.
+  Для фото в истории — плейсхолдер <code>[фото]</code>, не картинка.</p>
+
+  <h2>Vision</h2>
+  <p>Ollama принимает фото в сообщении: <code>{"role":"user","content":"...","images":["base64"]}</code>.
+  Бот скачивает фото, кодирует в base64 и отправляет вместе с подписью. У <code>gemma4:12b</code>
+  есть capability <code>vision</code>.</p>
+
+  <h2>Если модель недоступна</h2>
+  <p>Остановил Ollama → подключение падает → показываем «⚠️ локальная модель не отвечает».
+  Заодно это наглядно доказывает, что модель работает именно локально.</p>
+
+  <h2>Команды</h2>
+  <table>
+    <tr><th>Команда</th><th>Что делает</th></tr>
+    <tr><td><code>/start</code></td><td>приветствие + «я локальная модель»</td></tr>
+    <tr><td><code>/new</code></td><td>очистить историю</td></tr>
+    <tr><td><code>/model [имя]</code></td><td>текущая / сменить модель</td></tr>
+    <tr><td><code>/stats</code></td><td>модель, tok/s, размер истории</td></tr>
+    <tr><td><code>/think on|off</code></td><td>показывать размышления</td></tr>
+    <tr><td>текст / фото</td><td>обычный ответ / описание изображения</td></tr>
+  </table>
+
+  <h2>Запуск</h2>
+  <pre>ollama pull gemma4:12b                 # модель (День 26)
+cd day27/backend
+copy .env.example .env                 # вставить TELEGRAM_BOT_TOKEN
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m app.main   # long polling</pre>
+
+  <h2>Тесты</h2>
+  <p class="muted">45 офлайн-тестов: Ollama-клиент, форматтер, хранилище, сервис, стример,
+  vision, конфиг. <span class="green">Сеть и Telegram не нужны.</span></p>
+</div>
+</body>
+</html>
