@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 29 — оптимизация локальной LLM (разбор)</title>
+<style>
+  :root { --bg:#0e0f11; --card:#15171a; --line:rgba(255,255,255,.09); --fg:#edeef0;
+    --muted:#9ba1a6; --acc:#f5c451; --ok:#8fe3c0; }
+  body { background:var(--bg); color:var(--fg); font-family:'Segoe UI',system-ui,sans-serif;
+    line-height:1.65; max-width:880px; margin:0 auto; padding:40px 20px 90px; }
+  h1 { font-size:28px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 26px; }
+  h2 { font-size:20px; margin:34px 0 10px; border-left:3px solid var(--acc); padding-left:10px; }
+  .card { border:1px solid var(--line); border-radius:14px; background:var(--card);
+    padding:16px 18px; margin:0 0 14px; }
+  code, pre { font-family:Consolas,monospace; }
+  code { font-size:.9em; background:#0b0c0e; border:1px solid var(--line); border-radius:6px;
+    padding:1px 6px; color:#cfe9df; }
+  pre { background:#0b0c0e; border:1px solid var(--line); border-radius:10px; padding:14px;
+    overflow:auto; font-size:13px; }
+  ul { padding-left:20px; } li { margin:4px 0; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; }
+  th { color:var(--acc); }
+  .note { border-left:3px solid var(--acc); background:#121316; border-radius:8px;
+    padding:10px 14px; color:#c9cdd1; font-size:14px; }
+</style>
+</head>
+<body>
+<h1>День 29 — оптимизация локальной LLM под RAG</h1>
+<p class="sub">Разбор «сделай сам»: параметры, квантование, prompt-шаблон и честное сравнение до/после.</p>
+
+<h2>Идея</h2>
+<div class="card">
+  Берём рабочую локальную RAG-систему (день 28) и настраиваем модель под конкретный кейс —
+  ответы по базе Kotlin Multiplatform. Меняем <b>только генерацию</b>: параметры инференса,
+  квант модели и prompt-шаблон. Поиск не трогаем.
+</div>
+
+<h2>Что настраиваем</h2>
+<table>
+  <tr><th>Профиль</th><th>num_ctx</th><th>temperature</th><th>top_p / top_k</th><th>num_predict</th><th>Промпт</th></tr>
+  <tr><td>baseline</td><td>8192</td><td>≈1.0</td><td>0.95 / 64</td><td>—</td><td>старый</td></tr>
+  <tr><td>params</td><td>4096</td><td>0.2</td><td>0.9 / 40</td><td>512</td><td>старый</td></tr>
+  <tr><td>optimized</td><td>4096</td><td>0.2</td><td>0.9 / 40</td><td>512</td><td>новый, строгий</td></tr>
+</table>
+<p class="sub">Кванты: Q4_K_M (<code>gemma4:12b</code>) и Q8_0 (<code>gemma4:12b-it-q8_0</code>).</p>
+
+<h2>Шаги, чтобы повторить</h2>
+<ol>
+  <li>Скачай квант: <code>ollama pull gemma4:12b-it-q8_0</code> (~13 ГБ).</li>
+  <li><code>cd day29/backend</code> → venv → <code>pip install -r requirements.txt</code>
+    (при ошибке сертификата — <code>--trusted-host pypi.org --trusted-host files.pythonhosted.org</code>).</li>
+  <li><code>copy .env.example .env</code>, вписать <code>TELEGRAM_BOT_TOKEN</code> и
+    <code>DEEPSEEK_API_KEY</code> (для судьи).</li>
+  <li>Останови день 28 (токен один): <code>day28\backend\stop_bot.ps1</code>.</li>
+  <li>Запусти: <code>.\run_bot.ps1</code> — в логе видно, какие кванты есть.</li>
+  <li>В Telegram: задай вопрос, затем <code>/profile baseline</code> и задай снова — сравни.</li>
+  <li><code>/quant q8</code> — переключи квант; <code>/quant q4</code> — назад.</li>
+  <li><code>/ab</code> (быстро) и <code>/ab full</code> (полно) — таблица качества/скорости/ресурсов.</li>
+</ol>
+
+<h2>Как считается сравнение</h2>
+<div class="card">
+  Матрица 3 профиля × 2 кванта. Retrieval выполняется <b>один раз</b> на вопрос и подаётся всем
+  конфигурациям — сравнивается генерация. Качество оценивает <b>слепой судья</b> (DeepSeek):
+  он видит только вопрос, эталон и ответ, без подписи модели.
+</div>
+
+<h2>Метрики</h2>
+<div class="card">
+  <ul>
+    <li><b>Качество</b> — оценка судьи 0…1 (и σ по прогонам).</li>
+    <li><b>Скорость</b> — латентность (мс) и tok/s из Ollama.</li>
+    <li><b>Ресурсы</b> — размер модели, память (<code>/api/ps</code> + RSS процесса Ollama), CPU%, время загрузки.</li>
+  </ul>
+</div>
+
+<h2>Фикс вывода в Telegram</h2>
+<div class="note">
+  Telegram HTML <b>не</b> поддерживает <code>&lt;p&gt;</code> и <code>&lt;br&gt;</code>. Старый
+  конвертер их добавлял → <code>parse_mode="HTML"</code> падал → markdown показывался сырым.
+  Теперь конвертер выдаёт только поддерживаемые теги, стриминг рендерит HTML, таблицы — в
+  <code>&lt;pre&gt;</code>. Тот же фикс есть и в дне 28.
+</div>
+</body>
+</html>
