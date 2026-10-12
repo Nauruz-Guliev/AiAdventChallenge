@@ -44,6 +44,11 @@ copy .env.example .env        # вставить TELEGRAM_BOT_TOKEN
 > Если `pip` падает с `SSL: CERTIFICATE_VERIFY_FAILED` (корпоративный прокси), добавь
 > `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.
 
+> Если сеть блокирует Telegram (DNS отдаёт недоступный IP `api.telegram.org` и соединение
+> рвётся), укажи в `.env` доступный IP Bot API: `TELEGRAM_API_IP=149.154.167.220`. Бот пойдёт
+> к нему, сохранив SNI и сертификат `api.telegram.org`. Запуск устойчив к обрывам: polling
+> сам переподключается.
+
 В логе увидишь:
 
 ```

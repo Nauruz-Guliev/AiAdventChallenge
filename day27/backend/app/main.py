@@ -10,6 +10,7 @@ from app.application.chat_service import ChatService
 from app.config import Settings
 from app.infrastructure.chat_store import JsonChatStore
 from app.infrastructure.ollama_client import OllamaClient
+from app.infrastructure.telegram_net import force_telegram_api_ip
 from app.presentation.handlers import build_router
 from app.presentation.middlewares import ErrorMiddleware
 
@@ -23,6 +24,10 @@ async def run() -> None:
         raise SystemExit(
             "TELEGRAM_BOT_TOKEN не задан. Скопируй .env.example в .env и вставь токен."
         )
+
+    if settings.telegram_api_ip:
+        force_telegram_api_ip(settings.telegram_api_ip)
+        log.info("Telegram API IP override: api.telegram.org -> %s", settings.telegram_api_ip)
 
     llm = OllamaClient(
         base_url=settings.ollama_base_url,
@@ -48,7 +53,15 @@ async def run() -> None:
 
     try:
         log.info("Bot started. Polling…")
-        await dp.start_polling(bot)
+        while True:
+            try:
+                await dp.start_polling(bot)
+                break
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                log.warning("Polling interrupted: %s. Reconnecting in 3s…", e)
+                await asyncio.sleep(3)
     finally:
         await llm.aclose()
         await bot.session.close()

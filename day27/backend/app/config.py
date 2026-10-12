@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     history_max_chars: int = 12000
     request_timeout: float = 300.0
     data_dir: str = "data"
+    telegram_api_ip: str = ""
 
     def ollama_options(self) -> dict:
         return {"num_ctx": self.ollama_num_ctx}
