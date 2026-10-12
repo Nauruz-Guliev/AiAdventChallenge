@@ -50,9 +50,9 @@ class OllamaClient:
             )
         return out
 
-    def _payload(self, messages, think, options, stream):
+    def _payload(self, messages, think, options, stream, model=None):
         return {
-            "model": self._model,
+            "model": model or self._model,
             "messages": [m.to_ollama() for m in messages],
             "stream": stream,
             "keep_alive": self._keep_alive,
@@ -60,8 +60,26 @@ class OllamaClient:
             "options": {**self._default_options, **(options or {})},
         }
 
-    async def complete(self, messages, think: bool = False, options=None) -> Completion:
-        payload = self._payload(messages, think, options, stream=False)
+    async def tags(self) -> list[dict]:
+        try:
+            r = await self._client.get(f"{self._base_url}/api/tags")
+            r.raise_for_status()
+        except httpx.HTTPError as e:
+            raise OllamaUnavailable(str(e)) from e
+        return r.json().get("models", [])
+
+    async def ps(self) -> list[dict]:
+        try:
+            r = await self._client.get(f"{self._base_url}/api/ps")
+            r.raise_for_status()
+        except httpx.HTTPError as e:
+            raise OllamaUnavailable(str(e)) from e
+        return r.json().get("models", [])
+
+    async def complete(
+        self, messages, think: bool = False, options=None, model=None
+    ) -> Completion:
+        payload = self._payload(messages, think, options, stream=False, model=model)
         try:
             r = await self._client.post(f"{self._base_url}/api/chat", json=payload)
             r.raise_for_status()
@@ -80,11 +98,14 @@ class OllamaClient:
                 completion_tokens=obj.get("eval_count", 0) or 0,
                 eval_duration_ns=obj.get("eval_duration", 0) or 0,
                 total_duration_ns=obj.get("total_duration", 0) or 0,
+                load_duration_ns=obj.get("load_duration", 0) or 0,
             ),
         )
 
-    async def stream_chat(self, messages, think: bool = False, options=None) -> AsyncIterator:
-        payload = self._payload(messages, think, options, stream=True)
+    async def stream_chat(
+        self, messages, think: bool = False, options=None, model=None
+    ) -> AsyncIterator:
+        payload = self._payload(messages, think, options, stream=True, model=model)
         try:
             async with self._client.stream("POST", f"{self._base_url}/api/chat", json=payload) as resp:
                 if resp.status_code != 200:
@@ -113,6 +134,7 @@ class OllamaClient:
                                 completion_tokens=obj.get("eval_count", 0) or 0,
                                 eval_duration_ns=obj.get("eval_duration", 0) or 0,
                                 total_duration_ns=obj.get("total_duration", 0) or 0,
+                                load_duration_ns=obj.get("load_duration", 0) or 0,
                             )
                         )
         except httpx.HTTPError as e:
