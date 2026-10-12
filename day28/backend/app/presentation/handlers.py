@@ -130,7 +130,7 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
                 )
                 return
             streamer = TelegramMessageStreamer(
-                send=lambda t: message.answer(t),
+                send=lambda t, pm=None: message.answer(t, parse_mode=pm),
                 edit=lambda m, t, pm=None: m.edit_text(t, parse_mode=pm),
                 min_interval=1.2,
             )
