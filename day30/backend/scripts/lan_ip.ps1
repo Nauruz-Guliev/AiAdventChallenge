@@ -1,4 +1,4 @@
-# Печатает LAN-адрес, по которому сервис доступен другим устройствам.
+# Prints the LAN address where the service is reachable from other devices.
 Get-NetIPAddress -AddressFamily IPv4 |
   Where-Object {
     $_.IPAddress -notlike '127.*' -and
@@ -6,4 +6,4 @@ Get-NetIPAddress -AddressFamily IPv4 |
   } |
   Select-Object IPAddress, InterfaceAlias |
   Format-Table -AutoSize
-Write-Host "Сервис слушает http://<IP выше>:8000"
+Write-Host "Service: http://<IP above>:8000"
