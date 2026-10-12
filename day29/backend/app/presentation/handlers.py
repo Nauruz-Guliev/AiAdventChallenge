@@ -8,21 +8,36 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from app.application.formatter import footer, split_message
+from app.application.optimization.profiles import (
+    PROFILE_ORDER,
+    PROFILES,
+    QUANTS,
+    QUANT_ORDER,
+    get_profile,
+    get_quant,
+    next_profile,
+    next_quant,
+)
 from app.config import Settings
 from app.domain.models import ChatMessage, ChatState, CloudUnavailable, Role
+from app.infrastructure import resources as res
 from app.ports.llm import OllamaUnavailable, StreamDelta, StreamDone
 from app.presentation import messages
 from app.presentation.keyboards import answer_keyboard
 from app.presentation.streamer import TelegramMessageStreamer
 
 
-def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -> Router:
+def build_router(service, ollama, cloud, benchmark, ab_runner, store, settings: Settings) -> Router:
     router = Router()
     locks: dict[int, asyncio.Lock] = {}
+    ab_locks: dict[int, asyncio.Lock] = {}
     eval_locks: dict[int, asyncio.Lock] = {}
 
     def lock_for(chat_id: int) -> asyncio.Lock:
         return locks.setdefault(chat_id, asyncio.Lock())
+
+    def ab_lock_for(chat_id: int) -> asyncio.Lock:
+        return ab_locks.setdefault(chat_id, asyncio.Lock())
 
     def eval_lock_for(chat_id: int) -> asyncio.Lock:
         return eval_locks.setdefault(chat_id, asyncio.Lock())
@@ -35,9 +50,15 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
                 system_prompt="",
                 model=settings.ollama_model,
                 think=settings.think_default,
+                profile=settings.default_profile,
+                quant=settings.default_quant,
             )
         if not st.model:
             st.model = settings.ollama_model
+        if st.profile not in PROFILES:
+            st.profile = settings.default_profile
+        if st.quant not in QUANTS:
+            st.quant = settings.default_quant
         return st
 
     def save(state: ChatState) -> None:
@@ -98,17 +119,65 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
         save(st)
         await message.answer(f"Показ «размышлений»: {'вкл' if st.think else 'выкл'}")
 
+    @router.message(Command("profile"))
+    async def cmd_profile(message: Message, command: CommandObject) -> None:
+        st = get_state(message.chat.id)
+        arg = (command.args or "").strip().lower()
+        if arg:
+            if arg not in PROFILES:
+                await message.answer(
+                    "Профили: " + ", ".join(PROFILE_ORDER), parse_mode=None
+                )
+                return
+            st.profile = arg
+            save(st)
+        await message.answer(
+            messages.profile_text(get_profile(st.profile), get_quant(st.quant)), parse_mode="HTML"
+        )
+
+    @router.message(Command("quant"))
+    async def cmd_quant(message: Message, command: CommandObject) -> None:
+        st = get_state(message.chat.id)
+        arg = (command.args or "").strip().lower()
+        if arg:
+            if arg not in QUANTS:
+                await message.answer("Кванты: " + ", ".join(QUANT_ORDER))
+                return
+            st.quant = arg
+            save(st)
+        quant = get_quant(st.quant)
+        size_gb = 0.0
+        vram_gb = 0.0
+        if ollama is not None:
+            try:
+                size_gb = await res.model_size_gb(ollama, quant.model)
+                vram_gb = await res.size_vram_gb(ollama, quant.model)
+            except Exception:  # noqa: BLE001
+                pass
+        await message.answer(
+            messages.quant_text(quant, size_gb, vram_gb), parse_mode="HTML"
+        )
+
     @router.message(Command("status"))
     async def cmd_status(message: Message) -> None:
         st = get_state(message.chat.id)
-        ok = await ollama.health() if ollama is not None else False
+        quant = get_quant(st.quant)
+        vram_gb = 0.0
+        if ollama is not None:
+            try:
+                vram_gb = await res.size_vram_gb(ollama, quant.model)
+            except Exception:  # noqa: BLE001
+                pass
         await message.answer(
-            "📟 Состояние\n"
-            f"Локальная модель: <b>{st.model}</b> · Ollama: {'OK' if ok else 'нет'}\n"
-            f"Индекс: <code>{settings.index_path}</code>\n"
-            f"Эмбеддер: <code>{settings.embedder_model}</code>\n"
-            f"Режим: {'RAG (поиск по базе)' if st.rag_enabled else 'без RAG'}\n"
-            f"Облако: {'доступно' if cloud else 'нет ключа'}",
+            messages.status_text(
+                profile_label=get_profile(st.profile).label,
+                quant=quant,
+                index_path=settings.index_path,
+                embedder=settings.embedder_model,
+                rag_enabled=st.rag_enabled,
+                cloud=cloud is not None,
+                vram_gb=vram_gb,
+            ),
             parse_mode="HTML",
         )
 
@@ -119,7 +188,9 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
             await message.answer(messages.BUSY_TEXT)
             return
         async with lock:
-            prepared = service.prepare(question, use_rag=st.rag_enabled)
+            profile = get_profile(st.profile)
+            quant = get_quant(st.quant)
+            prepared = service.prepare(question, use_rag=st.rag_enabled, prompt_key=profile.prompt)
             if not prepared.answerable:
                 from app.application.prompt import NO_ANSWER_TEXT
 
@@ -130,7 +201,7 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
                 )
                 return
             streamer = TelegramMessageStreamer(
-                send=lambda t: message.answer(t),
+                send=lambda t, pm=None: message.answer(t, parse_mode=pm),
                 edit=lambda m, t, pm=None: m.edit_text(t, parse_mode=pm),
                 min_interval=1.2,
             )
@@ -138,7 +209,10 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
             full, stats = "", None
             try:
                 async for event in ollama.stream_chat(
-                    prepared.messages, think=st.think, options=settings.ollama_options()
+                    prepared.messages,
+                    think=profile.think,
+                    options=profile.options,
+                    model=quant.model,
                 ):
                     if isinstance(event, StreamDelta) and event.kind == "content":
                         full += event.text
@@ -149,7 +223,7 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
                 await message.answer(messages.OFFLINE_TEXT)
                 return
             answer = service.finalize(full, prepared, stats)
-            await streamer.finish(full, footer(stats, st.model))
+            await streamer.finish(full, footer(stats, quant.label))
             await message.answer(
                 messages.sources_text(answer), reply_markup=answer_keyboard(st.rag_enabled)
             )
@@ -160,10 +234,14 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
             await message.answer(messages.NO_CLOUD_TEXT)
             return
         st = get_state(message.chat.id)
-        prepared = service.prepare(question, use_rag=st.rag_enabled)
+        profile = get_profile(st.profile)
+        quant = get_quant(st.quant)
+        prepared = service.prepare(question, use_rag=st.rag_enabled, prompt_key=profile.prompt)
         await message.answer("⚖️ Считаю оба ответа…")
         t0 = time.perf_counter()
-        local = await service.answer(question, st.history(), use_rag=st.rag_enabled)
+        local = await service.answer(
+            question, st.history(), use_rag=st.rag_enabled, profile=profile, model=quant.model
+        )
         local_ms = (time.perf_counter() - t0) * 1000
         t1 = time.perf_counter()
         try:
@@ -204,7 +282,41 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
                     await message.answer(f"⚠️ Прогон не удался: {e}")
                     return
             for part in split_message(messages.eval_report_text(report)):
-                await message.answer(part)
+                await message.answer(part, parse_mode="HTML")
+
+        asyncio.create_task(worker())
+
+    async def cmd_ab_like(message: Message, quick: bool) -> None:
+        if ab_runner is None:
+            await message.answer(messages.NO_CLOUD_TEXT)
+            return
+        if ab_lock_for(message.chat.id).locked():
+            await message.answer(messages.AB_BUSY_TEXT)
+            return
+        mode = "быстрый" if quick else "полный"
+        questions = settings.ab_quick_questions if quick else settings.ab_full_questions
+        runs = 1 if quick else settings.ab_runs
+        progress_msg = await message.answer(
+            messages.AB_STARTED_TEXT.format(mode=mode, questions=questions, runs=runs),
+            parse_mode="HTML",
+        )
+        lock = ab_lock_for(message.chat.id)
+
+        async def worker() -> None:
+            async with lock:
+                async def on_progress(done: int, total: int) -> None:
+                    try:
+                        await progress_msg.edit_text(f"📊 A/B: {done}/{total}…")
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                try:
+                    report = await ab_runner.run(quick=quick, on_progress=on_progress)
+                except Exception as e:  # noqa: BLE001
+                    await message.answer(f"⚠️ A/B не удался: {e}")
+                    return
+            for part in split_message(messages.ab_report_text(report)):
+                await message.answer(part, parse_mode="HTML")
 
         asyncio.create_task(worker())
 
@@ -224,6 +336,11 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
             runs = int(arg)
         await cmd_eval_like(message, runs)
 
+    @router.message(Command("ab"))
+    async def cmd_ab(message: Message, command: CommandObject) -> None:
+        arg = (command.args or "").strip().lower()
+        await cmd_ab_like(message, quick=arg != "full")
+
     @router.callback_query(F.data == "toggle_rag")
     async def cb_toggle_rag(query: CallbackQuery) -> None:
         st = get_state(query.message.chat.id)
@@ -235,6 +352,31 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
         except Exception:  # noqa: BLE001
             pass
 
+    @router.callback_query(F.data == "profile")
+    async def cb_profile(query: CallbackQuery) -> None:
+        st = get_state(query.message.chat.id)
+        st.profile = next_profile(st.profile)
+        save(st)
+        await query.answer(f"Профиль: {get_profile(st.profile).label}")
+        try:
+            await query.message.edit_reply_markup(reply_markup=answer_keyboard(st.rag_enabled))
+        except Exception:  # noqa: BLE001
+            pass
+        await query.message.answer(
+            messages.profile_text(get_profile(st.profile), get_quant(st.quant)), parse_mode="HTML"
+        )
+
+    @router.callback_query(F.data == "quant")
+    async def cb_quant(query: CallbackQuery) -> None:
+        st = get_state(query.message.chat.id)
+        st.quant = next_quant(st.quant)
+        save(st)
+        quant = get_quant(st.quant)
+        await query.answer(f"Квант: {quant.label}")
+        await query.message.answer(
+            messages.quant_text(quant, quant.size_gb_hint, 0.0), parse_mode="HTML"
+        )
+
     @router.callback_query(F.data == "cloud")
     async def cb_cloud(query: CallbackQuery) -> None:
         st = get_state(query.message.chat.id)
@@ -245,15 +387,14 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
             await query.answer("Сначала задай вопрос", show_alert=True)
             return
         await query.answer()
-        prepared = service.prepare(st.last_question, use_rag=st.rag_enabled)
+        profile = get_profile(st.profile)
+        prepared = service.prepare(st.last_question, use_rag=st.rag_enabled, prompt_key=profile.prompt)
         try:
             completion = await cloud.complete(prepared.messages)
         except CloudUnavailable:
             await query.message.answer(messages.NO_CLOUD_TEXT)
             return
-        await query.message.answer(
-            f"☁️ <b>Облако</b>\n{completion.text}", parse_mode="HTML"
-        )
+        await query.message.answer(f"☁️ <b>Облако</b>\n{completion.text}", parse_mode="HTML")
 
     @router.callback_query(F.data == "compare")
     async def cb_compare(query: CallbackQuery) -> None:
@@ -268,6 +409,11 @@ def build_router(service, ollama, cloud, benchmark, store, settings: Settings) -
     async def cb_eval(query: CallbackQuery) -> None:
         await query.answer()
         await cmd_eval_like(query.message, settings.eval_runs)
+
+    @router.callback_query(F.data == "ab")
+    async def cb_ab(query: CallbackQuery) -> None:
+        await query.answer()
+        await cmd_ab_like(query.message, quick=True)
 
     @router.message(F.text)
     async def on_text(message: Message) -> None:
