@@ -33,6 +33,7 @@ class GenerationStats:
     completion_tokens: int = 0
     eval_duration_ns: int = 0
     total_duration_ns: int = 0
+    load_duration_ns: int = 0
 
     @property
     def tokens_per_second(self) -> float:
@@ -80,6 +81,8 @@ class ChatState:
     rag_enabled: bool = True
     think: bool = False
     last_question: str = ""
+    profile: str = "optimized"
+    quant: str = "q4"
     updated_at: str = ""
 
     def history(self) -> list[ChatMessage]:
@@ -93,6 +96,8 @@ class ChatState:
             "rag_enabled": self.rag_enabled,
             "think": self.think,
             "last_question": self.last_question,
+            "profile": self.profile,
+            "quant": self.quant,
             "updated_at": self.updated_at,
             "messages": [m.to_dict() for m in self.messages],
         }
@@ -112,6 +117,8 @@ class ChatState:
             rag_enabled=bool(d.get("rag_enabled", True)),
             think=bool(d.get("think", False)),
             last_question=d.get("last_question", ""),
+            profile=d.get("profile", "optimized"),
+            quant=d.get("quant", "q4"),
             updated_at=d.get("updated_at", ""),
         )
 
@@ -141,6 +148,58 @@ class EvalReport:
     rows: tuple[EvalRow, ...]
     questions: int
     runs: int
+
+
+@dataclass(frozen=True)
+class OptimizationProfile:
+    name: str
+    label: str
+    options: dict
+    prompt: str
+    think: bool = False
+
+
+@dataclass(frozen=True)
+class Quant:
+    name: str
+    model: str
+    label: str
+    size_gb_hint: float
+
+
+@dataclass(frozen=True)
+class ResourceSample:
+    model_size_gb: float = 0.0
+    size_vram_gb: float = 0.0
+    rss_peak_mb: float = 0.0
+    cpu_percent: float = 0.0
+    load_ms: float = 0.0
+
+
+@dataclass(frozen=True)
+class CellResult:
+    profile: str
+    quant: str
+    label: str
+    quality_mean: float | None
+    quality_std: float | None
+    latency_mean_ms: float
+    latency_std_ms: float
+    tokens_per_second: float
+    prompt_tokens: float
+    error_rate: float
+    runs: int
+    ctx_bumped: bool
+    resources: ResourceSample
+
+
+@dataclass(frozen=True)
+class ABReport:
+    cells: tuple[CellResult, ...]
+    questions: int
+    runs: int
+    quick: bool
+    notes: tuple[str, ...] = ()
 
 
 class OllamaUnavailable(RuntimeError):

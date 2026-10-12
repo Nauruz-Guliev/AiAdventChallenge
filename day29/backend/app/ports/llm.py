@@ -37,12 +37,22 @@ class OllamaUnavailable(Exception):
 
 
 class LLM(Protocol):
-    async def complete(self, messages: list[ChatMessage]) -> Completion: ...
+    async def complete(
+        self,
+        messages: list[ChatMessage],
+        think: bool = False,
+        options: Optional[dict] = None,
+        model: Optional[str] = None,
+    ) -> Completion: ...
 
 
 class StreamingLLM(Protocol):
     def stream_chat(
-        self, messages: list[ChatMessage], think: bool = False, options: Optional[dict] = None
+        self,
+        messages: list[ChatMessage],
+        think: bool = False,
+        options: Optional[dict] = None,
+        model: Optional[str] = None,
     ) -> AsyncIterator[StreamEvent]: ...
 
     async def list_models(self) -> list[ModelInfo]: ...
