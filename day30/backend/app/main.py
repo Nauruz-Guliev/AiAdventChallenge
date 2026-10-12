@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import uvicorn
 
 from app.application.chat_service import ChatService
@@ -9,6 +11,8 @@ from app.config import Settings
 from app.infrastructure.metrics import Metrics
 from app.infrastructure.ollama_client import OllamaGateway
 from app.presentation.app import create_app
+
+logger = logging.getLogger("day30")
 
 
 def build_app(settings: Settings | None = None):
@@ -32,7 +36,13 @@ def build_app(settings: Settings | None = None):
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     settings = Settings()
+    if not settings.key_set():
+        logger.warning(
+            "API_KEYS не задан — сервис работает АНОНИМНО. Для сети задай API_KEYS."
+        )
+    logger.info("Слушаю %s:%s, модель %s, num_ctx %s", settings.host, settings.port, settings.default_model, settings.num_ctx)
     app = build_app(settings)
     uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
 
