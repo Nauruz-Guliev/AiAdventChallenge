@@ -1,3 +1,4 @@
+from app.application.optimization.profiles import get_profile, get_quant
 from app.application.prompt import NO_ANSWER_TEXT
 from app.application.rag_service import RagService
 from app.config import Settings
@@ -7,69 +8,52 @@ from app.ports.llm import Completion
 
 
 class FakeRetriever:
-    def __init__(self, hits):
-        self._hits = hits
-        self.sim = {}
+    def __init__(self, sim=0.9):
+        self.sim = {"c0": sim}
 
     def search(self, question, top_k=None):
-        return list(self._hits)
+        return [Hit("c0", "doc.md", "T", "S", self.sim["c0"], "Kotlin shares code.")]
 
     def similarity(self, text, chunk_id):
         return self.sim.get(chunk_id, 0.0)
 
     def chunk_count(self):
-        return len(self._hits)
+        return 1
 
 
 class FakeLLM:
-    def __init__(self, text="Ответ [1]"):
+    def __init__(self, text="ok [1]"):
         self._text = text
-        self.calls = []
+        self.kwargs = {}
 
-    async def complete(self, messages, think=False):
-        self.calls.append(messages)
+    async def complete(self, messages, think=False, options=None, model=None):
+        self.kwargs = {"think": think, "options": options, "model": model, "messages": messages}
         return Completion(text=self._text)
 
 
-def _hits():
-    return [
-        Hit("c0", "doc.md", "T", "S", 0.9, "Kotlin Multiplatform shares code."),
-        Hit("c1", "doc.md", "T", "S", 0.8, "Other text."),
-    ]
+def _svc(sim=0.9):
+    llm = FakeLLM()
+    s = Settings(_env_file=None, telegram_bot_token="1:x")
+    return RagService(FakeRetriever(sim), HeuristicReranker(), llm, s), llm
 
 
-def _settings(**kw):
-    return Settings(_env_file=None, telegram_bot_token="1:x", top_k_pre=30, top_k_post=2, **kw)
-
-
-def test_prepare_answerable_builds_context():
-    r = FakeRetriever(_hits())
-    r.sim = {"c0": 0.9, "c1": 0.8}
-    svc = RagService(r, HeuristicReranker(), FakeLLM(), _settings())
-    p = svc.prepare("what is kmp?")
-    assert p.answerable is True
-    assert p.hits and "Контекст:" in p.messages[-1].content
-
-
-def test_prepare_unanswerable_when_low_relevance():
-    r = FakeRetriever(_hits())
-    r.sim = {"c0": 0.1, "c1": 0.1}
-    svc = RagService(r, HeuristicReranker(), FakeLLM(), _settings())
-    p = svc.prepare("quantum physics")
-    assert p.answerable is False
+async def test_answer_applies_profile_and_model():
+    svc, llm = _svc()
+    prof = get_profile("optimized")
+    quant = get_quant("q8")
+    out = await svc.answer("kmp?", [], use_rag=True, profile=prof, model=quant.model)
+    assert out.answerable is True and out.sources
+    assert llm.kwargs["options"]["temperature"] == 0.2
+    assert llm.kwargs["model"] == "gemma4:12b-it-q8_0"
 
 
 async def test_answer_unanswerable_returns_no_answer():
-    r = FakeRetriever(_hits())
-    r.sim = {"c0": 0.1, "c1": 0.1}
-    svc = RagService(r, HeuristicReranker(), FakeLLM(), _settings())
-    out = await svc.answer("quantum", [])
+    svc, _ = _svc(sim=0.1)
+    out = await svc.answer("quantum", [], use_rag=True)
     assert out.answerable is False and out.reply == NO_ANSWER_TEXT
 
 
-async def test_answer_attaches_sources_and_citations():
-    r = FakeRetriever(_hits())
-    r.sim = {"c0": 0.9, "c1": 0.8}
-    svc = RagService(r, HeuristicReranker(), FakeLLM("it shares code [1]"), _settings())
-    out = await svc.answer("kmp?", [])
-    assert out.answerable is True and len(out.sources) >= 1
+def test_prepare_uses_prompt_key():
+    svc, _ = _svc()
+    p = svc.prepare("kmp?", use_rag=True, prompt_key="optimized")
+    assert "Не нашёл в базе" in p.messages[0].content

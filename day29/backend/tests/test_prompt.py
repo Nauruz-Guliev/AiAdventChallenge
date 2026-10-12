@@ -1,19 +1,20 @@
-from app.application.prompt import build_context, build_messages
+from app.application.prompt import OPTIMIZED_SYSTEM, PROMPTS, build_context, build_messages
 from app.domain.models import Hit, Role
 
 
-def _hit(cid, section, text):
-    return Hit(chunk_id=cid, source="doc.md", title="T", section=section, score=0.5, text=text)
+def test_two_prompts_registered():
+    assert set(PROMPTS) == {"baseline", "optimized"}
+    assert "Не нашёл в базе" in OPTIMIZED_SYSTEM
 
 
 def test_build_context_numbers_blocks():
-    ctx = build_context([_hit("c0", "S1", "one"), _hit("c1", "S2", "two")])
+    hits = [Hit("c0", "doc.md", "T", "S1", 0.5, "one"), Hit("c1", "doc.md", "T", "S2", 0.5, "two")]
+    ctx = build_context(hits)
     assert "[1] doc.md :: S1" in ctx and "[2] doc.md :: S2" in ctx
 
 
-def test_build_messages_with_and_without_context():
-    with_ctx = build_messages([], "CTX", "Q?")
-    assert with_ctx[0].role == Role.SYSTEM
-    assert "Контекст:\nCTX" in with_ctx[-1].content and "Вопрос: Q?" in with_ctx[-1].content
-    without = build_messages([], "", "Q?")
-    assert without[-1].content == "Q?"
+def test_build_messages_uses_prompt_key():
+    msgs = build_messages([], "CTX", "Q?", prompt_key="optimized")
+    assert msgs[0].role == Role.SYSTEM and msgs[0].content == OPTIMIZED_SYSTEM
+    assert "Контекст:\nCTX" in msgs[-1].content and "Вопрос: Q?" in msgs[-1].content
+    assert build_messages([], "", "Q?", prompt_key="baseline")[-1].content == "Q?"

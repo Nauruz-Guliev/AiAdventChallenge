@@ -16,14 +16,18 @@ def _escape(text: str) -> str:
 
 
 def md_to_telegram_html(text: str) -> str:
+    """Markdown -> Telegram HTML. Только поддерживаемые теги: b,i,u,s,code,pre,a."""
+    if not text:
+        return ""
+
     code_blocks: list[str] = []
 
     def _stash_block(m: re.Match) -> str:
-        code = m.group(1).rstrip("\n")
+        code = m.group(2).rstrip("\n")
         code_blocks.append(f"<pre><code>{_escape(code)}</code></pre>")
         return f"\x00{len(code_blocks) - 1}\x00"
 
-    text = re.sub(r"```[^\n]*\n([\s\S]*?)```", _stash_block, text)
+    text = re.sub(r"```([^\n]*)\n([\s\S]*?)```", _stash_block, text)
 
     inline: list[str] = []
 
@@ -33,12 +37,23 @@ def md_to_telegram_html(text: str) -> str:
 
     text = re.sub(r"`([^`\n]+)`", _stash_inline, text)
     text = _escape(text)
-    text = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", text)
+
+    def _link(m: re.Match) -> str:
+        label, url = m.group(1), m.group(2).replace('"', "%22")
+        return f'<a href="{url}">{label}</a>'
+
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", _link, text)
+    text = re.sub(r"(?m)^[ \t]{0,3}#{1,6}[ \t]*(.+?)[ \t]*$", r"<b>\1</b>", text)
+    text = re.sub(r"\*\*([^*\n]+)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"__([^_\n]+)__", r"<b>\1</b>", text)
+    text = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"<i>\1</i>", text)
+    text = re.sub(r"(?<![A-Za-z0-9_])_([^_\n]+)_(?![A-Za-z0-9_])", r"<i>\1</i>", text)
+    text = re.sub(r"~~([^~\n]+)~~", r"<s>\1</s>", text)
+    text = re.sub(r"(?m)^[ \t]*[-*+][ \t]+", "• ", text)
+
     text = re.sub(r"\x00(\d+)\x00", lambda m: code_blocks[int(m.group(1))], text)
     text = re.sub(r"\x01(\d+)\x01", lambda m: inline[int(m.group(1))], text)
-
-    parts = re.split(r"\n{2,}", text.strip())
-    return "\n".join(f"<p>{p.replace(chr(10), '<br>')}</p>" for p in parts if p.strip())
+    return text.strip()
 
 
 def _close_and_carry(piece: str) -> tuple[str, str]:
