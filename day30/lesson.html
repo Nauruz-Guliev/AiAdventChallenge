@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>День 30 — Приватный LLM-сервис: разбор</title>
+<style>
+  :root { --bg:#0f1117; --panel:#171a23; --line:#262a36; --text:#e7e9ee; --muted:#9aa3b2; --accent:#6ea8fe; --green:#7ee2a8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 "Segoe UI",system-ui,sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 8px; }
+  h2 { font-size: 21px; margin: 40px 0 10px; color: var(--accent); }
+  h3 { font-size: 17px; margin: 24px 0 6px; }
+  p, li { color: var(--text); }
+  .lead { color: var(--muted); font-size: 18px; }
+  code { background: var(--panel); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-family: Consolas,monospace; font-size: 14px; }
+  pre { background: var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; overflow:auto; font-family: Consolas,monospace; font-size:14px; }
+  .card { background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:16px 0; }
+  table { width:100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color: var(--muted); font-weight:600; }
+  .ok { color: var(--green); }
+  .step { border-left:3px solid var(--accent); padding-left:14px; margin:14px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>День 30 — приватный LLM-сервис</h1>
+  <p class="lead">Как локальную модель превратить в сервис: HTTP API, чат, авторизация, лимиты и стабильность под нагрузкой.</p>
+
+  <h2>Идея</h2>
+  <p>Ollama умеет отдавать модель по HTTP, но это <b>рантайм</b>, а не сервис: без авторизации, rate limit, лимита контекста и очереди. Поэтому наружу смотрит <b>FastAPI-шлюз</b>, а Ollama остаётся на <code>localhost</code>.</p>
+
+  <div class="card">
+    <pre>клиент ──HTTP + ключ──► шлюз:8000 ──► Ollama:11434 ──► gemma4:12b
+                        ├─ авторизация
+                        ├─ rate limit (token bucket)
+                        ├─ лимит контекста
+                        └─ очередь (семафор)</pre>
+  </div>
+
+  <h2>Собери сам — по шагам</h2>
+  <div class="step"><b>1.</b> Подними Ollama и модель: <code>ollama pull gemma4:12b</code>.</div>
+  <div class="step"><b>2.</b> Создай venv и поставь зависимости: <code>pip install -r requirements.txt</code>.</div>
+  <div class="step"><b>3.</b> Задай ключ: <code>$env:API_KEYS = "my-secret-key"</code>.</div>
+  <div class="step"><b>4.</b> Запусти шлюз: <code>.\scripts\run_service.ps1</code> → слушает <code>0.0.0.0:8000</code>.</div>
+  <div class="step"><b>5.</b> Проверь сеть: <code>.\scripts\lan_ip.ps1</code> и открой <code>http://&lt;IP&gt;:8000/</code>.</div>
+  <div class="step"><b>6.</b> Нагрузи: <code>python scripts\stability_test.py --requests 24 --workers 12</code>.</div>
+
+  <h2>Базовые ограничения</h2>
+  <table>
+    <tr><th>Ограничение</th><th>Значение</th><th>Ответ при превышении</th></tr>
+    <tr><td>Авторизация</td><td>ключ из окружения</td><td><code>401</code></td></tr>
+    <tr><td>Rate limit</td><td>30/мин, burst 10</td><td><code>429</code> + Retry-After</td></tr>
+    <tr><td>Контекст</td><td>num_ctx 8192</td><td><code>400</code></td></tr>
+    <tr><td>Очередь</td><td>1 активный, очередь 8</td><td><code>503</code> + Retry-After</td></tr>
+  </table>
+
+  <h2>Что показала проверка</h2>
+  <div class="card">
+    <p><span class="ok">Доступ по сети:</span> <code>/health</code> отвечает и на localhost, и по LAN-IP.</p>
+    <p><span class="ok">24 запроса подряд:</span> 46% OK, 50% 429, 4% 503, p50 ≈ 3.2 с, p95 ≈ 4.5 с — сервис не упал.</p>
+    <p><span class="ok">Лимиты:</span> длинный промпт → 400, поток запросов → 429.</p>
+  </div>
+
+  <h2>Почему это «приватно»</h2>
+  <p>Данные не покидают дом: браузер → шлюз на этом же ПК → Ollama. Для доступа извне нужен TLS
+  (проще всего Caddy как reverse proxy) и/или VPN, но модель и вычисления остаются у тебя.</p>
+</main>
+</body>
+</html>
