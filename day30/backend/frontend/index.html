@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Локальный LLM-сервис — День 30</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Локальный LLM-сервис</h1>
+      <span class="badge" id="health">проверяю…</span>
+    </header>
+
+    <aside>
+      <label>API-ключ <input id="key" type="password" placeholder="X-API-Key" /></label>
+      <label>Модель <select id="model"></select></label>
+      <dl id="limits"></dl>
+      <button id="clear" type="button">Очистить чат</button>
+    </aside>
+
+    <main>
+      <div id="messages"></div>
+      <form id="composer">
+        <textarea id="prompt" rows="2" placeholder="Спросите что-нибудь…"></textarea>
+        <button id="send" type="submit">Отправить</button>
+      </form>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
