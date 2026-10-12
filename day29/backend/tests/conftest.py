@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.config import Settings
+from app.domain.models import ABReport
 
 
 class FakeRetriever:
@@ -21,11 +22,12 @@ class FakeRetriever:
 
 
 class FakeLocalLLM:
-    def __init__(self, text="Ответ [1]", fail=False):
+    def __init__(self, text="Ответ [1]", fail=False, models=None):
         self._text = text
         self._fail = fail
+        self._models = models or ["gemma4:12b"]
 
-    async def complete(self, messages, think=False):
+    async def complete(self, messages, think=False, options=None, model=None):
         from app.domain.models import GenerationStats, OllamaUnavailable
         from app.ports.llm import Completion
 
@@ -34,11 +36,14 @@ class FakeLocalLLM:
         return Completion(
             text=self._text,
             stats=GenerationStats(
-                model="gemma4:12b", completion_tokens=10, eval_duration_ns=1_000_000_000
+                model=model or "gemma4:12b",
+                prompt_tokens=10,
+                completion_tokens=10,
+                eval_duration_ns=1_000_000_000,
             ),
         )
 
-    async def stream_chat(self, messages, think=False, options=None):
+    async def stream_chat(self, messages, think=False, options=None, model=None):
         from app.domain.models import GenerationStats
         from app.ports.llm import StreamDelta, StreamDone
 
@@ -46,12 +51,22 @@ class FakeLocalLLM:
             yield StreamDelta(kind="content", text=ch)
         yield StreamDone(
             stats=GenerationStats(
-                model="gemma4:12b", completion_tokens=10, eval_duration_ns=1_000_000_000
+                model=model or "gemma4:12b",
+                completion_tokens=10,
+                eval_duration_ns=1_000_000_000,
             )
         )
 
     async def list_models(self):
-        return []
+        from app.ports.llm import ModelInfo
+
+        return [ModelInfo(name=n) for n in self._models]
+
+    async def tags(self):
+        return [{"name": "gemma4:12b", "size": 8_000_000_000}]
+
+    async def ps(self):
+        return [{"name": "gemma4:12b", "size_vram": 5_000_000_000}]
 
     async def health(self):
         return not self._fail
@@ -61,7 +76,7 @@ class FakeCloudLLM:
     def __init__(self, text="Облачный ответ"):
         self._text = text
 
-    async def complete(self, messages, think=False):
+    async def complete(self, messages, think=False, options=None, model=None):
         from app.ports.llm import Completion
 
         return Completion(text=self._text)
@@ -72,6 +87,24 @@ class FakeJudge:
         return 0.5
 
 
+class FakeABRunner:
+    running = False
+
+    async def run(self, quick=True, on_progress=None):
+        from app.domain.models import CellResult, ResourceSample
+
+        cell = CellResult(
+            "optimized", "q4", "opt", 0.8, 0.0, 1000.0, 0.0, 100.0, 500.0, 0.0, 3, False,
+            ResourceSample(),
+        )
+        return ABReport((cell,), 3, 1, quick)
+
+
 def make_settings(**kw):
-    return Settings(_env_file=None, telegram_bot_token="42:ABC", history_max_messages=4,
-                    history_max_chars=1000, **kw)
+    return Settings(
+        _env_file=None,
+        telegram_bot_token="42:ABC",
+        history_max_messages=4,
+        history_max_chars=1000,
+        **kw,
+    )
