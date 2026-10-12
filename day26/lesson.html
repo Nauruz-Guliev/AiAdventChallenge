@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 26 — Запуск локальной LLM</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0e0f11; color: #edeef0;
+    font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.65; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 48px 22px 96px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  .sub { color: #9ba1a6; margin: 0 0 32px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; border-left: 3px solid #f5c451; padding-left: 12px; }
+  p { color: #d7dadd; }
+  code { font-family: Consolas, monospace; background: #15171a; border: 1px solid #2a2d31;
+    border-radius: 6px; padding: 1px 6px; color: #cfe9df; font-size: .9em; }
+  pre { background: #101215; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 14px 16px; overflow-x: auto; color: #d7dadd; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #2a2d31; }
+  th { color: #9ba1a6; }
+  .card { background: #15171a; border: 1px solid #2a2d31; border-radius: 12px;
+    padding: 16px 18px; margin: 16px 0; }
+  .k { color: #f5c451; font-weight: 600; }
+  .muted { color: #9ba1a6; }
+  ul { color: #d7dadd; }
+  .green { color: #8fe3c0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>День 26 — Запуск локальной LLM</h1>
+  <p class="sub">Модель крутится на вашем компьютере: Ollama + <code>gemma4:12b</code>.
+  Без облака, без API-ключа.</p>
+
+  <h2>Идея</h2>
+  <p>До сих пор каждый день ходил в облачное LLM API (DeepSeek). День 26 другой: мы запускаем
+  модель <b>у себя на компьютере</b> и общаемся с ней без облака. Это и есть <span class="k">локальная LLM</span>.</p>
+
+  <h2>Облако против локальной модели</h2>
+  <table>
+    <tr><th></th><th>Облако (DeepSeek)</th><th>Локальная (Ollama)</th></tr>
+    <tr><td>Где исполняется</td><td>чужие серверы</td><td>ваш компьютер</td></tr>
+    <tr><td>Нужен API-ключ</td><td>да</td><td>нет</td></tr>
+    <tr><td>Нужен интернет</td><td>да</td><td>нет</td></tr>
+    <tr><td>Скорость</td><td>зависит от сети</td><td>зависит от железа</td></tr>
+  </table>
+
+  <h2>Ollama</h2>
+  <p>Ollama — менеджер локальных моделей. Скачивает модели (<code>ollama pull</code>), запускает
+  их и держит HTTP-сервер на <code>http://localhost:11434</code>. Даёт CLI и HTTP API:</p>
+  <pre># CLI
+ollama run gemma4:12b "Привет!"
+
+# HTTP API (то же самое, программно)
+POST http://localhost:11434/api/chat
+{ "model": "gemma4:12b", "messages": [{"role":"user","content":"Привет!"}] }</pre>
+
+  <h2>Три запроса разной сложности</h2>
+  <div class="card">
+    <ul>
+      <li><b>Простой</b> — «Кто ты?» — модель представляется.</li>
+      <li><b>Средний</b> — «Разница между процессом и потоком» — объяснение.</li>
+      <li><b>Сложный</b> — «Функция-палиндром + сложность» — код и O(n)/O(n).</li>
+    </ul>
+  </div>
+
+  <h2>Почему нет MCP и веб-поиска</h2>
+  <p>Базовая LLM — это «текст → текст». MCP и поиск — возможности <span class="k">обвязки-агента</span>,
+  а не самой модели:</p>
+  <ul>
+    <li><b>MCP</b> — протокол, по которому агент подключает инструменты.</li>
+    <li><b>веб-поиск</b> — HTTP-инструмент, который агент вызывает.</li>
+  </ul>
+  <div class="card">
+    <p><code>ollama run</code> или <code>fetch('/api/chat')</code> общаются с «голой» моделью, поэтому
+    инструментов нет — это нормально и <span class="green">не слабость модели</span>. Даже GPT-4 без
+    обвязки не ищет в интернете.</p>
+    <p class="muted">Чтобы локальная модель пользовалась инструментами, её подключают как провайдера
+    к агенту (OpenCode, Claude Code и т.п.): агент даёт MCP и поиск, модель — генерацию текста.</p>
+  </div>
+
+  <h2>Запуск</h2>
+  <pre>ollama pull gemma4:12b                 # скачать модель (один раз)
+ollama run gemma4:12b "Привет!"        # CLI
+
+cd day26
+.\demo.ps1                             # 3 запроса через HTTP API
+
+cd day26/chat
+.\serve.ps1                            # чат на http://localhost:8000</pre>
+
+  <h2>Что дальше</h2>
+  <ul>
+    <li>подключить локальную модель к агенту (OpenCode) и дать ей MCP/веб-поиск;</li>
+    <li>сравнить скорость CPU vs GPU;</li>
+    <li>function calling (у модели есть capability <code>tools</code>).</li>
+  </ul>
+</div>
+</body>
+</html>
