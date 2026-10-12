@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>День 28 — RAG на локальной LLM (разбор)</title>
+<style>
+  :root { --bg:#0e0f11; --card:#15171a; --line:rgba(255,255,255,.09); --fg:#edeef0;
+    --muted:#9ba1a6; --acc:#f5c451; --ok:#8fe3c0; }
+  body { background:var(--bg); color:var(--fg); font-family:'Segoe UI',system-ui,sans-serif;
+    line-height:1.65; max-width:880px; margin:0 auto; padding:40px 20px 90px; }
+  h1 { font-size:28px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 26px; }
+  h2 { font-size:20px; margin:34px 0 10px; border-left:3px solid var(--acc); padding-left:10px; }
+  .card { border:1px solid var(--line); border-radius:14px; background:var(--card);
+    padding:16px 18px; margin:0 0 14px; }
+  code, pre { font-family:Consolas,monospace; }
+  code { font-size:.9em; background:#0b0c0e; border:1px solid var(--line); border-radius:6px;
+    padding:1px 6px; color:#cfe9df; }
+  pre { background:#0b0c0e; border:1px solid var(--line); border-radius:10px; padding:14px;
+    overflow:auto; font-size:13px; }
+  .pipe { color:var(--ok); white-space:pre; font-family:Consolas,monospace; font-size:13px; }
+  ul { padding-left:20px; } li { margin:4px 0; }
+  .note { border-left:3px solid var(--acc); background:#121316; border-radius:8px;
+    padding:10px 14px; color:#c9cdd1; font-size:14px; }
+</style>
+</head>
+<body>
+<h1>День 28 — Telegram-бот с RAG на локальной LLM</h1>
+<p class="sub">Разбор «сделай сам»: локальный retrieval + локальная генерация, сравнение с облаком.</p>
+
+<h2>Идея</h2>
+<div class="card">
+  Соединяем два готовых куска: <b>RAG Недели 6</b> (индекс KMP + эмбеддинги) и
+  <b>локальную модель</b> (Дни 26–27). Retrieval и генерация работают на твоём компьютере,
+  облако — только как «вторая модель» для сравнения и как судья.
+</div>
+
+<h2>Конвейер</h2>
+<pre class="pipe">вопрос → embed (локально)
+       → top-30 → реранк → фильтр(≥0.35) → top-6
+       → gating: релевантность ≥0.60 иначе «не нашёл»
+       → prompt: system + история + контекст[n] + вопрос
+       → gemma4:12b (Ollama, стриминг) → ответ
+       → «📚 Источники» [n] source :: section (score) [+ цитаты]</pre>
+
+<h2>Шаги, чтобы повторить</h2>
+<ol>
+  <li>Собери индекс Дня 21 (если нет): <code>cd day21</code> →
+    <code>.venv\Scripts\python.exe pipeline.py --strategy both --embedder sentence</code>.</li>
+  <li>Установи зависимости Дня 28:
+    <code>cd day28/backend</code> → <code>python -m venv .venv</code> →
+    <code>.venv\Scripts\python.exe -m pip install -r requirements.txt</code>.
+    При ошибке сертификата добавь <code>--trusted-host pypi.org --trusted-host files.pythonhosted.org</code>.</li>
+  <li>Скопируй <code>.env.example</code> в <code>.env</code>, впиши <code>TELEGRAM_BOT_TOKEN</code>
+    (тот же, что в Дне 27) и <code>DEEPSEEK_API_KEY</code> (для сравнения).</li>
+  <li>Останови бота Дня 27 — токен один: <code>.\stop_bot.ps1</code>.</li>
+  <li>Запусти: <code>.\run_bot.ps1</code>. В логе — «Индекс: … (4817 чанков)», «Ollama: OK»,
+    «Bot started. Polling…».</li>
+  <li>В Telegram: <code>/start</code> → задай вопрос → увидишь ответ со стримингом и источники.</li>
+  <li>Нажми <b>⚖️ Сравнить</b> или отправь <code>/compare &lt;вопрос&gt;</code> — рядом локальный
+    и облачный ответ с временем.</li>
+  <li>Отправь <code>/eval</code> — прогресс и таблица «качество / скорость / стабильность».</li>
+  <li><code>/norag</code> — ответ без поиска (контраст «с RAG / без RAG»).</li>
+</ol>
+
+<h2>Почему судья «слепой»</h2>
+<div class="card">
+  Судье дают только вопрос, эталон и ответ — без подписи модели. Иначе в сравнении
+  «локальная против облачной» судья (сам облачный) мог бы подыгрывать своим. Ответ судьи —
+  JSON <code>{"score": 0..1, "reason": "…"}</code>.
+</div>
+
+<h2>Метрики</h2>
+<div class="card">
+  <ul>
+    <li><b>Качество</b> — средняя оценка судьи (0…1) и её разброс σ.</li>
+    <li><b>Скорость</b> — средняя латентность (мс); для локальной — ещё tok/s из Ollama.</li>
+    <li><b>Стабильность</b> — σ балла и σ латентности по прогонам + доля ошибок.</li>
+  </ul>
+  3 прогона на вопрос нужны именно для оценки стабильности: один прогон о ней ничего не говорит.
+</div>
+
+<h2>Если что-то не так</h2>
+<div class="note">
+  <b>Telegram не отвечает</b> — сеть может блокировать Telegram: задай <code>TELEGRAM_API_IP=149.154.167.220</code>
+  в <code>.env</code>.<br>
+  <b>«нет чанков» / IndexNotFound</b> — не собран индекс Дня 21 (<code>INDEX_PATH</code>).<br>
+  <b>Долгий первый ответ</b> — грузится модель эмбеддингов (~470 МБ) и/или gemma в Ollama.<br>
+  <b>Облако «недоступно»</b> — нет <code>DEEPSEEK_API_KEY</code>; локальный режим работает и без него.
+</div>
+</body>
+</html>

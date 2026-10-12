@@ -1,0 +1,167 @@
+# День 28 — Telegram-бот с RAG на локальной LLM
+
+Telegram-бот, который отвечает на вопросы по базе знаний **Kotlin Multiplatform** через RAG,
+**полностью локально**:
+
+- **поиск (retrieval)** — локальные эмбеддинги `paraphrase-multilingual-MiniLM-L12-v2` по
+  готовому индексу Недели 6 (`day21/index/structure.json`, 4817 чанков);
+- **генерация** — локальная модель `gemma4:12b` через Ollama;
+- у каждого ответа — **источники** (и цитаты, если модель их дала).
+
+Плюс прямо в чате можно **сравнить с облачной моделью** (DeepSeek) и получить отчёт
+**качество / скорость / стабильность** по 10 контрольным вопросам.
+
+Стек: aiogram 3 (async) + httpx (Ollama) + openai SDK (DeepSeek) + sentence-transformers +
+pydantic-settings. Архитектура — clean architecture как в других днях.
+
+## Что умеет
+
+- **обычное сообщение** → локальный RAG-ответ со **стримингом** и блоком «📚 Источники»;
+- **inline-кнопки** под ответом: `☁️ Облако`, `⚖️ Сравнить`, `🧪 Прогон 10 вопросов`,
+  `🔄 RAG вкл/выкл`;
+- **память диалога** на каждый чат (переживает перезапуск);
+- **`/eval`** — прогон качества/скорости/стабильности с отчётом прямо в чат;
+- режим **`/norag`** — ответ без поиска (для контраста «с RAG / без RAG»).
+
+## Команды
+
+| Команда | Что делает |
+|---|---|
+| `/start`, `/help` | приветствие и справка |
+| `/new`, `/reset` | очистить историю диалога |
+| `/rag` | отвечать с поиском по базе (по умолчанию) |
+| `/norag` | отвечать без поиска (только знания модели) |
+| `/compare <вопрос>` | локальный и облачный ответ рядом + время каждого |
+| `/eval [N]` | прогон 10 вопросов × N (по умолчанию 3) по 3 режимам |
+| `/think on\|off` | показывать «размышления» локальной модели |
+| `/status` | состояние: модель, индекс, эмбеддер, режим, облако |
+| `/id` | id чата |
+
+## Как работает RAG-ответ
+
+```
+сообщение → embed(вопрос) локально
+  → поиск top-30 → реранк → фильтр (min_sim 0.35) → top-6
+  → gating: релевантность < 0.60 → «не нашёл в базе»
+  → prompt = system + история + контекст [n] + вопрос
+  → gemma4:12b (Ollama, стриминг) → ответ печатается в чат
+  → финал: ответ + «📚 Источники» [n] source :: section (score) [+ цитаты]
+```
+
+`/compare` и `/eval` ищут контекст **один раз** и подают его одинаково локальной и облачной
+модели — сравнивается именно генерация, а не разный retrieval.
+
+## `/eval`: качество / скорость / стабильность
+
+- 10 контрольных KMP-вопросов, **3 прогона** на вопрос (можно `/eval 1` — быстро).
+- Три строки: **Локальная+RAG**, **Облако+RAG**, **Локальная без RAG**.
+- **Качество** — слепая оценка судьи (DeepSeek) 0…1 по единой рубрике; судья не знает,
+  какая модель дала ответ.
+- **Скорость** — средняя латентность; для локальной — tok/s из статистики Ollama.
+- **Стабильность** — разброс балла и латентности (σ) по прогонам + доля ошибок.
+
+## Запуск
+
+Нужны: Python 3.11+, запущенная Ollama с моделью `gemma4:12b`, индекс Дня 21
+(`day21/index/structure.json`) и **токен того же бота, что в Дне 27** (`@AiAdventNauruzBot`).
+
+```powershell
+cd day28/backend
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy .env.example .env        # вставить TELEGRAM_BOT_TOKEN и DEEPSEEK_API_KEY (для сравнения)
+.\run_bot.ps1                    # UTF-8 консоль + запуск (или: .venv\Scripts\python.exe -m app.main)
+```
+
+> Если `pip` падает с `SSL: CERTIFICATE_VERIFY_FAILED` (корпоративный прокси), добавь
+> `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.
+
+> Если сеть блокирует Telegram (DNS отдаёт недоступный IP `api.telegram.org` и соединение
+> рвётся), укажи в `.env` доступный IP Bot API: `TELEGRAM_API_IP=149.154.167.220`. Бот пойдёт
+> к нему, сохранив SNI и сертификат `api.telegram.org`; polling переподключается сам.
+
+> ⚠️ Токен один с Днём 27 — **одновременно два бота запускать нельзя** (конфликт `getUpdates`).
+> Перед запуском Дня 28 останови День 27 (`.\stop_bot.ps1`).
+
+В логе увидишь:
+
+```
+Индекс: ../../day21/index/structure.json (4817 чанков)
+Ollama: OK (http://localhost:11434)
+Модель: gemma4:12b
+Облако: DeepSeek (deepseek-chat) — доступно для сравнения
+Bot started. Polling…
+```
+
+## Тесты
+
+```powershell
+cd day28/backend
+.venv\Scripts\python.exe -m pytest -q
+```
+
+Офлайн-тесты (34): retrieval/реранк/фильтр, gating и сборка промпта, источники и цитаты,
+агрегация бенчмарка и разбор оценки судьи, форматтер, chat store, конфиг, `telegram_net`,
+smoke хендлеров. Сеть и модели не нужны (`FakeEmbedder` + `FakeLLM` + `httpx.MockTransport`).
+
+## Почему это локально
+
+Обычные ответы (по умолчанию) не ходят в облако: вопрос → локальные эмбеддинги → локальный
+поиск → `gemma4:12b` на `localhost:11434`. Облако используется **только** в явных командах
+сравнения (`/compare`, `/eval`) как «вторая модель» и судья. Это видно по футеру ответа
+(`🤖 gemma4:12b · локально · ⚡ tok/s`), по `/status` и по тому, что остановка Ollama
+ломает ответы, а `/norag` отвечает без поиска.
+
+## Структура
+
+```
+day28/
+  README.md  LESSON.md  lesson.html  video-script.html
+  backend/
+    app/
+      main.py                    # entrypoint: config → embedder+индекс → Ollama/DeepSeek → polling
+      config.py                  # pydantic-settings (.env)
+      domain/models.py           # Hit, Citation, RagAnswer, ChatState, EvalRow/Report, ошибки
+      ports/
+        llm.py                   # LLM (complete) + StreamingLLM (stream) + Completion
+        retriever.py             # Retriever (search, similarity)
+        judge.py                 # Judge (score)
+      infrastructure/
+        embeddings.py            # sentence-transformers + FakeEmbedder   [из Дня 25]
+        retrieval.py             # JsonRetriever (numpy cosine)            [из Дня 25]
+        heuristic_reranker.py    # реранк по лексике + фильтр              [из Дня 25]
+        ollama_client.py         # /api/chat: стрим и complete, think      [из Дня 27 + new]
+        deepseek_gateway.py      # облако (openai SDK)                     [новое]
+        chat_store.py            # JSON-история в data/chats/<id>.json    [из Дня 27]
+        telegram_net.py          # обход блокировки TG                     [из Дня 27]
+      application/
+        prompt.py                # system + сборка контекста [n]           [новое]
+        rag_service.py           # retrieve → gate → generate → источники [новое]
+        citation.py              # маркеры [n] + LCS-цитаты                [из Дня 25]
+        judge_deepseek.py        # слепой судья (JSON score)               [новое]
+        benchmark.py             # 10×N×3 строки + агрегация               [новое]
+        formatter.py             # markdown→HTML, split 4096, футер        [из Дня 27]
+      presentation/
+        handlers.py              # команды, кнопки, стриминг, /eval        [новое]
+        keyboards.py             # inline-кнопки                           [новое]
+        streamer.py              # троттлинг edit_text                     [из Дня 27]
+        middlewares.py           # обработка ошибок                        [из Дня 27]
+        messages.py              # тексты, «Источники», отчёт /eval        [новое]
+    tests/                       # 34 офлайн-теста
+```
+
+## Результаты реального прогона
+
+> Заполняется после запуска `/eval` (10 вопросов × 3 × 3 режима).
+
+| Режим | Качество (0..1) | Скорость | Стабильность | Ошибки |
+|---|---|---|---|---|
+| Локальная+RAG | — | — | — | — |
+| Облако+RAG | — | — | — | — |
+| Локальная без RAG | — | — | — | — |
+
+## Материалы
+
+- [`LESSON.md`](./LESSON.md) — конспект: локальный retrieval, gating, слепой судья, метрики.
+- [`lesson.html`](./lesson.html) — подробный разбор «сделай сам» (браузер).
+- [`video-script.html`](./video-script.html) — сухой сценарий видео.
