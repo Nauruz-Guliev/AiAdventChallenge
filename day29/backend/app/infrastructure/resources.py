@@ -37,6 +37,7 @@ class ResourceSampler:
             except Exception:  # noqa: BLE001
                 pass
         self._running = True
+        self._sample()
         self._task = asyncio.create_task(self._loop())
 
     async def _loop(self) -> None:
