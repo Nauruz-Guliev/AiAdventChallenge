@@ -41,6 +41,9 @@ copy .env.example .env        # вставить TELEGRAM_BOT_TOKEN
 .venv\Scripts\python.exe -m app.main
 ```
 
+> Если `pip` падает с `SSL: CERTIFICATE_VERIFY_FAILED` (корпоративный прокси), добавь
+> `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.
+
 В логе увидишь:
 
 ```
