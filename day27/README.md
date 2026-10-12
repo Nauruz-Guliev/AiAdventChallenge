@@ -38,7 +38,7 @@ cd day27/backend
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 copy .env.example .env        # вставить TELEGRAM_BOT_TOKEN
-.venv\Scripts\python.exe -m app.main
+.\run_bot.ps1                    # UTF-8 консоль + запуск (или: .venv\Scripts\python.exe -m app.main)
 ```
 
 > Если `pip` падает с `SSL: CERTIFICATE_VERIFY_FAILED` (корпоративный прокси), добавь
