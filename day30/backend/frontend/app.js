@@ -5,6 +5,12 @@ const messages = $("messages");
 const limits = $("limits");
 const health = $("health");
 
+const urlKey = new URLSearchParams(location.search).get("key");
+if (urlKey) {
+  localStorage.setItem("llm_api_key", urlKey.trim());
+  history.replaceState({}, "", location.pathname);
+}
+
 let history = [];
 
 keyInput.value = localStorage.getItem("llm_api_key") || "";
